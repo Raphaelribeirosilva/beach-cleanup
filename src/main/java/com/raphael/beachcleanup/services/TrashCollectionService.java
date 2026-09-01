@@ -23,4 +23,24 @@ public class TrashCollectionService {
 		Optional<TrashCollection> obj = repository.findById(id);
 		return obj.get();
 	}
+	
+	public TrashCollection insert(TrashCollection obj) {
+		return repository.save(obj);
+	}
+	
+	public void delete(Long id){
+		repository.deleteById(id);
+	}
+	
+	public TrashCollection update(Long id, TrashCollection obj) {
+		TrashCollection entity = repository.getReferenceById(id);
+		updateData(entity, obj);
+		return repository.save(entity);
+	}
+	
+	public void updateData(TrashCollection entity, TrashCollection obj) {
+		entity.setWeithKg(obj.getWeithKg());
+	    entity.setBeach(obj.getBeach());
+	    entity.setMaterialType(obj.getMaterialType());
+	}
 }
