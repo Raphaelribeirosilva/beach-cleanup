@@ -25,6 +25,7 @@ public class VolunteerResource {
 	@Autowired
 	private VolunteerService service;
 	
+	@GetMapping
 	public ResponseEntity<List<Volunteer>> findAll() {
 		List<Volunteer> list = service.findAll();
 		return ResponseEntity.ok().body(list);

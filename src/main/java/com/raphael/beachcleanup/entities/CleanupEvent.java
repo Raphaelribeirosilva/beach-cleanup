@@ -2,12 +2,21 @@ package com.raphael.beachcleanup.entities;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -24,6 +33,14 @@ public class CleanupEvent implements Serializable{
 	private String location;
 	private LocalDateTime dateTime;
 	private String status;
+	
+	@JsonIgnore
+    @ManyToMany(mappedBy = "events")
+	private Set<Volunteer> volunteers = new HashSet<>();
+	
+	@JsonIgnore
+    @OneToMany(mappedBy = "event")
+	private List<TrashCollection> collection = new ArrayList<>();
 	
 	public CleanupEvent() {}
 	
@@ -74,6 +91,12 @@ public class CleanupEvent implements Serializable{
 
 	public void setStatus(String status) {
 		this.status = status;
+	}
+	
+	
+
+	public Set<Volunteer> getVolunteers() {
+		return volunteers;
 	}
 
 	@Override

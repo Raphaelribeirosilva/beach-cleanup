@@ -8,10 +8,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "tb_trashCollection")
+@Table(name = "tb_trash_collection")
 public class TrashCollection implements Serializable{
 	
 	private static final long serialVersionUID = 1L;
@@ -24,6 +26,14 @@ public class TrashCollection implements Serializable{
 	private String materialType;
 	private Double weithKg;
 	private LocalDate regitrationDate;
+	
+	@ManyToOne
+    @JoinColumn(name = "volunteer_id")
+	private Volunteer volunteer;
+	
+	@ManyToOne
+    @JoinColumn(name = "event_id")
+	private CleanupEvent event;
 	
 	public TrashCollection() {}
 
@@ -74,6 +84,23 @@ public class TrashCollection implements Serializable{
 
 	public void setRegitrationDate(LocalDate regitrationDate) {
 		this.regitrationDate = regitrationDate;
+	}
+	
+
+	public Volunteer getVolunteer() {
+		return volunteer;
+	}
+
+	public void setVolunteer(Volunteer volunteer) {
+		this.volunteer = volunteer;
+	}
+
+	public CleanupEvent getEvent() {
+		return event;
+	}
+
+	public void setEvent(CleanupEvent event) {
+		this.event = event;
 	}
 
 	@Override

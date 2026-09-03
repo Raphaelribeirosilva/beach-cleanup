@@ -1,12 +1,22 @@
 package com.raphael.beachcleanup.entities;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -23,6 +33,18 @@ public class Volunteer implements Serializable{
 	private String email;
 	private String password;
 	private Double totalTrashCollecting;
+	
+	@ManyToMany
+    @JoinTable(
+        name = "tb_event_volunteer", 
+        joinColumns = @JoinColumn(name = "volunteer_id"), 
+        inverseJoinColumns = @JoinColumn(name = "event_id")
+    )
+	private Set<CleanupEvent> events = new HashSet<>();
+	
+	@JsonIgnore
+    @OneToMany(mappedBy = "volunteer")
+	private List<TrashCollection> collection = new ArrayList<>();
 	
 	public Volunteer() {}
 
@@ -75,6 +97,14 @@ public class Volunteer implements Serializable{
 		this.totalTrashCollecting = totalTrashCollecting;
 	}
 	
+	public Set<CleanupEvent> getEvents() {
+		return events;
+	}
+
+	public List<TrashCollection> getCollection() {
+		return collection;
+	}
+
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);
