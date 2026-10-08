@@ -24,7 +24,7 @@ public class TestConfig implements CommandLineRunner {
 	CleanupEventRepository eventRepository;
 	
 	@Autowired
-	TrashCollectionRepository collectionRepository;
+	TrashCollectionRepository trashRepository;
 	
 	@Autowired
 	VolunteerRepository volunteerRepository;
@@ -38,7 +38,7 @@ public class TestConfig implements CommandLineRunner {
 	        		"Teste", 
 	        		"Praia do Morro", 
 	        		LocalDateTime.parse("2026-10-15T08:00:00"),
-	        		"Pausado"
+	        		"Pausado"	
         		);
         
         volunteerRepository.saveAll(Arrays.asList(v1));
@@ -53,6 +53,6 @@ public class TestConfig implements CommandLineRunner {
         t1.setVolunteer(v1);
         t1.setEvent(e1);
         
-        collectionRepository.save(t1);
+        trashRepository.save(t1);
     }
 }

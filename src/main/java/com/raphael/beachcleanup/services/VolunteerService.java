@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.raphael.beachcleanup.entities.Volunteer;
+import com.raphael.beachcleanup.exceptions.ResourceNotFoundException;
 import com.raphael.beachcleanup.repositories.VolunteerRepository;
 
 @Service
@@ -21,7 +22,7 @@ public class VolunteerService {
 	
 	public Volunteer findById(Long id) {
 		Optional<Volunteer> obj = repository.findById(id);
-		return obj.get();
+		return obj.orElseThrow(() -> new ResourceNotFoundException(id));
 	}
 	
 	public Volunteer insert(Volunteer obj) {
