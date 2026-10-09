@@ -5,9 +5,8 @@ import java.nio.charset.StandardCharsets;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.server.ResponseStatusException;
+import com.raphael.beachcleanup.exceptions.FieldValidationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.raphael.beachcleanup.entities.Volunteer;
@@ -38,10 +37,10 @@ public class VolunteerService {
     public Volunteer insert(Volunteer obj) {
         String password = obj.getPassword();
         if (password == null || password.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A senha é obrigatória");
+            throw new FieldValidationException("password", "A senha é obrigatória");
         }
         if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            throw new FieldValidationException("password",
                 "A senha deve ter no máximo 72 bytes em UTF-8");
         }
         obj.setPassword(passwordEncoder.encode(password));

@@ -7,9 +7,75 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.ServletWebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @ControllerAdvice
-public class ResourceExceptionHandler {
+public class ResourceExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException e,
+            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        ValidationError err = validationError(((ServletWebRequest) request).getRequest());
+        e.getBindingResult().getFieldErrors().stream()
+            .sorted(java.util.Comparator.comparing(org.springframework.validation.FieldError::getField)
+                .thenComparing(org.springframework.validation.FieldError::getDefaultMessage))
+            .forEach(field -> err.addError(field.getField(), field.getDefaultMessage()));
+        return handleExceptionInternal(e, err, headers, status, request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception e, Object body,
+            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        if (!(body instanceof StandardError)) {
+            String message = switch (status.value()) {
+                case 400 -> "Requisição inválida. Verifique o JSON, os tipos e os parâmetros enviados.";
+                case 404 -> "O recurso solicitado não foi encontrado.";
+                case 405 -> "Método HTTP não permitido para este recurso.";
+                case 406 -> "O formato de resposta solicitado não é suportado.";
+                case 415 -> "Tipo de conteúdo não suportado. Envie application/json.";
+                default -> status.is5xxServerError() ? "Não foi possível processar a requisição."
+                    : "A requisição não pôde ser processada.";
+            };
+            body = new StandardError(Instant.now(), status.value(), reason(status), message,
+                ((ServletWebRequest) request).getRequest().getRequestURI());
+        }
+        return super.handleExceptionInternal(e, body, headers, status, request);
+    }
+
+    @ExceptionHandler(FieldValidationException.class)
+    public ResponseEntity<ValidationError> fieldValidation(FieldValidationException e,
+            HttpServletRequest request) {
+        ValidationError err = validationError(request);
+        err.addError(e.getFieldName(), e.getMessage());
+        return ResponseEntity.badRequest().body(err);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<StandardError> unexpected(Exception e, HttpServletRequest request) {
+        logger.error("Falha inesperada ao processar a requisição", e);
+        return ResponseEntity.internalServerError().body(new StandardError(Instant.now(), 500,
+            "Internal Server Error", "Não foi possível processar a requisição.", request.getRequestURI()));
+    }
+
+    private ValidationError validationError(HttpServletRequest request) {
+        ValidationError err = new ValidationError();
+        err.setTimestamp(Instant.now());
+        err.setStatus(400);
+        err.setError("Validation error");
+        err.setMessage("Verifique os campos informados.");
+        err.setPath(request.getRequestURI());
+        return err;
+    }
+
+    private String reason(HttpStatusCode status) {
+        HttpStatus httpStatus = HttpStatus.resolve(status.value());
+        return httpStatus == null ? "HTTP error" : httpStatus.getReasonPhrase();
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<StandardError> resourceNotFound(ResourceNotFoundException e, HttpServletRequest request) {

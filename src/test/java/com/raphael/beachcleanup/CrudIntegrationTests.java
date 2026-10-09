@@ -157,7 +157,12 @@ class CrudIntegrationTests {
         for (String path : new String[] {"/volunteers", "/cleanupEvent", "/trashCollection"}) {
             mvc.perform(get(path + "/999999")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
-            mvc.perform(put(path + "/999999").contentType(MediaType.APPLICATION_JSON).content("{}"))
+            String validBody = switch (path) {
+                case "/volunteers" -> "{\"name\":\"Ana\",\"email\":\"ana@example.com\"}";
+                case "/cleanupEvent" -> "{\"title\":\"Mutirao\",\"location\":\"Praia A\",\"dateTime\":\"2026-10-15T08:00:00\",\"status\":\"Agendado\"}";
+                default -> "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weithKg\":1,\"regitrationDate\":\"2026-10-15\"}";
+            };
+            mvc.perform(put(path + "/999999").contentType(MediaType.APPLICATION_JSON).content(validBody))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.status").value(404));
             mvc.perform(delete(path + "/999999")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
@@ -265,7 +270,8 @@ class CrudIntegrationTests {
             MvcResult result = mvc.perform(post("/volunteers").contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"name":"Bia","email":"bia@example.com","password":"%s"}
-                    """.formatted(rejected))).andExpect(status().isBadRequest()).andReturn();
+                    """.formatted(rejected))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].fieldName").value("password")).andReturn();
             assertFalse(result.getResponse().getContentAsString().contains(rejected));
         }
         assertEquals(1, volunteers.count());
@@ -284,6 +290,121 @@ class CrudIntegrationTests {
         String dtoJson = objectMapper.writeValueAsString(dto);
         assertFalse(dtoJson.contains("password"));
         assertFalse(dtoJson.contains("senha-de-entrada"));
+    }
+
+
+    @Test
+    void missingAndBlankRequiredFieldsReturnFieldErrorsWithoutSaving() throws Exception {
+        for (String path : new String[] {"/volunteers", "/cleanupEvent", "/trashCollection"}) {
+            for (String body : new String[] {"{}", """
+                {"name":"  ","email":"invalido","password":"  ","title":" ",
+                 "location":" ","status":" ","beach":" ","materialType":" ","weithKg":0}
+                """}) {
+                mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.timestamp").exists()).andExpect(jsonPath("$.path").value(path))
+                    .andExpect(jsonPath("$.error").value("Validation error"))
+                    .andExpect(jsonPath("$.message").exists())
+                    .andExpect(jsonPath("$.errors[0].fieldName").exists())
+                    .andExpect(jsonPath("$.errors[0].message").exists());
+            }
+        }
+        assertEquals(0, volunteers.count());
+        assertEquals(0, events.count());
+        assertEquals(0, collections.count());
+    }
+
+    @Test
+    void invalidUpdatesPreserveAllExistingData() throws Exception {
+        long volunteerId = newVolunteer().getId();
+        long eventId = newEvent().getId();
+        long collectionId = create("/trashCollection", collectionJson(volunteerId, eventId));
+        String hash = volunteers.findById(volunteerId).orElseThrow().getPassword();
+        for (String path : new String[] {"/volunteers/" + volunteerId, "/cleanupEvent/" + eventId,
+                "/trashCollection/" + collectionId}) {
+            mvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isArray());
+        }
+        mvc.perform(put("/volunteers/" + volunteerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Outro nome\",\"email\":\"invalido\"}"))
+            .andExpect(status().isBadRequest());
+        assertEquals("Voluntario original", volunteers.findById(volunteerId).orElseThrow().getName());
+        assertEquals("original@example.com", volunteers.findById(volunteerId).orElseThrow().getEmail());
+        assertEquals(hash, volunteers.findById(volunteerId).orElseThrow().getPassword());
+        assertEquals("Evento original", events.findById(eventId).orElseThrow().getTitle());
+        var saved = collections.findById(collectionId).orElseThrow();
+        assertEquals(2.0, saved.getWeithKg());
+        assertEquals("Praia A", saved.getBeach());
+        assertEquals(LocalDate.parse("2026-10-15"), saved.getRegitrationDate());
+        assertEquals(volunteerId, saved.getVolunteer().getId());
+        assertEquals(eventId, saved.getEvent().getId());
+    }
+
+    @Test
+    void nonPositiveAndNonFiniteWeightsAreRejected() throws Exception {
+        for (String weight : new String[] {"null", "0", "-1", "1e309", "\"NaN\"", "\"Infinity\""}) {
+            String json = "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"regitrationDate\":\"2026-10-15\",\"weithKg\":" + weight + "}";
+            mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400));
+        }
+        assertEquals(0, collections.count());
+    }
+
+    @Test
+    void nestedReferenceValidationUsesFieldPathsAndDoesNotSave() throws Exception {
+        for (String reference : new String[] {"volunteer", "event"}) {
+            for (String idBody : new String[] {"{}", "{\"id\":0}", "{\"id\":-1}"}) {
+                String json = "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weithKg\":1,\"regitrationDate\":\"2026-10-15\",\"" + reference + "\":" + idBody + "}";
+                mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON).content(json))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors[0].fieldName").value(reference + ".id"));
+            }
+        }
+        assertEquals(0, collections.count());
+    }
+
+    @Test
+    void oversizedTextIsRejectedBeforePersistence() throws Exception {
+        String oversized = "a".repeat(256);
+        String[] paths = {"/volunteers", "/cleanupEvent", "/trashCollection"};
+        String[] bodies = {
+            "{\"name\":\"%s\",\"email\":\"ana@example.com\",\"password\":\"senha\"}".formatted(oversized),
+            "{\"title\":\"%s\",\"location\":\"Praia A\",\"dateTime\":\"2026-10-15T08:00:00\",\"status\":\"Agendado\"}".formatted(oversized),
+            "{\"beach\":\"%s\",\"materialType\":\"Vidro\",\"weithKg\":1,\"regitrationDate\":\"2026-10-15\"}".formatted(oversized)
+        };
+        for (int i = 0; i < paths.length; i++) {
+            mvc.perform(post(paths[i]).contentType(MediaType.APPLICATION_JSON).content(bodies[i]))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isArray());
+        }
+        assertEquals(0, volunteers.count());
+        assertEquals(0, events.count());
+        assertEquals(0, collections.count());
+    }
+
+    @Test
+    void malformedRequestsUseStandardErrorsAndDoNotExposeInput() throws Exception {
+        for (String body : new String[] {"", "{", "null", "{\"dateTime\":\"data-invalida\"}"}) {
+            mvc.perform(post("/cleanupEvent").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.timestamp").exists()).andExpect(jsonPath("$.error").exists())
+                .andExpect(jsonPath("$.message").exists()).andExpect(jsonPath("$.path").value("/cleanupEvent"));
+        }
+        mvc.perform(get("/volunteers/id-invalido")).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400));
+        mvc.perform(patch("/volunteers/1").contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isMethodNotAllowed()).andExpect(header().exists("Allow"))
+            .andExpect(jsonPath("$.status").value(405));
+        mvc.perform(post("/volunteers").contentType(MediaType.TEXT_PLAIN).content("segredo"))
+            .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.status").value(415));
+        mvc.perform(get("/rota-inexistente")).andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.status").value(404));
+        String secret = "senha-confidencial";
+        var result = mvc.perform(post("/volunteers").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"password\":\"" + secret + "\",\"name\":{"))
+            .andExpect(status().isBadRequest()).andReturn();
+        assertFalse(result.getResponse().getContentAsString().contains(secret));
+        assertEquals(0, volunteers.count());
+        assertEquals(0, events.count());
     }
 
     private long create(String path, String json) throws Exception {

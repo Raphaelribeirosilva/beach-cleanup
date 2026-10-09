@@ -19,6 +19,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import com.raphael.beachcleanup.dto.VolunteerDTO;
 import com.raphael.beachcleanup.dto.VolunteerInsertDTO;
 import com.raphael.beachcleanup.entities.Volunteer;
+import com.raphael.beachcleanup.dto.VolunteerUpdateDTO;
 import com.raphael.beachcleanup.services.VolunteerService;
 
 import jakarta.validation.Valid;
@@ -61,8 +62,8 @@ public class VolunteerResource {
 	}
 	
 	@PutMapping(value = "/{id}")
-	public ResponseEntity<VolunteerDTO> update(@PathVariable Long id, @RequestBody Volunteer obj){
-		obj = service.update(id, obj);
+	public ResponseEntity<VolunteerDTO> update(@PathVariable Long id, @Valid @RequestBody VolunteerUpdateDTO dto){
+		Volunteer obj = service.update(id, dto.toEntity());
 		return ResponseEntity.ok().body(new VolunteerDTO(obj));
 	}
 }

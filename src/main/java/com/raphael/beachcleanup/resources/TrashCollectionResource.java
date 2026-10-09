@@ -1,6 +1,7 @@
 package com.raphael.beachcleanup.resources;
 
 import java.net.URI;
+import jakarta.validation.Valid;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.raphael.beachcleanup.entities.TrashCollection;
+import com.raphael.beachcleanup.dto.TrashCollectionInputDTO;
 import com.raphael.beachcleanup.dto.TrashCollectionDTO;
 import com.raphael.beachcleanup.services.TrashCollectionService;
 
@@ -39,8 +41,8 @@ public class TrashCollectionResource {
 	}
 	
 	@PostMapping
-	public ResponseEntity<TrashCollectionDTO> insert(@RequestBody TrashCollection obj){
-		obj = service.insert(obj);
+	public ResponseEntity<TrashCollectionDTO> insert(@Valid @RequestBody TrashCollectionInputDTO dto){
+		TrashCollection obj = service.insert(dto.toEntity());
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
 			.buildAndExpand(obj.getId()).toUri();
 		return ResponseEntity.created(uri).body(new TrashCollectionDTO(obj));
@@ -53,8 +55,8 @@ public class TrashCollectionResource {
 	}
 	
 	@PutMapping(value = "/{id}")
-	public ResponseEntity<TrashCollectionDTO> update(@PathVariable Long id, @RequestBody TrashCollection obj){
-		obj = service.update(id, obj);
+	public ResponseEntity<TrashCollectionDTO> update(@PathVariable Long id, @Valid @RequestBody TrashCollectionInputDTO dto){
+		TrashCollection obj = service.update(id, dto.toEntity());
 		return ResponseEntity.ok().body(new TrashCollectionDTO(obj));
 	}
 }

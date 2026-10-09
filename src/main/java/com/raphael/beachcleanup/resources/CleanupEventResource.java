@@ -1,6 +1,7 @@
 package com.raphael.beachcleanup.resources;
 
 import java.net.URI;
+import jakarta.validation.Valid;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.raphael.beachcleanup.entities.CleanupEvent;
+import com.raphael.beachcleanup.dto.CleanupEventInputDTO;
 import com.raphael.beachcleanup.dto.CleanupEventDTO;
 import com.raphael.beachcleanup.services.CleanupEventService;
 
@@ -39,8 +41,8 @@ public class CleanupEventResource {
 	}
 	
 	@PostMapping
-	public ResponseEntity<CleanupEventDTO> insert(@RequestBody CleanupEvent obj){
-		obj = service.insert(obj);
+	public ResponseEntity<CleanupEventDTO> insert(@Valid @RequestBody CleanupEventInputDTO dto){
+		CleanupEvent obj = service.insert(dto.toEntity());
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
 			.buildAndExpand(obj.getId()).toUri();
 		return ResponseEntity.created(uri).body(new CleanupEventDTO(obj));
@@ -53,8 +55,8 @@ public class CleanupEventResource {
 	}
 	
 	@PutMapping(value = "/{id}")
-	public ResponseEntity<CleanupEventDTO> update(@PathVariable Long id, @RequestBody CleanupEvent obj){
-		obj = service.update(id, obj);
+	public ResponseEntity<CleanupEventDTO> update(@PathVariable Long id, @Valid @RequestBody CleanupEventInputDTO dto){
+		CleanupEvent obj = service.update(id, dto.toEntity());
 		return ResponseEntity.ok().body(new CleanupEventDTO(obj));
 	}
 }

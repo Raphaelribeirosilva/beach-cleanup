@@ -11,8 +11,7 @@ import com.raphael.beachcleanup.exceptions.ResourceNotFoundException;
 import com.raphael.beachcleanup.repositories.TrashCollectionRepository;
 import com.raphael.beachcleanup.repositories.CleanupEventRepository;
 import com.raphael.beachcleanup.repositories.VolunteerRepository;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.raphael.beachcleanup.exceptions.FieldValidationException;
 
 @Service
 @Transactional
@@ -69,16 +68,16 @@ public class TrashCollectionService {
     private void resolveReferences(TrashCollection obj) {
         if (obj.getVolunteer() != null) {
             Long volunteerId = obj.getVolunteer().getId();
-            if (volunteerId == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe volunteer.id");
+            if (volunteerId == null || volunteerId <= 0) {
+                throw new FieldValidationException("volunteer.id", "Informe um ID positivo para o vínculo");
             }
             obj.setVolunteer(volunteerRepository.findById(volunteerId)
                 .orElseThrow(() -> new ResourceNotFoundException(volunteerId)));
         }
         if (obj.getEvent() != null) {
             Long eventId = obj.getEvent().getId();
-            if (eventId == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe event.id");
+            if (eventId == null || eventId <= 0) {
+                throw new FieldValidationException("event.id", "Informe um ID positivo para o vínculo");
             }
             obj.setEvent(eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException(eventId)));

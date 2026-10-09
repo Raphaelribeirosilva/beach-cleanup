@@ -1,16 +1,19 @@
 package com.raphael.beachcleanup.dto;
 
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class VolunteerInsertDTO {
 	 
 	@NotBlank(message = "O nome é obrigatório")
+	@Size(max = 255, message = "O nome deve ter no máximo 255 caracteres")
 	private String name;
 	
 	@NotBlank(message = "O e-mail é obrigatório")
 	@Email(message = "Formato de e-mail inválido")
+	@Size(max = 255, message = "O e-mail deve ter no máximo 255 caracteres")
 	private String email;
 	
 	@NotBlank(message = "A senha é obrigatória")
