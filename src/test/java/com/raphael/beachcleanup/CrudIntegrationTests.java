@@ -3,6 +3,8 @@ package com.raphael.beachcleanup;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -56,7 +58,8 @@ class CrudIntegrationTests {
         collections.deleteAll();
         volunteers.deleteAll();
         events.deleteAll();
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+            .defaultRequest(get("/").with(user("admin").roles("ADMIN"))).build();
     }
 
     @Test
@@ -424,7 +427,8 @@ class CrudIntegrationTests {
     }
 
     private Volunteer newVolunteer() {
-        return volunteerService.insert(new Volunteer(null, "Voluntario original", "original@example.com",
+        String email = volunteers.count() == 0 ? "original@example.com" : "original" + volunteers.count() + "@example.com";
+        return volunteerService.insert(new Volunteer(null, "Voluntario original", email,
             "senha-inicial", 0.0));
     }
 

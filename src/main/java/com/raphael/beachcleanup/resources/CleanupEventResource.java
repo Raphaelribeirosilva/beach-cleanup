@@ -2,6 +2,7 @@ package com.raphael.beachcleanup.resources;
 
 import java.net.URI;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +42,7 @@ public class CleanupEventResource {
 	}
 	
 	@PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<CleanupEventDTO> insert(@Valid @RequestBody CleanupEventInputDTO dto){
 		CleanupEvent obj = service.insert(dto.toEntity());
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
@@ -49,12 +51,14 @@ public class CleanupEventResource {
 	}
 	
 	@DeleteMapping(value = "/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<Void> delete(@PathVariable Long id){
 		service.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 	
 	@PutMapping(value = "/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<CleanupEventDTO> update(@PathVariable Long id, @Valid @RequestBody CleanupEventInputDTO dto){
 		CleanupEvent obj = service.update(id, dto.toEntity());
 		return ResponseEntity.ok().body(new CleanupEventDTO(obj));

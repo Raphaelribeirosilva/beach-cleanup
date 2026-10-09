@@ -19,6 +19,9 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Column;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 
 @Entity
 @Table(name = "tb_volunteer")
@@ -31,7 +34,11 @@ public class Volunteer implements Serializable{
 	private Long id;
 	
 	private String name;
+	@Column(nullable = false, unique = true)
 	private String email;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private VolunteerRole role = VolunteerRole.VOLUNTEER;
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
 	private Double totalTrashCollecting;
@@ -86,6 +93,14 @@ public class Volunteer implements Serializable{
 	public String getPassword() {
 		return password;
 	}
+
+    public VolunteerRole getRole() {
+        return role;
+    }
+
+    public void setRole(VolunteerRole role) {
+        this.role = role;
+    }
 
 	public void setPassword(String password) {
 		this.password = password;

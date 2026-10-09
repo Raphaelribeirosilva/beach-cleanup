@@ -17,6 +17,27 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @ControllerAdvice
 public class ResourceExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<StandardError> authentication(
+            org.springframework.security.core.AuthenticationException e, HttpServletRequest request) {
+        return ResponseEntity.status(401).header("WWW-Authenticate", "Bearer")
+            .body(new StandardError(Instant.now(), 401, "Unauthorized",
+                "Autenticação necessária ou credenciais inválidas.", request.getRequestURI()));
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<StandardError> accessDenied(
+            org.springframework.security.access.AccessDeniedException e, HttpServletRequest request) {
+        return ResponseEntity.status(403).body(new StandardError(Instant.now(), 403, "Forbidden",
+            "Você não tem permissão para acessar este recurso.", request.getRequestURI()));
+    }
+
+    @ExceptionHandler(EmailConflictException.class)
+    public ResponseEntity<StandardError> emailConflict(EmailConflictException e, HttpServletRequest request) {
+        return ResponseEntity.status(409).body(new StandardError(Instant.now(), 409, "Email conflict",
+            e.getMessage(), request.getRequestURI()));
+    }
+
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException e,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {

@@ -10,6 +10,8 @@ import com.raphael.beachcleanup.exceptions.FieldValidationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.raphael.beachcleanup.entities.Volunteer;
+import com.raphael.beachcleanup.entities.VolunteerRole;
+import com.raphael.beachcleanup.exceptions.EmailConflictException;
 import com.raphael.beachcleanup.exceptions.ResourceNotFoundException;
 import com.raphael.beachcleanup.repositories.VolunteerRepository;
 
@@ -35,6 +37,12 @@ public class VolunteerService {
     }
 
     public Volunteer insert(Volunteer obj) {
+        String email = normalizeEmail(obj.getEmail());
+        if (repository.existsByEmail(email)) {
+            throw new EmailConflictException();
+        }
+        obj.setEmail(email);
+        obj.setRole(VolunteerRole.VOLUNTEER);
         String password = obj.getPassword();
         if (password == null || password.isBlank()) {
             throw new FieldValidationException("password", "A senha é obrigatória");
@@ -58,6 +66,11 @@ public class VolunteerService {
 
     public Volunteer update(Long id, Volunteer obj) {
         Volunteer entity = findById(id);
+        String email = normalizeEmail(obj.getEmail());
+        if (repository.existsByEmailAndIdNot(email, id)) {
+            throw new EmailConflictException();
+        }
+        obj.setEmail(email);
         updateData(entity, obj);
         return repository.save(entity);
     }
@@ -65,5 +78,9 @@ public class VolunteerService {
     private void updateData(Volunteer entity, Volunteer obj) {
         entity.setName(obj.getName());
         entity.setEmail(obj.getEmail());
+    }
+
+    public static String normalizeEmail(String email) {
+        return email == null ? null : email.strip().toLowerCase(java.util.Locale.ROOT);
     }
 }

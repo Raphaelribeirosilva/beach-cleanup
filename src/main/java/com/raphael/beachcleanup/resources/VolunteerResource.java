@@ -23,6 +23,7 @@ import com.raphael.beachcleanup.dto.VolunteerUpdateDTO;
 import com.raphael.beachcleanup.services.VolunteerService;
 
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping(value = "/volunteers")
@@ -32,6 +33,7 @@ public class VolunteerResource {
 	private VolunteerService service;
 	
 	@GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<List<VolunteerDTO>> findAll() {
 		
 		List<Volunteer> list = service.findAll();
@@ -40,6 +42,7 @@ public class VolunteerResource {
 	}
 	
 	@GetMapping(value = "/{id}")
+    @PreAuthorize("@accessPolicy.canAccessVolunteer(#id)")
 	public ResponseEntity<VolunteerDTO> findById(@PathVariable Long id) {
 		Volunteer obj = service.findById(id);
 		return ResponseEntity.ok().body(new VolunteerDTO(obj));
@@ -56,12 +59,14 @@ public class VolunteerResource {
     }
 	
 	@DeleteMapping(value = "/{id}")
+    @PreAuthorize("@accessPolicy.canAccessVolunteer(#id)")
 	public ResponseEntity<Void> delete(@PathVariable Long id){
 		service.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 	
 	@PutMapping(value = "/{id}")
+    @PreAuthorize("@accessPolicy.canAccessVolunteer(#id)")
 	public ResponseEntity<VolunteerDTO> update(@PathVariable Long id, @Valid @RequestBody VolunteerUpdateDTO dto){
 		Volunteer obj = service.update(id, dto.toEntity());
 		return ResponseEntity.ok().body(new VolunteerDTO(obj));

@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.raphael.beachcleanup.entities.CleanupEvent;
 import com.raphael.beachcleanup.entities.TrashCollection;
 import com.raphael.beachcleanup.entities.Volunteer;
+import com.raphael.beachcleanup.entities.VolunteerRole;
 import com.raphael.beachcleanup.repositories.CleanupEventRepository;
 import com.raphael.beachcleanup.repositories.TrashCollectionRepository;
 import com.raphael.beachcleanup.repositories.VolunteerRepository;
@@ -37,6 +38,7 @@ public class TestConfig implements CommandLineRunner {
     public void run(String... args) throws Exception {
         Volunteer v1 = new Volunteer(null, "Raphael", "admin-original@example.com",
                 passwordEncoder.encode("demo-original7!"), 20.0);
+        v1.setRole(VolunteerRole.ADMIN);
         
         CleanupEvent e1 = new CleanupEvent(
 	        		null,
