@@ -15,17 +15,17 @@ import com.raphael.beachcleanup.dto.LoginDTO;
 import com.raphael.beachcleanup.dto.TokenDTO;
 import com.raphael.beachcleanup.dto.ChangePasswordDTO;
 import com.raphael.beachcleanup.exceptions.FieldValidationException;
-import com.raphael.beachcleanup.repositories.VolunteerRepository;
+import com.raphael.beachcleanup.repositories.UserRepository;
 
 @Service
 public class AuthService {
-    private final VolunteerRepository volunteers;
+    private final UserRepository users;
     private final PasswordEncoder passwords;
     private final JwtEncoder encoder;
     private final String dummyHash;
 
-    public AuthService(VolunteerRepository volunteers, PasswordEncoder passwords, JwtEncoder encoder) {
-        this.volunteers = volunteers;
+    public AuthService(UserRepository users, PasswordEncoder passwords, JwtEncoder encoder) {
+        this.users = users;
         this.passwords = passwords;
         this.encoder = encoder;
         this.dummyHash = passwords.encode(UUID.randomUUID().toString());
@@ -33,14 +33,14 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public TokenDTO login(LoginDTO input) {
-        var volunteer = volunteers.findByEmail(VolunteerService.normalizeEmail(input.email()));
-        String hash = volunteer.map(value -> value.getPassword()).orElse(dummyHash);
+        var foundAccount = users.findByEmail(UserService.normalizeEmail(input.email()));
+        String hash = foundAccount.map(value -> value.getPassword()).orElse(dummyHash);
         boolean matches = input.password().getBytes(StandardCharsets.UTF_8).length <= 72
             && passwords.matches(input.password(), hash);
-        if (!matches || volunteer.isEmpty()) {
+        if (!matches || foundAccount.isEmpty()) {
             throw new BadCredentialsException("Credenciais inválidas");
         }
-        var account = volunteer.orElseThrow();
+        var account = foundAccount.orElseThrow();
         Instant now = Instant.now();
         var claims = JwtClaimsSet.builder().issuer(JwtConfig.ISSUER).audience(List.of(JwtConfig.AUDIENCE))
             .subject(account.getId().toString()).issuedAt(now).notBefore(now)
@@ -58,7 +58,7 @@ public class AuthService {
             throw new BadCredentialsException("Credenciais inválidas");
         }
         long id = Long.parseLong(principal.getSubject());
-        var account = volunteers.findById(id).orElseThrow(
+        var account = users.findById(id).orElseThrow(
             () -> new BadCredentialsException("Credenciais inválidas"));
         Long credentialVersion = JwtConfig.credentialVersion(principal);
         if (credentialVersion == null || credentialVersion != account.getCredentialVersion()
@@ -79,6 +79,6 @@ public class AuthService {
         }
         account.setPassword(passwords.encode(newPassword));
         account.setCredentialVersion(Math.incrementExact(account.getCredentialVersion()));
-        volunteers.saveAndFlush(account);
+        users.saveAndFlush(account);
     }
 }

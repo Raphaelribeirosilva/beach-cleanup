@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class VolunteerInsertDTO {
+public class UserInsertDTO {
 	 
 	@NotBlank(message = "O nome é obrigatório")
 	@Size(max = 255, message = "O nome deve ter no máximo 255 caracteres")
@@ -20,9 +20,9 @@ public class VolunteerInsertDTO {
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
 	
-	public VolunteerInsertDTO() {}
+	public UserInsertDTO() {}
 
-	public VolunteerInsertDTO(String name,String email,String password) {
+	public UserInsertDTO(String name,String email,String password) {
 		super();
 		this.name = name;
 		this.email = email;

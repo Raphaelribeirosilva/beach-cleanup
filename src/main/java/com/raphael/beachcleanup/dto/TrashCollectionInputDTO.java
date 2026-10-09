@@ -3,7 +3,7 @@ package com.raphael.beachcleanup.dto;
 import java.time.LocalDate;
 import com.raphael.beachcleanup.entities.CleanupEvent;
 import com.raphael.beachcleanup.entities.TrashCollection;
-import com.raphael.beachcleanup.entities.Volunteer;
+import com.raphael.beachcleanup.entities.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.NotBlank;
@@ -18,15 +18,15 @@ public record TrashCollectionInputDTO(
         @Size(max = 255, message = "O material deve ter no máximo 255 caracteres") String materialType,
         @NotNull(message = "O peso é obrigatório")
         @Positive(message = "O peso deve ser maior que zero")
-        @DecimalMax(value = "1.7976931348623157E308", message = "O peso deve ser finito") Double weithKg,
-        @NotNull(message = "A data de registro é obrigatória") LocalDate regitrationDate,
+        @DecimalMax(value = "1.7976931348623157E308", message = "O peso deve ser finito") Double weightKg,
+        @NotNull(message = "A data de registro é obrigatória") LocalDate registrationDate,
         @Valid ResourceReferenceDTO volunteer,
         @Valid ResourceReferenceDTO event) {
 
     public TrashCollection toEntity() {
-        TrashCollection entity = new TrashCollection(null, beach, materialType, weithKg, regitrationDate);
+        TrashCollection entity = new TrashCollection(null, beach, materialType, weightKg, registrationDate);
         if (volunteer != null) {
-            Volunteer reference = new Volunteer();
+            User reference = new User();
             reference.setId(volunteer.id());
             entity.setVolunteer(reference);
         }

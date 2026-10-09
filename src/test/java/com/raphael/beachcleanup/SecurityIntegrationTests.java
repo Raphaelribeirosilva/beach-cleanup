@@ -22,7 +22,7 @@ import org.springframework.web.context.WebApplicationContext;
 import com.raphael.beachcleanup.config.JwtConfig;
 import com.raphael.beachcleanup.entities.*;
 import com.raphael.beachcleanup.repositories.*;
-import com.raphael.beachcleanup.services.VolunteerService;
+import com.raphael.beachcleanup.services.UserService;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {
@@ -31,10 +31,10 @@ import tools.jackson.databind.ObjectMapper;
 })
 class SecurityIntegrationTests {
     @Autowired WebApplicationContext context;
-    @Autowired VolunteerRepository volunteers;
+    @Autowired UserRepository users;
     @Autowired CleanupEventRepository events;
     @Autowired TrashCollectionRepository collections;
-    @Autowired VolunteerService volunteerService;
+    @Autowired UserService userService;
     @Autowired JwtEncoder encoder;
     @Autowired JwtDecoder decoder;
     @Autowired ObjectMapper mapper;
@@ -43,24 +43,25 @@ class SecurityIntegrationTests {
     @BeforeEach
     void setUp() {
         collections.deleteAll();
-        volunteers.deleteAll();
+        users.deleteAll();
         events.deleteAll();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
     @Test
     void registrationAndLoginIssueUsableTokenWithoutAllowingRoleEscalation() throws Exception {
-        var registration = mvc.perform(post("/volunteers").contentType(MediaType.APPLICATION_JSON).content("""
+        var registration = mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content("""
             {"name":"Ana","email":"ANA@EXAMPLE.COM","password":"senha-segura","role":"ADMIN"}
             """)).andExpect(status().isCreated()).andExpect(jsonPath("$.email").value("ana@example.com"))
             .andExpect(jsonPath("$..password").isEmpty()).andReturn();
         long id = mapper.readTree(registration.getResponse().getContentAsString()).get("id").asLong();
-        assertEquals(VolunteerRole.VOLUNTEER, volunteers.findById(id).orElseThrow().getRole());
+        assertEquals(UserRole.VOLUNTEER, users.findById(id).orElseThrow().getRole());
         var login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
             {"email":"ANA@EXAMPLE.COM","password":"senha-segura"}
             """)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(jsonPath("$.tokenType").value("Bearer")).andExpect(jsonPath("$.expiresIn").value(900))
-            .andExpect(jsonPath("$.volunteerId").value(id)).andExpect(jsonPath("$.role").value("VOLUNTEER"))
+            .andExpect(jsonPath("$.userId").value(id)).andExpect(jsonPath("$.volunteerId").doesNotExist())
+            .andExpect(jsonPath("$.role").value("VOLUNTEER"))
             .andExpect(jsonPath("$..password").isEmpty()).andReturn();
         assertNull(login.getResponse().getCookie("JSESSIONID"));
         String token = mapper.readTree(login.getResponse().getContentAsString()).get("accessToken").asText();
@@ -70,9 +71,9 @@ class SecurityIntegrationTests {
         assertEquals(List.of(JwtConfig.AUDIENCE), jwt.getAudience());
         assertEquals(900, java.time.Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt()).getSeconds());
         assertFalse(jwt.getClaims().containsKey("password"));
-        mvc.perform(get("/volunteers/" + id).header("Authorization", "Bearer " + token))
+        mvc.perform(get("/users/" + id).header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
-        mvc.perform(get("/volunteers").header("Authorization", "Bearer " + token))
+        mvc.perform(get("/users").header("Authorization", "Bearer " + token))
             .andExpect(status().isForbidden()).andExpect(jsonPath("$.status").value(403));
     }
 
@@ -80,7 +81,7 @@ class SecurityIntegrationTests {
     void anonymousAndBadCredentialsReturnConsistentErrors() throws Exception {
         account("ana@example.com", false);
         mvc.perform(get("/cleanupEvent")).andExpect(status().isOk());
-        for (String path : new String[] {"/volunteers", "/volunteers/1", "/trashCollection", "/h2-console/"}) {
+        for (String path : new String[] {"/users", "/users/1", "/trashCollection"}) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate", "Bearer"))
                 .andExpect(jsonPath("$.timestamp").exists()).andExpect(jsonPath("$.status").value(401))
@@ -108,14 +109,14 @@ class SecurityIntegrationTests {
     }
 
     @Test
-    void volunteersCannotReadOrChangeOtherProfilesOrEvents() throws Exception {
-        Volunteer first = account("first@example.com", false);
-        Volunteer second = account("second@example.com", false);
+    void usersCannotReadOrChangeOtherProfilesOrEvents() throws Exception {
+        User first = account("first@example.com", false);
+        User second = account("second@example.com", false);
         String token = login("first@example.com");
         long eventId = events.save(new CleanupEvent(null, "Mutirao", "Praia A",
             LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado")).getId();
         for (String method : new String[] {"GET", "PUT", "DELETE"}) {
-            var request = request(org.springframework.http.HttpMethod.valueOf(method), "/volunteers/" + second.getId());
+            var request = request(org.springframework.http.HttpMethod.valueOf(method), "/users/" + second.getId());
             mvc.perform(request.header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Alterado\",\"email\":\"alterado@example.com\"}"))
                 .andExpect(status().isForbidden());
@@ -126,15 +127,15 @@ class SecurityIntegrationTests {
             .contentType(MediaType.APPLICATION_JSON).content(eventJson())).andExpect(status().isForbidden());
         mvc.perform(delete("/cleanupEvent/" + eventId).header("Authorization", "Bearer " + token))
             .andExpect(status().isForbidden());
-        mvc.perform(put("/volunteers/" + first.getId()).header("Authorization", "Bearer " + token)
+        mvc.perform(put("/users/" + first.getId()).header("Authorization", "Bearer " + token)
             .contentType(MediaType.APPLICATION_JSON)
             .content("{\"name\":\"Nome novo\",\"email\":\"new@example.com\",\"role\":\"ADMIN\"}"))
             .andExpect(status().isOk());
-        assertEquals(VolunteerRole.VOLUNTEER, volunteers.findById(first.getId()).orElseThrow().getRole());
-        assertEquals("second@example.com", volunteers.findById(second.getId()).orElseThrow().getEmail());
-        mvc.perform(get("/volunteers/" + first.getId()).header("Authorization", "Bearer " + token))
+        assertEquals(UserRole.VOLUNTEER, users.findById(first.getId()).orElseThrow().getRole());
+        assertEquals("second@example.com", users.findById(second.getId()).orElseThrow().getEmail());
+        mvc.perform(get("/users/" + first.getId()).header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
-        mvc.perform(delete("/volunteers/" + first.getId()).header("Authorization", "Bearer " + token))
+        mvc.perform(delete("/users/" + first.getId()).header("Authorization", "Bearer " + token))
             .andExpect(status().isNoContent());
         mvc.perform(get("/trashCollection").header("Authorization", "Bearer " + token))
             .andExpect(status().isUnauthorized());
@@ -142,8 +143,8 @@ class SecurityIntegrationTests {
 
     @Test
     void collectionOwnershipIsBoundFilteredAndCannotBeTransferred() throws Exception {
-        Volunteer first = account("first@example.com", false);
-        Volunteer second = account("second@example.com", false);
+        User first = account("first@example.com", false);
+        User second = account("second@example.com", false);
         String firstToken = login("first@example.com");
         String secondToken = login("second@example.com");
         long id = createCollection(firstToken, collectionJson(""));
@@ -174,9 +175,9 @@ class SecurityIntegrationTests {
 
     @Test
     void administratorsManageEventsAndAllCollectionsAndDemotionTakesEffectImmediately() throws Exception {
-        Volunteer admin = account("admin@example.com", true);
+        User admin = account("admin@example.com", true);
         String token = login("admin@example.com");
-        mvc.perform(get("/volunteers").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+        mvc.perform(get("/users").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
         var result = mvc.perform(post("/cleanupEvent").header("Authorization", "Bearer " + token)
             .contentType(MediaType.APPLICATION_JSON).content(eventJson())).andExpect(status().isCreated()).andReturn();
         long id = mapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
@@ -187,14 +188,14 @@ class SecurityIntegrationTests {
             .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
         mvc.perform(delete("/cleanupEvent/" + id).header("Authorization", "Bearer " + token))
             .andExpect(status().isNoContent());
-        admin.setRole(VolunteerRole.VOLUNTEER);
-        volunteers.save(admin);
-        mvc.perform(get("/volunteers").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
+        admin.setRole(UserRole.VOLUNTEER);
+        users.save(admin);
+        mvc.perform(get("/users").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
     }
 
     @Test
     void invalidExpiredAndWronglySignedTokensAreRejectedAndClaimsCannotGrantRoles() throws Exception {
-        Volunteer account = account("ana@example.com", false);
+        User account = account("ana@example.com", false);
         String id = account.getId().toString();
         Instant now = Instant.now();
         var claims = JwtClaimsSet.builder().issuer(JwtConfig.ISSUER).audience(List.of(JwtConfig.AUDIENCE))
@@ -216,37 +217,37 @@ class SecurityIntegrationTests {
                 .subject(id).issuedAt(now).expiresAt(now.plusSeconds(900)).build())
         };
         for (String token : invalid) {
-            mvc.perform(get("/volunteers/" + id).header("Authorization", "Bearer " + token))
+            mvc.perform(get("/users/" + id).header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.status").value(401));
         }
         String forgedRole = encode(encoder, JwtClaimsSet.from(claims).claim("role", "ADMIN").build());
-        mvc.perform(get("/volunteers").header("Authorization", "Bearer " + forgedRole))
+        mvc.perform(get("/users").header("Authorization", "Bearer " + forgedRole))
             .andExpect(status().isForbidden());
     }
 
     @Test
     void duplicateEmailIsRejectedAndFailedUpdatePreservesTheAccount() throws Exception {
-        Volunteer first = account("ana@example.com", false);
-        Volunteer second = account("bia@example.com", false);
-        mvc.perform(post("/volunteers").contentType(MediaType.APPLICATION_JSON)
+        User first = account("ana@example.com", false);
+        User second = account("bia@example.com", false);
+        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
             .content("{\"name\":\"Outra Ana\",\"email\":\"ANA@EXAMPLE.COM\",\"password\":\"senha-segura\"}"))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("Email conflict"));
         String token = login("bia@example.com");
-        mvc.perform(put("/volunteers/" + second.getId()).header("Authorization", "Bearer " + token)
+        mvc.perform(put("/users/" + second.getId()).header("Authorization", "Bearer " + token)
             .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Alterado\",\"email\":\"ANA@EXAMPLE.COM\"}"))
             .andExpect(status().isConflict());
-        assertEquals(2, volunteers.count());
-        assertEquals("bia@example.com", volunteers.findById(second.getId()).orElseThrow().getEmail());
-        assertEquals("ana@example.com", volunteers.findById(first.getId()).orElseThrow().getEmail());
+        assertEquals(2, users.count());
+        assertEquals("bia@example.com", users.findById(second.getId()).orElseThrow().getEmail());
+        assertEquals("ana@example.com", users.findById(first.getId()).orElseThrow().getEmail());
     }
 
-    private Volunteer account(String email, boolean admin) {
-        Volunteer volunteer = volunteerService.insert(new Volunteer(null, "Voluntario", email, "senha-segura", 0.0));
+    private User account(String email, boolean admin) {
+        User account = userService.insert(new User(null, "Voluntario", email, "senha-segura", 0.0));
         if (admin) {
-            volunteer.setRole(VolunteerRole.ADMIN);
-            volunteer = volunteers.save(volunteer);
+            account.setRole(UserRole.ADMIN);
+            account = users.save(account);
         }
-        return volunteer;
+        return account;
     }
 
     private String login(String email) throws Exception {
@@ -268,7 +269,7 @@ class SecurityIntegrationTests {
     }
 
     private String collectionJson(String reference) {
-        return "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weithKg\":1,\"regitrationDate\":\"2026-10-15\"" + reference + "}";
+        return "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weightKg\":1,\"registrationDate\":\"2026-10-15\"" + reference + "}";
     }
 
     private String eventJson() {

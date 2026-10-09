@@ -23,10 +23,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import com.raphael.beachcleanup.config.JwtConfig;
 import com.raphael.beachcleanup.dto.ChangePasswordDTO;
-import com.raphael.beachcleanup.entities.Volunteer;
-import com.raphael.beachcleanup.entities.VolunteerRole;
+import com.raphael.beachcleanup.entities.User;
+import com.raphael.beachcleanup.entities.UserRole;
 import com.raphael.beachcleanup.repositories.*;
-import com.raphael.beachcleanup.services.VolunteerService;
+import com.raphael.beachcleanup.services.UserService;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {
@@ -34,10 +34,10 @@ import tools.jackson.databind.ObjectMapper;
 })
 class PasswordChangeIntegrationTests {
     @Autowired WebApplicationContext context;
-    @Autowired VolunteerRepository volunteers;
+    @Autowired UserRepository users;
     @Autowired CleanupEventRepository events;
     @Autowired TrashCollectionRepository collections;
-    @Autowired VolunteerService volunteerService;
+    @Autowired UserService userService;
     @Autowired PasswordEncoder passwords;
     @Autowired JwtEncoder encoder;
     @Autowired JwtDecoder decoder;
@@ -47,15 +47,15 @@ class PasswordChangeIntegrationTests {
     @BeforeEach
     void setUp() {
         collections.deleteAll();
-        volunteers.deleteAll();
+        users.deleteAll();
         events.deleteAll();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
     @Test
     void changingPasswordRevokesAllPreviousTokensAndPreservesOtherAccountsAndProfile() throws Exception {
-        Volunteer account = account("ana@example.com", "senha-inicial");
-        Volunteer other = account("bia@example.com", "outra-senha");
+        User account = account("ana@example.com", "senha-inicial");
+        User other = account("bia@example.com", "outra-senha");
         String oldHash = account.getPassword();
         String otherHash = other.getPassword();
         String first = login("ana@example.com", "senha-inicial");
@@ -64,39 +64,39 @@ class PasswordChangeIntegrationTests {
         mvc.perform(put("/auth/password").header("Authorization", "Bearer " + first)
             .contentType(MediaType.APPLICATION_JSON).content("""
                 {"currentPassword":"senha-inicial","newPassword":"senha-nova",
-                 "volunteerId":%d,"role":"ADMIN","credentialVersion":999}
+                 "userId":%d,"role":"ADMIN","credentialVersion":999}
                 """.formatted(other.getId())))
             .andExpect(status().isNoContent()).andExpect(content().string(""));
-        var saved = volunteers.findById(account.getId()).orElseThrow();
+        var saved = users.findById(account.getId()).orElseThrow();
         assertNotEquals(oldHash, saved.getPassword());
         assertTrue(passwords.matches("senha-nova", saved.getPassword()));
         assertFalse(passwords.matches("senha-inicial", saved.getPassword()));
         assertEquals(1, saved.getCredentialVersion());
         assertEquals(account.getName(), saved.getName());
         assertEquals(account.getEmail(), saved.getEmail());
-        assertEquals(VolunteerRole.VOLUNTEER, saved.getRole());
-        assertEquals(0.0, saved.getTotalTrashCollecting());
-        assertEquals(otherHash, volunteers.findById(other.getId()).orElseThrow().getPassword());
+        assertEquals(UserRole.VOLUNTEER, saved.getRole());
+        assertEquals(0.0, saved.getTotalCollectedKg());
+        assertEquals(otherHash, users.findById(other.getId()).orElseThrow().getPassword());
         for (String token : new String[] {first, second}) {
-            mvc.perform(get("/volunteers/" + account.getId()).header("Authorization", "Bearer " + token))
+            mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.status").value(401));
             change(token, "senha-nova", "senha-terceira", 401);
         }
-        mvc.perform(get("/volunteers/" + other.getId()).header("Authorization", "Bearer " + otherToken))
+        mvc.perform(get("/users/" + other.getId()).header("Authorization", "Bearer " + otherToken))
             .andExpect(status().isOk());
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
             .content("{\"email\":\"ana@example.com\",\"password\":\"senha-inicial\"}"))
             .andExpect(status().isUnauthorized());
         String fresh = login("ana@example.com", "senha-nova");
         assertEquals(1L, JwtConfig.credentialVersion(decoder.decode(fresh)));
-        mvc.perform(get("/volunteers/" + account.getId()).header("Authorization", "Bearer " + fresh))
+        mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + fresh))
             .andExpect(status().isOk()).andExpect(jsonPath("$..credentialVersion").isEmpty())
             .andExpect(jsonPath("$..password").isEmpty());
     }
 
     @Test
     void invalidChangesDoNotUpdateHashOrRevokeValidTokens() throws Exception {
-        Volunteer account = account("ana@example.com", "senha-inicial");
+        User account = account("ana@example.com", "senha-inicial");
         String original = account.getPassword();
         String token = login("ana@example.com", "senha-inicial");
         for (String body : new String[] {"{}", "{\"currentPassword\":\" \"}",
@@ -115,10 +115,10 @@ class PasswordChangeIntegrationTests {
             assertFalse(result.getResponse().getContentAsString().contains(invalid));
             assertFalse(result.getResponse().getContentAsString().contains("senha-inicial"));
         }
-        var saved = volunteers.findById(account.getId()).orElseThrow();
+        var saved = users.findById(account.getId()).orElseThrow();
         assertEquals(original, saved.getPassword());
         assertEquals(0, saved.getCredentialVersion());
-        mvc.perform(get("/volunteers/" + account.getId()).header("Authorization", "Bearer " + token))
+        mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
     }
 
@@ -126,24 +126,24 @@ class PasswordChangeIntegrationTests {
     void utf8BoundaryIsAcceptedAndSuccessiveChangesRevokeEachTokenGeneration() throws Exception {
         String initial = "a".repeat(70) + "é";
         String next = "b".repeat(70) + "é";
-        Volunteer account = account("ana@example.com", initial);
+        User account = account("ana@example.com", initial);
         String token = login("ana@example.com", initial);
         change(token, initial, next, 204);
         String second = login("ana@example.com", next);
         change(second, next, "senha-terceira", 204);
         String third = login("ana@example.com", "senha-terceira");
         for (String old : new String[] {token, second}) {
-            mvc.perform(get("/volunteers/" + account.getId()).header("Authorization", "Bearer " + old))
+            mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + old))
                 .andExpect(status().isUnauthorized());
         }
-        assertEquals(2, volunteers.findById(account.getId()).orElseThrow().getCredentialVersion());
-        mvc.perform(get("/volunteers/" + account.getId()).header("Authorization", "Bearer " + third))
+        assertEquals(2, users.findById(account.getId()).orElseThrow().getCredentialVersion());
+        mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + third))
             .andExpect(status().isOk());
     }
 
     @Test
     void passwordChangeRequiresAuthenticationAndCredentialVersionClaim() throws Exception {
-        Volunteer account = account("ana@example.com", "senha-inicial");
+        User account = account("ana@example.com", "senha-inicial");
         mvc.perform(put("/auth/password").contentType(MediaType.APPLICATION_JSON)
             .content(body("senha-inicial", "senha-nova")))
             .andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"));
@@ -156,20 +156,20 @@ class PasswordChangeIntegrationTests {
         change(mismatch, "senha-inicial", "senha-nova", 401);
         String invalidType = encode(claims.claim(JwtConfig.CREDENTIAL_VERSION_CLAIM, "invalido").build());
         change(invalidType, "senha-inicial", "senha-nova", 401);
-        assertEquals(account.getPassword(), volunteers.findById(account.getId()).orElseThrow().getPassword());
+        assertEquals(account.getPassword(), users.findById(account.getId()).orElseThrow().getPassword());
     }
 
     @Test
     void administratorsChangeOnlyTheirOwnPasswordAndPasswordDtosNeverSerializeSecrets() throws Exception {
-        Volunteer admin = account("admin@example.com", "senha-inicial");
-        admin.setRole(VolunteerRole.ADMIN);
-        volunteers.save(admin);
-        Volunteer other = account("bia@example.com", "outra-senha");
+        User admin = account("admin@example.com", "senha-inicial");
+        admin.setRole(UserRole.ADMIN);
+        users.save(admin);
+        User other = account("bia@example.com", "outra-senha");
         String token = login("admin@example.com", "senha-inicial");
         change(token, "outra-senha", "senha-nova", 401);
         change(token, "senha-inicial", "senha-nova", 204);
-        assertEquals(VolunteerRole.ADMIN, volunteers.findById(admin.getId()).orElseThrow().getRole());
-        assertEquals(other.getPassword(), volunteers.findById(other.getId()).orElseThrow().getPassword());
+        assertEquals(UserRole.ADMIN, users.findById(admin.getId()).orElseThrow().getRole());
+        assertEquals(other.getPassword(), users.findById(other.getId()).orElseThrow().getPassword());
         var input = mapper.readValue(body("senha-inicial", "senha-nova"), ChangePasswordDTO.class);
         assertEquals("senha-inicial", input.currentPassword());
         assertEquals("senha-nova", input.newPassword());
@@ -183,7 +183,7 @@ class PasswordChangeIntegrationTests {
 
     @Test
     void concurrentChangesCannotOverwriteEachOther() throws Exception {
-        Volunteer account = account("ana@example.com", "senha-inicial");
+        User account = account("ana@example.com", "senha-inicial");
         String token = login("ana@example.com", "senha-inicial");
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -204,14 +204,14 @@ class PasswordChangeIntegrationTests {
             assertEquals(1, statuses.stream().filter(status -> status == 204).count());
             assertTrue(statuses.stream().allMatch(status -> status == 204 || status == 401 || status == 409));
         }
-        var saved = volunteers.findById(account.getId()).orElseThrow();
+        var saved = users.findById(account.getId()).orElseThrow();
         assertEquals(1, saved.getCredentialVersion());
         assertNotEquals(passwords.matches("senha-primeira", saved.getPassword()),
             passwords.matches("senha-segunda", saved.getPassword()));
     }
 
-    private Volunteer account(String email, String password) {
-        return volunteerService.insert(new Volunteer(null, "Voluntario", email, password, 0.0));
+    private User account(String email, String password) {
+        return userService.insert(new User(null, "Voluntario", email, password, 0.0));
     }
 
     private String login(String email, String password) throws Exception {

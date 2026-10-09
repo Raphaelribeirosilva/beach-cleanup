@@ -16,7 +16,7 @@ Disponibilizar contas prontas no `TestConfig` para testes manuais de login, perm
 
 As senhas são gravadas com BCrypt pelo bean `PasswordEncoder`. Os novos usuários começam com total de coleta zero, sem inscrições/coletas e com versão das credenciais zero. O evento, a coleta e os vínculos do administrador original foram preservados.
 
-O seed executa somente com o perfil `test`, já ativo por padrão. Reinicie a aplicação para carregar as contas adicionadas. O H2 é em memória: ao reiniciar, os dados e as senhas iniciais são recriados. Consulte o `volunteerId` retornado pelo login para identificar cada conta, sem depender de IDs fixos.
+O seed executa somente com o perfil `test`, já ativo por padrão. Reinicie a aplicação para carregar as contas adicionadas. O H2 é em memória: ao reiniciar, os dados e as senhas iniciais são recriados. Consulte o `userId` retornado pelo login para identificar cada conta, sem depender de IDs fixos.
 
 ## Login
 
@@ -32,18 +32,18 @@ Content-Type: application/json
 }
 ```
 
-A resposta informa `accessToken`, `tokenType`, `expiresIn`, `volunteerId` e `role`. Use `Authorization: Bearer <accessToken>` nas chamadas protegidas.
+A resposta informa `accessToken`, `tokenType`, `expiresIn`, `userId` e `role`. Use `Authorization: Bearer <accessToken>` nas chamadas protegidas.
 
 ## Cenários para testar
 
-- **Administrador:** entre com `admin@example.com`, liste voluntários e crie/edite eventos.
-- **Voluntário:** entre com Ana e consulte ou edite somente o perfil identificado pelo seu `volunteerId`.
+- **Administrador:** entre com `admin@example.com`, liste usuários em `GET /users` e crie/edite eventos.
+- **Voluntário:** entre com Ana e consulte ou edite somente o perfil em `GET/PUT /users/{userId}`, usando o `userId` retornado pelo login.
 - **Isolamento:** tente consultar o perfil de Bruno com o token de Ana; a resposta deve ser 403.
 - **Coletas:** crie uma coleta com Ana, omitindo `volunteer`; ela será vinculada à própria conta. Bruno não deve conseguir acessá-la e sua listagem não deve incluir essa coleta.
 - **Permissões:** tente cadastrar um evento com Carla; a resposta deve ser 403.
 - **Troca de senha:** use `PUT /auth/password` com `currentPassword: ana123` e uma nova senha. Os tokens anteriores de Ana devem receber 401; faça login com a nova senha. Os tokens de Bruno e Carla continuam válidos.
 
-Os corpos completos e as regras estão nos documentos [de autenticação](04_AUTENTICACAO_E_AUTORIZACAO.md) e [de troca de senha](05_TROCA_DE_SENHA.md).
+Os exemplos e o contrato vigente estão na [padronização de nomes](06_PADRONIZACAO_DE_NOMES.md). Os documentos de autenticação e troca de senha registram as etapas históricas e seus nomes antigos.
 
 ## Arquivos e verificação
 

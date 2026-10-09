@@ -1,6 +1,7 @@
 package com.raphael.beachcleanup.exceptions;
 
 import java.util.ArrayList;
+
 import java.util.List;
 
 public class ValidationError extends StandardError {

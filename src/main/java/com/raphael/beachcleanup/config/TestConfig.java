@@ -12,11 +12,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.raphael.beachcleanup.entities.CleanupEvent;
 import com.raphael.beachcleanup.entities.TrashCollection;
-import com.raphael.beachcleanup.entities.Volunteer;
-import com.raphael.beachcleanup.entities.VolunteerRole;
+import com.raphael.beachcleanup.entities.User;
+import com.raphael.beachcleanup.entities.UserRole;
 import com.raphael.beachcleanup.repositories.CleanupEventRepository;
 import com.raphael.beachcleanup.repositories.TrashCollectionRepository;
-import com.raphael.beachcleanup.repositories.VolunteerRepository;
+import com.raphael.beachcleanup.repositories.UserRepository;
 
 @Configuration
 @Profile("test")
@@ -29,25 +29,25 @@ public class TestConfig implements CommandLineRunner {
 	TrashCollectionRepository trashRepository;
 	
 	@Autowired
-	VolunteerRepository volunteerRepository;
+	UserRepository userRepository;
 
 	@Autowired
 	PasswordEncoder passwordEncoder;
 	
     @Override
     public void run(String... args) throws Exception {
-        Volunteer v1 = new Volunteer(null, "Raphael", "admin-original@example.com",
+        User v1 = new User(null, "Raphael", "admin-original@example.com",
                 passwordEncoder.encode("demo-original7!"), 20.0);
-        v1.setRole(VolunteerRole.ADMIN);
+        v1.setRole(UserRole.ADMIN);
 
-        Volunteer admin = new Volunteer(null, "Administrador de teste", "admin@example.com",
+        User admin = new User(null, "Administrador de teste", "admin@example.com",
                 passwordEncoder.encode("admin123"), 0.0);
-        admin.setRole(VolunteerRole.ADMIN);
-        Volunteer ana = new Volunteer(null, "Ana Silva", "ana@example.com",
+        admin.setRole(UserRole.ADMIN);
+        User ana = new User(null, "Ana Silva", "ana@example.com",
                 passwordEncoder.encode("ana123"), 0.0);
-        Volunteer bruno = new Volunteer(null, "Bruno Costa", "bruno@example.com",
+        User bruno = new User(null, "Bruno Costa", "bruno@example.com",
                 passwordEncoder.encode("bruno123"), 0.0);
-        Volunteer carla = new Volunteer(null, "Carla Souza", "carla@example.com",
+        User carla = new User(null, "Carla Souza", "carla@example.com",
                 passwordEncoder.encode("carla123"), 0.0);
         
         CleanupEvent e1 = new CleanupEvent(
@@ -58,12 +58,12 @@ public class TestConfig implements CommandLineRunner {
 	        		"Pausado"	
         		);
         
-        volunteerRepository.saveAll(Arrays.asList(v1, admin, ana, bruno, carla));
+        userRepository.saveAll(Arrays.asList(v1, admin, ana, bruno, carla));
         eventRepository.saveAll(Arrays.asList(e1));
         
         v1.getEvents().add(e1);
         
-        volunteerRepository.saveAll(Arrays.asList(v1));
+        userRepository.saveAll(Arrays.asList(v1));
         
         TrashCollection t1 = new TrashCollection(null, "Praia do Morro", "Plástico", 15.5, LocalDate.now());
                

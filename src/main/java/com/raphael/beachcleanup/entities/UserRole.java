@@ -1,5 +1,5 @@
 package com.raphael.beachcleanup.entities;
 
-public enum VolunteerRole {
+public enum UserRole {
     VOLUNTEER, ADMIN
 }

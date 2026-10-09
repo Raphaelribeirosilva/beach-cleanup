@@ -16,59 +16,59 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import com.raphael.beachcleanup.dto.VolunteerDTO;
-import com.raphael.beachcleanup.dto.VolunteerInsertDTO;
-import com.raphael.beachcleanup.entities.Volunteer;
-import com.raphael.beachcleanup.dto.VolunteerUpdateDTO;
-import com.raphael.beachcleanup.services.VolunteerService;
+import com.raphael.beachcleanup.dto.UserDTO;
+import com.raphael.beachcleanup.dto.UserInsertDTO;
+import com.raphael.beachcleanup.entities.User;
+import com.raphael.beachcleanup.dto.UserUpdateDTO;
+import com.raphael.beachcleanup.services.UserService;
 
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
-@RequestMapping(value = "/volunteers")
-public class VolunteerResource {
+@RequestMapping(value = "/users")
+public class UserResource {
 
 	@Autowired
-	private VolunteerService service;
+	private UserService service;
 	
 	@GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<List<VolunteerDTO>> findAll() {
+	public ResponseEntity<List<UserDTO>> findAll() {
 		
-		List<Volunteer> list = service.findAll();
-		List<VolunteerDTO> listDto = list.stream().map(x -> new VolunteerDTO(x)).collect(Collectors.toList());
+		List<User> list = service.findAll();
+		List<UserDTO> listDto = list.stream().map(x -> new UserDTO(x)).collect(Collectors.toList());
 		return ResponseEntity.ok().body(listDto);
 	}
 	
 	@GetMapping(value = "/{id}")
-    @PreAuthorize("@accessPolicy.canAccessVolunteer(#id)")
-	public ResponseEntity<VolunteerDTO> findById(@PathVariable Long id) {
-		Volunteer obj = service.findById(id);
-		return ResponseEntity.ok().body(new VolunteerDTO(obj));
+    @PreAuthorize("@accessPolicy.canAccessUser(#id)")
+	public ResponseEntity<UserDTO> findById(@PathVariable Long id) {
+		User obj = service.findById(id);
+		return ResponseEntity.ok().body(new UserDTO(obj));
 	}
 	
 	@PostMapping
-    public ResponseEntity<VolunteerDTO> insert(@Valid @RequestBody VolunteerInsertDTO dto) {
+    public ResponseEntity<UserDTO> insert(@Valid @RequestBody UserInsertDTO dto) {
       
-        Volunteer entity = new Volunteer(null, dto.getName(), dto.getEmail(), dto.getPassword(), 0.0);
+        User entity = new User(null, dto.getName(), dto.getEmail(), dto.getPassword(), 0.0);
         entity = service.insert(entity);
         URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
             .buildAndExpand(entity.getId()).toUri();
-        return ResponseEntity.created(uri).body(new VolunteerDTO(entity));
+        return ResponseEntity.created(uri).body(new UserDTO(entity));
     }
 	
 	@DeleteMapping(value = "/{id}")
-    @PreAuthorize("@accessPolicy.canAccessVolunteer(#id)")
+    @PreAuthorize("@accessPolicy.canAccessUser(#id)")
 	public ResponseEntity<Void> delete(@PathVariable Long id){
 		service.delete(id);
 		return ResponseEntity.noContent().build();
 	}
 	
 	@PutMapping(value = "/{id}")
-    @PreAuthorize("@accessPolicy.canAccessVolunteer(#id)")
-	public ResponseEntity<VolunteerDTO> update(@PathVariable Long id, @Valid @RequestBody VolunteerUpdateDTO dto){
-		Volunteer obj = service.update(id, dto.toEntity());
-		return ResponseEntity.ok().body(new VolunteerDTO(obj));
+    @PreAuthorize("@accessPolicy.canAccessUser(#id)")
+	public ResponseEntity<UserDTO> update(@PathVariable Long id, @Valid @RequestBody UserUpdateDTO dto){
+		User obj = service.update(id, dto.toEntity());
+		return ResponseEntity.ok().body(new UserDTO(obj));
 	}
 }

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -21,12 +22,12 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import com.raphael.beachcleanup.entities.CleanupEvent;
-import com.raphael.beachcleanup.entities.Volunteer;
+import com.raphael.beachcleanup.entities.User;
 import com.raphael.beachcleanup.repositories.CleanupEventRepository;
 import com.raphael.beachcleanup.repositories.TrashCollectionRepository;
-import com.raphael.beachcleanup.repositories.VolunteerRepository;
-import com.raphael.beachcleanup.services.VolunteerService;
-import com.raphael.beachcleanup.dto.VolunteerInsertDTO;
+import com.raphael.beachcleanup.repositories.UserRepository;
+import com.raphael.beachcleanup.services.UserService;
+import com.raphael.beachcleanup.dto.UserInsertDTO;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {
@@ -38,7 +39,7 @@ class CrudIntegrationTests {
     @Autowired
     private WebApplicationContext context;
     @Autowired
-    private VolunteerRepository volunteers;
+    private UserRepository users;
     @Autowired
     private CleanupEventRepository events;
     @Autowired
@@ -47,50 +48,56 @@ class CrudIntegrationTests {
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Autowired
-    private VolunteerService volunteerService;
+    private UserService userService;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         collections.deleteAll();
-        volunteers.deleteAll();
+        users.deleteAll();
         events.deleteAll();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
             .defaultRequest(get("/").with(user("admin").roles("ADMIN"))).build();
     }
 
     @Test
-    void volunteerCrudUpdatesNameAndEmailAndPreservesManagedFields() throws Exception {
-        long id = create("/volunteers", """
+    void userCrudUpdatesNameAndEmailAndPreservesManagedFields() throws Exception {
+        long id = create("/users", """
             {"name":"Ana","email":"ana@example.com","password":"senha-inicial"}
             """);
-        String storedHash = volunteers.findById(id).orElseThrow().getPassword();
+        String storedHash = users.findById(id).orElseThrow().getPassword();
         assertNotEquals("senha-inicial", storedHash);
         assertTrue(passwordEncoder.matches("senha-inicial", storedHash));
         assertFalse(passwordEncoder.matches("senha-incorreta", storedHash));
-        assertEquals(0.0, volunteers.findById(id).orElseThrow().getTotalTrashCollecting());
-        mvc.perform(get("/volunteers"))
+        assertEquals(0.0, users.findById(id).orElseThrow().getTotalCollectedKg());
+        mvc.perform(get("/users"))
             .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(id))
             .andExpect(jsonPath("$..password").isEmpty());
-        mvc.perform(get("/volunteers/{id}", id))
+        mvc.perform(get("/users/{id}", id))
             .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Ana"))
+            .andExpect(jsonPath("$.totalCollectedKg").value(0.0))
+            .andExpect(jsonPath("$.totalTrashCollecting").doesNotExist())
             .andExpect(jsonPath("$..password").isEmpty());
-        mvc.perform(put("/volunteers/{id}", id).contentType(MediaType.APPLICATION_JSON)
+        assertEquals(0.0, jdbc.queryForObject("select total_collected_kg from tb_user where id = ?",
+            Double.class, id));
+        mvc.perform(put("/users/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"id":999999,"name":"Ana Silva","email":"ana.silva@example.com",
-                 "password":"outra-senha","totalTrashCollecting":500}
+                 "password":"outra-senha","totalCollectedKg":500}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
             .andExpect(jsonPath("$.name").value("Ana Silva"))
             .andExpect(jsonPath("$.email").value("ana.silva@example.com"))
             .andExpect(jsonPath("$..password").isEmpty());
-        Volunteer saved = volunteers.findById(id).orElseThrow();
+        User saved = users.findById(id).orElseThrow();
         assertEquals(storedHash, saved.getPassword());
-        assertEquals(0.0, saved.getTotalTrashCollecting());
-        deleteAndCheckMissing("/volunteers", id);
+        assertEquals(0.0, saved.getTotalCollectedKg());
+        deleteAndCheckMissing("/users", id);
     }
 
     @Test
@@ -125,45 +132,67 @@ class CrudIntegrationTests {
 
     @Test
     void collectionCrudResolvesReferencesAndUpdatesDateAndAssociations() throws Exception {
-        long volunteerId = newVolunteer().getId();
+        long userId = newUser().getId();
         long eventId = newEvent().getId();
-        long id = create("/trashCollection", collectionJson(volunteerId, eventId));
+        long id = create("/trashCollection", collectionJson(userId, eventId));
         mvc.perform(get("/trashCollection")).andExpect(status().isOk())
             .andExpect(jsonPath("$[0].id").value(id))
             .andExpect(jsonPath("$..password").isEmpty());
         mvc.perform(get("/trashCollection/{id}", id))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.weightKg").value(2.0))
+            .andExpect(jsonPath("$.registrationDate").value("2026-10-15"))
+            .andExpect(jsonPath("$.weithKg").doesNotExist())
+            .andExpect(jsonPath("$.regitrationDate").doesNotExist())
+            .andExpect(jsonPath("$.volunteer.totalCollectedKg").value(0.0))
             .andExpect(jsonPath("$.volunteer.name").value("Voluntario original"))
             .andExpect(jsonPath("$.event.title").value("Evento original"))
             .andExpect(jsonPath("$..password").isEmpty());
-        long anotherVolunteer = newVolunteer().getId();
+        long anotherUser = newUser().getId();
         long anotherEvent = newEvent().getId();
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"id":999999,"beach":"Praia B","materialType":"Vidro","weithKg":3.5,
-                 "regitrationDate":"2026-10-20","volunteer":{"id":%d},"event":{"id":%d}}
-                """.formatted(anotherVolunteer, anotherEvent)))
+                {"id":999999,"beach":"Praia B","materialType":"Vidro","weightKg":3.5,
+                 "registrationDate":"2026-10-20","volunteer":{"id":%d},"event":{"id":%d}}
+                """.formatted(anotherUser, anotherEvent)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
-            .andExpect(jsonPath("$.volunteer.id").value(anotherVolunteer))
+            .andExpect(jsonPath("$.volunteer.id").value(anotherUser))
             .andExpect(jsonPath("$.event.id").value(anotherEvent))
             .andExpect(jsonPath("$..password").isEmpty());
         var saved = collections.findById(id).orElseThrow();
         assertEquals("Praia B", saved.getBeach());
         assertEquals("Vidro", saved.getMaterialType());
-        assertEquals(3.5, saved.getWeithKg());
-        assertEquals(LocalDate.parse("2026-10-20"), saved.getRegitrationDate());
+        assertEquals(3.5, saved.getWeightKg());
+        assertEquals(LocalDate.parse("2026-10-20"), saved.getRegistrationDate());
+        var row = jdbc.queryForMap("select weight_kg, registration_date, volunteer_id from tb_trash_collection where id = ?", id);
+        assertEquals(3.5, ((Number) row.get("weight_kg")).doubleValue());
+        assertEquals(LocalDate.parse("2026-10-20"), ((java.sql.Date) row.get("registration_date")).toLocalDate());
+        assertEquals(anotherUser, ((Number) row.get("volunteer_id")).longValue());
         deleteAndCheckMissing("/trashCollection", id);
     }
 
     @Test
+    void legacyAccountRoutesAreNoLongerMapped() throws Exception {
+        long id = newUser().getId();
+        for (String method : new String[] {"GET", "POST", "PUT", "DELETE"}) {
+            for (String path : new String[] {"/volunteers", "/volunteers/" + id}) {
+                mvc.perform(request(org.springframework.http.HttpMethod.valueOf(method), path)
+                    .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isNotFound());
+            }
+        }
+        assertTrue(users.existsById(id));
+    }
+
+    @Test
     void missingIdsReturn404ForReadUpdateAndDeleteAcrossAllResources() throws Exception {
-        for (String path : new String[] {"/volunteers", "/cleanupEvent", "/trashCollection"}) {
+        for (String path : new String[] {"/users", "/cleanupEvent", "/trashCollection"}) {
             mvc.perform(get(path + "/999999")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
             String validBody = switch (path) {
-                case "/volunteers" -> "{\"name\":\"Ana\",\"email\":\"ana@example.com\"}";
+                case "/users" -> "{\"name\":\"Ana\",\"email\":\"ana@example.com\"}";
                 case "/cleanupEvent" -> "{\"title\":\"Mutirao\",\"location\":\"Praia A\",\"dateTime\":\"2026-10-15T08:00:00\",\"status\":\"Agendado\"}";
-                default -> "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weithKg\":1,\"regitrationDate\":\"2026-10-15\"}";
+                default -> "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weightKg\":1,\"registrationDate\":\"2026-10-15\"}";
             };
             mvc.perform(put(path + "/999999").contentType(MediaType.APPLICATION_JSON).content(validBody))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.status").value(404));
@@ -177,23 +206,23 @@ class CrudIntegrationTests {
         long eventId = newEvent().getId();
         mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON)
             .content(collectionJson(999999, eventId))).andExpect(status().isNotFound());
-        long volunteerId = newVolunteer().getId();
+        long userId = newUser().getId();
         mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON)
-            .content(collectionJson(volunteerId, 999999))).andExpect(status().isNotFound());
+            .content(collectionJson(userId, 999999))).andExpect(status().isNotFound());
         assertEquals(0, collections.count());
     }
 
     @Test
     void collectionUpdateWithMissingReferenceLeavesPersistedDataIntact() throws Exception {
-        long volunteerId = newVolunteer().getId();
+        long userId = newUser().getId();
         long eventId = newEvent().getId();
-        long id = create("/trashCollection", collectionJson(volunteerId, eventId));
+        long id = create("/trashCollection", collectionJson(userId, eventId));
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content(collectionJson(999999, eventId))).andExpect(status().isNotFound());
         var saved = collections.findById(id).orElseThrow();
-        assertEquals(volunteerId, saved.getVolunteer().getId());
+        assertEquals(userId, saved.getVolunteer().getId());
         assertEquals(eventId, saved.getEvent().getId());
-        assertEquals(2.0, saved.getWeithKg());
+        assertEquals(2.0, saved.getWeightKg());
     }
 
     @Test
@@ -206,42 +235,42 @@ class CrudIntegrationTests {
                 .content(json)).andExpect(status().isBadRequest());
         }
         assertEquals(0, collections.count());
-        assertEquals(0, volunteers.count());
+        assertEquals(0, users.count());
         assertEquals(0, events.count());
     }
 
     @Test
     void linkedResourcesReturn409AndCanBeDeletedAfterCollectionRemoval() throws Exception {
-        long volunteerId = newVolunteer().getId();
+        long userId = newUser().getId();
         long eventId = newEvent().getId();
-        long collectionId = create("/trashCollection", collectionJson(volunteerId, eventId));
-        mvc.perform(delete("/volunteers/{id}", volunteerId))
+        long collectionId = create("/trashCollection", collectionJson(userId, eventId));
+        mvc.perform(delete("/users/{id}", userId))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
         mvc.perform(delete("/cleanupEvent/{id}", eventId))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
-        assertTrue(volunteers.existsById(volunteerId));
+        assertTrue(users.existsById(userId));
         assertTrue(events.existsById(eventId));
         assertTrue(collections.existsById(collectionId));
         deleteAndCheckMissing("/trashCollection", collectionId);
-        deleteAndCheckMissing("/volunteers", volunteerId);
+        deleteAndCheckMissing("/users", userId);
         deleteAndCheckMissing("/cleanupEvent", eventId);
     }
 
     @Test
     void collectionSupportsNullReferencesAndCanRemoveExistingReferences() throws Exception {
         long id = create("/trashCollection",
-            collectionJson(newVolunteer().getId(), newEvent().getId()));
+            collectionJson(newUser().getId(), newEvent().getId()));
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"beach":"Praia A","materialType":"Plastico","weithKg":1,
-                 "regitrationDate":"2026-10-21","volunteer":null,"event":null}
+                {"beach":"Praia A","materialType":"Plastico","weightKg":1,
+                 "registrationDate":"2026-10-21","volunteer":null,"event":null}
                 """)).andExpect(status().isOk());
         var saved = collections.findById(id).orElseThrow();
         assertNull(saved.getVolunteer());
         assertNull(saved.getEvent());
         create("/trashCollection", """
-            {"id":%d,"beach":"Praia A","materialType":"Vidro","weithKg":1,
-             "regitrationDate":"2026-10-21"}
+            {"id":%d,"beach":"Praia A","materialType":"Vidro","weightKg":1,
+             "registrationDate":"2026-10-21"}
             """.formatted(id));
         assertEquals(2, collections.count());
         assertEquals("Plastico", collections.findById(id).orElseThrow().getMaterialType());
@@ -249,14 +278,14 @@ class CrudIntegrationTests {
 
     @Test
     void samePasswordProducesDifferentHashesAndBothMatch() throws Exception {
-        long first = create("/volunteers", """
+        long first = create("/users", """
             {"name":"Ana","email":"ana@example.com","password":"mesma-senha"}
             """);
-        long second = create("/volunteers", """
+        long second = create("/users", """
             {"name":"Bia","email":"bia@example.com","password":"mesma-senha"}
             """);
-        String firstHash = volunteers.findById(first).orElseThrow().getPassword();
-        String secondHash = volunteers.findById(second).orElseThrow().getPassword();
+        String firstHash = users.findById(first).orElseThrow().getPassword();
+        String secondHash = users.findById(second).orElseThrow().getPassword();
         assertNotEquals(firstHash, secondHash);
         assertTrue(passwordEncoder.matches("mesma-senha", firstHash));
         assertTrue(passwordEncoder.matches("mesma-senha", secondHash));
@@ -265,30 +294,30 @@ class CrudIntegrationTests {
     @Test
     void bcryptLimitIsMeasuredInUtf8BytesAndRejectedPasswordsAreNotSaved() throws Exception {
         String accepted = "a".repeat(70) + "é";
-        long id = create("/volunteers", """
+        long id = create("/users", """
             {"name":"Ana","email":"ana@example.com","password":"%s"}
             """.formatted(accepted));
-        assertTrue(passwordEncoder.matches(accepted, volunteers.findById(id).orElseThrow().getPassword()));
+        assertTrue(passwordEncoder.matches(accepted, users.findById(id).orElseThrow().getPassword()));
         for (String rejected : new String[] {"a".repeat(73), "a".repeat(71) + "é"}) {
-            MvcResult result = mvc.perform(post("/volunteers").contentType(MediaType.APPLICATION_JSON)
+            MvcResult result = mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"name":"Bia","email":"bia@example.com","password":"%s"}
                     """.formatted(rejected))).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].fieldName").value("password")).andReturn();
             assertFalse(result.getResponse().getContentAsString().contains(rejected));
         }
-        assertEquals(1, volunteers.count());
+        assertEquals(1, users.count());
     }
 
     @Test
     void directSerializationHidesPasswordAndDeserializationStillAcceptsIt() {
-        Volunteer volunteer = newVolunteer();
-        String entityJson = objectMapper.writeValueAsString(volunteer);
+        User account = newUser();
+        String entityJson = objectMapper.writeValueAsString(account);
         assertFalse(entityJson.contains("password"));
-        assertFalse(entityJson.contains(volunteer.getPassword()));
-        VolunteerInsertDTO dto = objectMapper.readValue("""
+        assertFalse(entityJson.contains(account.getPassword()));
+        UserInsertDTO dto = objectMapper.readValue("""
             {"name":"Ana","email":"ana@example.com","password":"senha-de-entrada"}
-            """, VolunteerInsertDTO.class);
+            """, UserInsertDTO.class);
         assertEquals("senha-de-entrada", dto.getPassword());
         String dtoJson = objectMapper.writeValueAsString(dto);
         assertFalse(dtoJson.contains("password"));
@@ -298,10 +327,10 @@ class CrudIntegrationTests {
 
     @Test
     void missingAndBlankRequiredFieldsReturnFieldErrorsWithoutSaving() throws Exception {
-        for (String path : new String[] {"/volunteers", "/cleanupEvent", "/trashCollection"}) {
+        for (String path : new String[] {"/users", "/cleanupEvent", "/trashCollection"}) {
             for (String body : new String[] {"{}", """
                 {"name":"  ","email":"invalido","password":"  ","title":" ",
-                 "location":" ","status":" ","beach":" ","materialType":" ","weithKg":0}
+                 "location":" ","status":" ","beach":" ","materialType":" ","weightKg":0}
                 """}) {
                 mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400))
@@ -312,41 +341,41 @@ class CrudIntegrationTests {
                     .andExpect(jsonPath("$.errors[0].message").exists());
             }
         }
-        assertEquals(0, volunteers.count());
+        assertEquals(0, users.count());
         assertEquals(0, events.count());
         assertEquals(0, collections.count());
     }
 
     @Test
     void invalidUpdatesPreserveAllExistingData() throws Exception {
-        long volunteerId = newVolunteer().getId();
+        long userId = newUser().getId();
         long eventId = newEvent().getId();
-        long collectionId = create("/trashCollection", collectionJson(volunteerId, eventId));
-        String hash = volunteers.findById(volunteerId).orElseThrow().getPassword();
-        for (String path : new String[] {"/volunteers/" + volunteerId, "/cleanupEvent/" + eventId,
+        long collectionId = create("/trashCollection", collectionJson(userId, eventId));
+        String hash = users.findById(userId).orElseThrow().getPassword();
+        for (String path : new String[] {"/users/" + userId, "/cleanupEvent/" + eventId,
                 "/trashCollection/" + collectionId}) {
             mvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isArray());
         }
-        mvc.perform(put("/volunteers/" + volunteerId).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/users/" + userId).contentType(MediaType.APPLICATION_JSON)
             .content("{\"name\":\"Outro nome\",\"email\":\"invalido\"}"))
             .andExpect(status().isBadRequest());
-        assertEquals("Voluntario original", volunteers.findById(volunteerId).orElseThrow().getName());
-        assertEquals("original@example.com", volunteers.findById(volunteerId).orElseThrow().getEmail());
-        assertEquals(hash, volunteers.findById(volunteerId).orElseThrow().getPassword());
+        assertEquals("Voluntario original", users.findById(userId).orElseThrow().getName());
+        assertEquals("original@example.com", users.findById(userId).orElseThrow().getEmail());
+        assertEquals(hash, users.findById(userId).orElseThrow().getPassword());
         assertEquals("Evento original", events.findById(eventId).orElseThrow().getTitle());
         var saved = collections.findById(collectionId).orElseThrow();
-        assertEquals(2.0, saved.getWeithKg());
+        assertEquals(2.0, saved.getWeightKg());
         assertEquals("Praia A", saved.getBeach());
-        assertEquals(LocalDate.parse("2026-10-15"), saved.getRegitrationDate());
-        assertEquals(volunteerId, saved.getVolunteer().getId());
+        assertEquals(LocalDate.parse("2026-10-15"), saved.getRegistrationDate());
+        assertEquals(userId, saved.getVolunteer().getId());
         assertEquals(eventId, saved.getEvent().getId());
     }
 
     @Test
     void nonPositiveAndNonFiniteWeightsAreRejected() throws Exception {
         for (String weight : new String[] {"null", "0", "-1", "1e309", "\"NaN\"", "\"Infinity\""}) {
-            String json = "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"regitrationDate\":\"2026-10-15\",\"weithKg\":" + weight + "}";
+            String json = "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"registrationDate\":\"2026-10-15\",\"weightKg\":" + weight + "}";
             mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400));
         }
@@ -357,7 +386,7 @@ class CrudIntegrationTests {
     void nestedReferenceValidationUsesFieldPathsAndDoesNotSave() throws Exception {
         for (String reference : new String[] {"volunteer", "event"}) {
             for (String idBody : new String[] {"{}", "{\"id\":0}", "{\"id\":-1}"}) {
-                String json = "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weithKg\":1,\"regitrationDate\":\"2026-10-15\",\"" + reference + "\":" + idBody + "}";
+                String json = "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weightKg\":1,\"registrationDate\":\"2026-10-15\",\"" + reference + "\":" + idBody + "}";
                 mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON).content(json))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors[0].fieldName").value(reference + ".id"));
@@ -369,17 +398,17 @@ class CrudIntegrationTests {
     @Test
     void oversizedTextIsRejectedBeforePersistence() throws Exception {
         String oversized = "a".repeat(256);
-        String[] paths = {"/volunteers", "/cleanupEvent", "/trashCollection"};
+        String[] paths = {"/users", "/cleanupEvent", "/trashCollection"};
         String[] bodies = {
             "{\"name\":\"%s\",\"email\":\"ana@example.com\",\"password\":\"senha\"}".formatted(oversized),
             "{\"title\":\"%s\",\"location\":\"Praia A\",\"dateTime\":\"2026-10-15T08:00:00\",\"status\":\"Agendado\"}".formatted(oversized),
-            "{\"beach\":\"%s\",\"materialType\":\"Vidro\",\"weithKg\":1,\"regitrationDate\":\"2026-10-15\"}".formatted(oversized)
+            "{\"beach\":\"%s\",\"materialType\":\"Vidro\",\"weightKg\":1,\"registrationDate\":\"2026-10-15\"}".formatted(oversized)
         };
         for (int i = 0; i < paths.length; i++) {
             mvc.perform(post(paths[i]).contentType(MediaType.APPLICATION_JSON).content(bodies[i]))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isArray());
         }
-        assertEquals(0, volunteers.count());
+        assertEquals(0, users.count());
         assertEquals(0, events.count());
         assertEquals(0, collections.count());
     }
@@ -392,21 +421,21 @@ class CrudIntegrationTests {
                 .andExpect(jsonPath("$.timestamp").exists()).andExpect(jsonPath("$.error").exists())
                 .andExpect(jsonPath("$.message").exists()).andExpect(jsonPath("$.path").value("/cleanupEvent"));
         }
-        mvc.perform(get("/volunteers/id-invalido")).andExpect(status().isBadRequest())
+        mvc.perform(get("/users/id-invalido")).andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.status").value(400));
-        mvc.perform(patch("/volunteers/1").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(patch("/users/1").contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isMethodNotAllowed()).andExpect(header().exists("Allow"))
             .andExpect(jsonPath("$.status").value(405));
-        mvc.perform(post("/volunteers").contentType(MediaType.TEXT_PLAIN).content("segredo"))
+        mvc.perform(post("/users").contentType(MediaType.TEXT_PLAIN).content("segredo"))
             .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.status").value(415));
         mvc.perform(get("/rota-inexistente")).andExpect(status().isNotFound())
             .andExpect(jsonPath("$.status").value(404));
         String secret = "senha-confidencial";
-        var result = mvc.perform(post("/volunteers").contentType(MediaType.APPLICATION_JSON)
+        var result = mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
             .content("{\"password\":\"" + secret + "\",\"name\":{"))
             .andExpect(status().isBadRequest()).andReturn();
         assertFalse(result.getResponse().getContentAsString().contains(secret));
-        assertEquals(0, volunteers.count());
+        assertEquals(0, users.count());
         assertEquals(0, events.count());
     }
 
@@ -426,9 +455,9 @@ class CrudIntegrationTests {
         mvc.perform(get(path + "/" + id)).andExpect(status().isNotFound());
     }
 
-    private Volunteer newVolunteer() {
-        String email = volunteers.count() == 0 ? "original@example.com" : "original" + volunteers.count() + "@example.com";
-        return volunteerService.insert(new Volunteer(null, "Voluntario original", email,
+    private User newUser() {
+        String email = users.count() == 0 ? "original@example.com" : "original" + users.count() + "@example.com";
+        return userService.insert(new User(null, "Voluntario original", email,
             "senha-inicial", 0.0));
     }
 
@@ -437,12 +466,12 @@ class CrudIntegrationTests {
             LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado"));
     }
 
-    private String collectionJson(long volunteerId, long eventId) {
+    private String collectionJson(long userId, long eventId) {
         return """
-            {"beach":"Praia A","materialType":"Plastico","weithKg":2,
-             "regitrationDate":"2026-10-15",
+            {"beach":"Praia A","materialType":"Plastico","weightKg":2,
+             "registrationDate":"2026-10-15",
              "volunteer":{"id":%d,"name":"Ignorar nome recebido"},
              "event":{"id":%d,"title":"Ignorar titulo recebido"}}
-            """.formatted(volunteerId, eventId);
+            """.formatted(userId, eventId);
     }
 }

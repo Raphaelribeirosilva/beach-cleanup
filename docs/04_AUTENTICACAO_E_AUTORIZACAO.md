@@ -18,7 +18,7 @@ Etapa implementada em 09/10/2026. Este documento atualiza as regras de acesso do
 | Coletas de voluntário | Qualquer cliente podia indicar um vínculo | Usuário comum registra e gerencia somente coletas ligadas à própria conta |
 | Listagem de coletas | Todos os registros | Voluntário vê as próprias; administrador vê todas |
 | Erros de segurança | Não existiam | 401/403 no mesmo formato de `StandardError` |
-| Console H2 | Habilitado no perfil de teste | Acesso HTTP bloqueado pela cadeia de segurança |
+| Console H2 | Habilitado no perfil de teste | Acesso sem token no perfil `test`; bloqueado nos demais |
 
 ## Matriz de permissões
 
@@ -33,7 +33,9 @@ Etapa implementada em 09/10/2026. Este documento atualiza as regras de acesso do
 | GET `/trashCollection` | 401 | Lista somente coletas próprias | Lista todas |
 | GET/PUT/DELETE `/trashCollection/{id}` | 401 | Somente coletas próprias | Qualquer coleta |
 | POST `/trashCollection` | 401 | Cria coleta vinculada à própria conta | Pode escolher vínculos ou deixá-los nulos |
-| `/h2-console/**` | 401 | 403 | 403 |
+| `/h2-console/**` (fora do perfil `test`) | 401 | 403 | 403 |
+
+No perfil `test`, acesse `http://localhost:8080/h2-console` com JDBC URL `jdbc:h2:mem:testdb`, usuário `sa` e senha vazia. O console tem uma cadeia de segurança própria que permite seus formulários e frames na mesma origem. As regras da API permanecem ativas. O banco está em memória e é recriado ao reiniciar a aplicação.
 
 Uma rota não declarada pública exige autenticação. Assim, chamadas anônimas podem receber 401 antes do 404/405 do MVC. Após a autenticação, a validação e o tratamento de erros da etapa 3 continuam ativos.
 
@@ -208,7 +210,3 @@ Também foram alterados `pom.xml`, `src/main/resources/application.properties`, 
 ## Continuação e limites atuais
 
 Troca/redefinição de senha é o próximo fluxo a implementar, com verificação da identidade e política de invalidação de tokens. Esta etapa não inclui refresh token, logout/revogação individual de JWT, confirmação de e-mail, recuperação de senha, bloqueio de conta ou limitação de tentativas de login. Encerrar o uso do token no cliente não o revoga no servidor; ele permanece válido até expirar, salvo exclusão da conta ou troca da chave.
-
-O acesso é stateless por Bearer enviado explicitamente; CSRF está desativado para esse contrato. Uma futura autenticação por cookies precisa rever essa decisão. CORS para um frontend em outro domínio ainda não foi configurado. Transporte HTTPS e proteção de segredos devem ser configurados no ambiente de execução.
-
-Para banco persistente já existente, antes de usar esta versão será necessário normalizar e deduplicar e-mails, preencher `role` e aplicar as restrições por migração. A alteração nas anotações JPA foi verificada no H2 recriado pelos testes e não substitui uma migração de dados de produção.

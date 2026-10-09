@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -24,12 +25,14 @@ public class TrashCollection implements Serializable{
 	
 	private String beach;
 	private String materialType;
-	private Double weithKg;
-	private LocalDate regitrationDate;
+    @Column(name = "weight_kg")
+	private Double weightKg;
+    @Column(name = "registration_date")
+	private LocalDate registrationDate;
 	
 	@ManyToOne
     @JoinColumn(name = "volunteer_id")
-	private Volunteer volunteer;
+	private User volunteer;
 	
 	@ManyToOne
     @JoinColumn(name = "event_id")
@@ -37,13 +40,13 @@ public class TrashCollection implements Serializable{
 	
 	public TrashCollection() {}
 
-	public TrashCollection(Long id, String beach, String materialType, Double weithKg, LocalDate regitrationDate) {
+	public TrashCollection(Long id, String beach, String materialType, Double weightKg, LocalDate registrationDate) {
 		super();
 		this.id = id;
 		this.beach = beach;
 		this.materialType = materialType;
-		this.weithKg = weithKg;
-		this.regitrationDate = regitrationDate;
+		this.weightKg = weightKg;
+		this.registrationDate = registrationDate;
 	}
 
 	public Long getId() {
@@ -70,28 +73,28 @@ public class TrashCollection implements Serializable{
 		this.materialType = materialType;
 	}
 
-	public Double getWeithKg() {
-		return weithKg;
+	public Double getWeightKg() {
+		return weightKg;
 	}
 
-	public void setWeithKg(Double weithKg) {
-		this.weithKg = weithKg;
+	public void setWeightKg(Double weightKg) {
+		this.weightKg = weightKg;
 	}
 
-	public LocalDate getRegitrationDate() {
-		return regitrationDate;
+	public LocalDate getRegistrationDate() {
+		return registrationDate;
 	}
 
-	public void setRegitrationDate(LocalDate regitrationDate) {
-		this.regitrationDate = regitrationDate;
+	public void setRegistrationDate(LocalDate registrationDate) {
+		this.registrationDate = registrationDate;
 	}
 	
 
-	public Volunteer getVolunteer() {
+	public User getVolunteer() {
 		return volunteer;
 	}
 
-	public void setVolunteer(Volunteer volunteer) {
+	public void setVolunteer(User volunteer) {
 		this.volunteer = volunteer;
 	}
 

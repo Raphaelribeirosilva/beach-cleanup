@@ -25,8 +25,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Version;
 
 @Entity
-@Table(name = "tb_volunteer")
-public class Volunteer implements Serializable{
+@Table(name = "tb_user")
+public class User implements Serializable{
 	
 	private static final long serialVersionUID = 1L;
 	
@@ -39,7 +39,7 @@ public class Volunteer implements Serializable{
 	private String email;
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
-	private VolunteerRole role = VolunteerRole.VOLUNTEER;
+	private UserRole role = UserRole.VOLUNTEER;
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
     @JsonIgnore
@@ -48,7 +48,9 @@ public class Volunteer implements Serializable{
     @JsonIgnore
     @Version
     private Long rowVersion;
-	private Double totalTrashCollecting;
+    /** Stored collected mass in kilograms; currently not recalculated from collections. */
+    @Column(name = "total_collected_kg")
+	private Double totalCollectedKg;
 	
 	@ManyToMany
     @JoinTable(
@@ -62,15 +64,15 @@ public class Volunteer implements Serializable{
     @OneToMany(mappedBy = "volunteer")
 	private List<TrashCollection> collection = new ArrayList<>();
 	
-	public Volunteer() {}
+	public User() {}
 
-	public Volunteer(Long id, String name, String email, String password, Double totalTrashCollecting) {
+	public User(Long id, String name, String email, String password, Double totalCollectedKg) {
 		super();
 		this.id = id;
 		this.name = name;
 		this.email = email;
 		this.password = password;
-		this.totalTrashCollecting = totalTrashCollecting;
+		this.totalCollectedKg = totalCollectedKg;
 	}
 
 	public Long getId() {
@@ -101,11 +103,11 @@ public class Volunteer implements Serializable{
 		return password;
 	}
 
-    public VolunteerRole getRole() {
+    public UserRole getRole() {
         return role;
     }
 
-    public void setRole(VolunteerRole role) {
+    public void setRole(UserRole role) {
         this.role = role;
     }
 
@@ -121,12 +123,12 @@ public class Volunteer implements Serializable{
 		this.password = password;
 	}
 
-	public Double getTotalTrashCollecting() {
-		return totalTrashCollecting;
+	public Double getTotalCollectedKg() {
+		return totalCollectedKg;
 	}
 
-	public void setTotalTrashCollecting(Double totalTrashCollecting) {
-		this.totalTrashCollecting = totalTrashCollecting;
+	public void setTotalCollectedKg(Double totalCollectedKg) {
+		this.totalCollectedKg = totalCollectedKg;
 	}
 	
 	public Set<CleanupEvent> getEvents() {
@@ -150,7 +152,7 @@ public class Volunteer implements Serializable{
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		Volunteer other = (Volunteer) obj;
+		User other = (User) obj;
 		return Objects.equals(id, other.id);
 	}
 }

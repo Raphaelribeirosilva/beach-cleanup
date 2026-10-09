@@ -1,24 +1,24 @@
 package com.raphael.beachcleanup.dto;
 
 import java.io.Serializable;
-import com.raphael.beachcleanup.entities.Volunteer;
+import com.raphael.beachcleanup.entities.User;
 
-public class VolunteerDTO implements Serializable {
+public class UserDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private Long id;
     private String name;
     private String email;
-    private Double totalTrashCollecting;
+    private Double totalCollectedKg;
 
-    public VolunteerDTO() {
+    public UserDTO() {
     }
 
-    public VolunteerDTO(Volunteer entity) {
+    public UserDTO(User entity) {
         this.id = entity.getId();
         this.name = entity.getName();
         this.email = entity.getEmail();
-        this.totalTrashCollecting = entity.getTotalTrashCollecting();
+        this.totalCollectedKg = entity.getTotalCollectedKg();
     }
     
     public Long getId() {
@@ -45,11 +45,11 @@ public class VolunteerDTO implements Serializable {
         this.email = email;
     }
 
-    public Double getTotalTrashCollecting() {
-        return totalTrashCollecting;
+    public Double getTotalCollectedKg() {
+        return totalCollectedKg;
     }
 
-    public void setTotalTrashCollecting(Double totalTrashCollecting) {
-        this.totalTrashCollecting = totalTrashCollecting;
+    public void setTotalCollectedKg(Double totalCollectedKg) {
+        this.totalCollectedKg = totalCollectedKg;
     }
 }

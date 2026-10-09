@@ -9,40 +9,40 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.raphael.beachcleanup.exceptions.FieldValidationException;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.raphael.beachcleanup.entities.Volunteer;
-import com.raphael.beachcleanup.entities.VolunteerRole;
+import com.raphael.beachcleanup.entities.User;
+import com.raphael.beachcleanup.entities.UserRole;
 import com.raphael.beachcleanup.exceptions.EmailConflictException;
 import com.raphael.beachcleanup.exceptions.ResourceNotFoundException;
-import com.raphael.beachcleanup.repositories.VolunteerRepository;
+import com.raphael.beachcleanup.repositories.UserRepository;
 
 @Service
 @Transactional
-public class VolunteerService {
+public class UserService {
 
     @Autowired
-    private VolunteerRepository repository;
+    private UserRepository repository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
-    public List<Volunteer> findAll() {
+    public List<User> findAll() {
         return repository.findAll();
     }
 
     @Transactional(readOnly = true)
-    public Volunteer findById(Long id) {
+    public User findById(Long id) {
         return repository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException(id));
     }
 
-    public Volunteer insert(Volunteer obj) {
+    public User insert(User obj) {
         String email = normalizeEmail(obj.getEmail());
         if (repository.existsByEmail(email)) {
             throw new EmailConflictException();
         }
         obj.setEmail(email);
-        obj.setRole(VolunteerRole.VOLUNTEER);
+        obj.setRole(UserRole.VOLUNTEER);
         obj.setCredentialVersion(0);
         String password = obj.getPassword();
         if (password == null || password.isBlank()) {
@@ -54,19 +54,19 @@ public class VolunteerService {
         }
         obj.setPassword(passwordEncoder.encode(password));
         obj.setId(null);
-        obj.setTotalTrashCollecting(0.0);
+        obj.setTotalCollectedKg(0.0);
         obj.getEvents().clear();
         return repository.save(obj);
     }
 
     public void delete(Long id) {
-        Volunteer entity = findById(id);
+        User entity = findById(id);
         repository.delete(entity);
         repository.flush();
     }
 
-    public Volunteer update(Long id, Volunteer obj) {
-        Volunteer entity = findById(id);
+    public User update(Long id, User obj) {
+        User entity = findById(id);
         String email = normalizeEmail(obj.getEmail());
         if (repository.existsByEmailAndIdNot(email, id)) {
             throw new EmailConflictException();
@@ -76,7 +76,7 @@ public class VolunteerService {
         return repository.save(entity);
     }
 
-    private void updateData(Volunteer entity, Volunteer obj) {
+    private void updateData(User entity, User obj) {
         entity.setName(obj.getName());
         entity.setEmail(obj.getEmail());
     }

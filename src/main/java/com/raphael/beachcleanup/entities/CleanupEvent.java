@@ -36,7 +36,7 @@ public class CleanupEvent implements Serializable{
 	
 	@JsonIgnore
     @ManyToMany(mappedBy = "events")
-	private Set<Volunteer> volunteers = new HashSet<>();
+	private Set<User> users = new HashSet<>();
 	
 	@JsonIgnore
     @OneToMany(mappedBy = "event")
@@ -95,8 +95,8 @@ public class CleanupEvent implements Serializable{
 	
 	
 
-	public Set<Volunteer> getVolunteers() {
-		return volunteers;
+	public Set<User> getUsers() {
+		return users;
 	}
 
 	@Override
