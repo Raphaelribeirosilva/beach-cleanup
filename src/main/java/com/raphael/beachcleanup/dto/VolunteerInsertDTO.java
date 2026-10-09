@@ -17,11 +17,11 @@ public class VolunteerInsertDTO {
 	
 	public VolunteerInsertDTO() {}
 
-	public VolunteerInsertDTO(String name,String email,String passoword) {
+	public VolunteerInsertDTO(String name,String email,String password) {
 		super();
 		this.name = name;
 		this.email = email;
-		this.password = passoword;
+		this.password = password;
 	}
 
 	public String getName() {
@@ -44,8 +44,8 @@ public class VolunteerInsertDTO {
 		return password;
 	}
 
-	public void setPassoword(String passoword) {
-		this.password = passoword;
+	public void setPassword(String password) {
+		this.password = password;
 	}
 	
 	
