@@ -39,6 +39,16 @@ public class TestConfig implements CommandLineRunner {
         Volunteer v1 = new Volunteer(null, "Raphael", "admin-original@example.com",
                 passwordEncoder.encode("demo-original7!"), 20.0);
         v1.setRole(VolunteerRole.ADMIN);
+
+        Volunteer admin = new Volunteer(null, "Administrador de teste", "admin@example.com",
+                passwordEncoder.encode("admin123"), 0.0);
+        admin.setRole(VolunteerRole.ADMIN);
+        Volunteer ana = new Volunteer(null, "Ana Silva", "ana@example.com",
+                passwordEncoder.encode("ana123"), 0.0);
+        Volunteer bruno = new Volunteer(null, "Bruno Costa", "bruno@example.com",
+                passwordEncoder.encode("bruno123"), 0.0);
+        Volunteer carla = new Volunteer(null, "Carla Souza", "carla@example.com",
+                passwordEncoder.encode("carla123"), 0.0);
         
         CleanupEvent e1 = new CleanupEvent(
 	        		null,
@@ -48,7 +58,7 @@ public class TestConfig implements CommandLineRunner {
 	        		"Pausado"	
         		);
         
-        volunteerRepository.saveAll(Arrays.asList(v1));
+        volunteerRepository.saveAll(Arrays.asList(v1, admin, ana, bruno, carla));
         eventRepository.saveAll(Arrays.asList(e1));
         
         v1.getEvents().add(e1);

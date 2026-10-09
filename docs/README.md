@@ -8,3 +8,4 @@ Esta pasta reúne os documentos das etapas de implementação.
 - [Etapa 3 — Validações e erros da API](03_VALIDACOES_E_ERROS.md): validações de cadastro/atualização, contrato de erros e testes de entradas inválidas.
 - [Etapa 4 — Autenticação e autorização](04_AUTENTICACAO_E_AUTORIZACAO.md): login JWT, perfis, permissões, isolamento dos dados e configuração da chave.
 - [Etapa 5 — Troca de senha](05_TROCA_DE_SENHA.md): conferência da senha atual, invalidação de tokens e proteção contra alterações concorrentes.
+- [Usuários de teste](06_USUARIOS_DE_TESTE.md): contas de exemplo, senhas iniciais e cenários para testar as permissões.
