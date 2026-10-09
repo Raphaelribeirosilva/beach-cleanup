@@ -198,6 +198,7 @@ class SecurityIntegrationTests {
         String id = account.getId().toString();
         Instant now = Instant.now();
         var claims = JwtClaimsSet.builder().issuer(JwtConfig.ISSUER).audience(List.of(JwtConfig.AUDIENCE))
+            .claim(JwtConfig.CREDENTIAL_VERSION_CLAIM, 0)
             .subject(id).issuedAt(now).expiresAt(now.plusSeconds(900)).build();
         JwtEncoder foreign = NimbusJwtEncoder.withSecretKey(new SecretKeySpec(new byte[32], "HmacSHA256"))
             .algorithm(MacAlgorithm.HS256).build();

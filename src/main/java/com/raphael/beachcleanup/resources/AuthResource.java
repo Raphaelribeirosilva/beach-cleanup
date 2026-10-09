@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.*;
 import com.raphael.beachcleanup.dto.LoginDTO;
 import com.raphael.beachcleanup.dto.TokenDTO;
 import com.raphael.beachcleanup.services.AuthService;
+import com.raphael.beachcleanup.dto.ChangePasswordDTO;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 @RestController
 @RequestMapping("/auth")
@@ -20,5 +23,12 @@ public class AuthResource {
     @PostMapping("/login")
     public ResponseEntity<TokenDTO> login(@Valid @RequestBody LoginDTO input) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.login(input));
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<Void> changePassword(@AuthenticationPrincipal Jwt principal,
+            @Valid @RequestBody ChangePasswordDTO input) {
+        service.changePassword(principal, input);
+        return ResponseEntity.noContent().build();
     }
 }

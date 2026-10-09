@@ -21,6 +21,15 @@ public class JwtConfig {
     public static final String ISSUER = "https://beachcleanup.example";
     public static final String AUDIENCE = "beachcleanup-api";
     public static final long TOKEN_LIFETIME_SECONDS = 900;
+    public static final String CREDENTIAL_VERSION_CLAIM = "credentialVersion";
+
+    public static Long credentialVersion(Jwt jwt) {
+        Object value = jwt.getClaim(CREDENTIAL_VERSION_CLAIM);
+        if (value instanceof Long version) {
+            return version;
+        }
+        return value instanceof Integer version ? version.longValue() : null;
+    }
 
     @Bean
     public SecretKey jwtSigningKey(@Value("${security.jwt.secret:}") String secret, Environment environment) {

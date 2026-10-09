@@ -38,6 +38,10 @@ public class SecurityConfig {
                         throw invalidToken();
                     }
                     var volunteer = volunteers.findById(id).orElseThrow(SecurityConfig::invalidToken);
+                    Long credentialVersion = JwtConfig.credentialVersion(token);
+                    if (credentialVersion == null || credentialVersion != volunteer.getCredentialVersion()) {
+                        throw invalidToken();
+                    }
                     return new JwtAuthenticationToken(token,
                         List.of(new SimpleGrantedAuthority("ROLE_" + volunteer.getRole().name())),
                         Long.toString(id));

@@ -43,6 +43,7 @@ public class VolunteerService {
         }
         obj.setEmail(email);
         obj.setRole(VolunteerRole.VOLUNTEER);
+        obj.setCredentialVersion(0);
         String password = obj.getPassword();
         if (password == null || password.isBlank()) {
             throw new FieldValidationException("password", "A senha é obrigatória");

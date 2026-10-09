@@ -17,6 +17,14 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @ControllerAdvice
 public class ResourceExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ResponseEntity<StandardError> concurrentUpdate(
+            org.springframework.dao.OptimisticLockingFailureException e, HttpServletRequest request) {
+        return ResponseEntity.status(409).body(new StandardError(Instant.now(), 409, "Concurrent update",
+            "O registro foi alterado por outra operação. Consulte os dados atuais e tente novamente.",
+            request.getRequestURI()));
+    }
+
     @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
     public ResponseEntity<StandardError> authentication(
             org.springframework.security.core.AuthenticationException e, HttpServletRequest request) {

@@ -22,6 +22,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Column;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.EnumType;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "tb_volunteer")
@@ -41,6 +42,12 @@ public class Volunteer implements Serializable{
 	private VolunteerRole role = VolunteerRole.VOLUNTEER;
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
+    @JsonIgnore
+    @Column(nullable = false)
+    private long credentialVersion;
+    @JsonIgnore
+    @Version
+    private Long rowVersion;
 	private Double totalTrashCollecting;
 	
 	@ManyToMany
@@ -100,6 +107,14 @@ public class Volunteer implements Serializable{
 
     public void setRole(VolunteerRole role) {
         this.role = role;
+    }
+
+    public long getCredentialVersion() {
+        return credentialVersion;
+    }
+
+    public void setCredentialVersion(long credentialVersion) {
+        this.credentialVersion = credentialVersion;
     }
 
 	public void setPassword(String password) {

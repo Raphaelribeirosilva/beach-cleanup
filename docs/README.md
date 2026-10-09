@@ -7,3 +7,4 @@ Esta pasta reúne os documentos das etapas de implementação.
 - [Etapa 2 — Proteção de credenciais](02_PROTECAO_CREDENCIAIS.md): BCrypt, respostas por DTO e testes de proteção das senhas.
 - [Etapa 3 — Validações e erros da API](03_VALIDACOES_E_ERROS.md): validações de cadastro/atualização, contrato de erros e testes de entradas inválidas.
 - [Etapa 4 — Autenticação e autorização](04_AUTENTICACAO_E_AUTORIZACAO.md): login JWT, perfis, permissões, isolamento dos dados e configuração da chave.
+- [Etapa 5 — Troca de senha](05_TROCA_DE_SENHA.md): conferência da senha atual, invalidação de tokens e proteção contra alterações concorrentes.
