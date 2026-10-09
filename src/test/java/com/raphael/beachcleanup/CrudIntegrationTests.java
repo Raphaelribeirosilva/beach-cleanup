@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -22,6 +23,9 @@ import com.raphael.beachcleanup.entities.Volunteer;
 import com.raphael.beachcleanup.repositories.CleanupEventRepository;
 import com.raphael.beachcleanup.repositories.TrashCollectionRepository;
 import com.raphael.beachcleanup.repositories.VolunteerRepository;
+import com.raphael.beachcleanup.services.VolunteerService;
+import com.raphael.beachcleanup.dto.VolunteerInsertDTO;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:h2:mem:crudtests",
@@ -38,6 +42,13 @@ class CrudIntegrationTests {
     @Autowired
     private TrashCollectionRepository collections;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    @Autowired
+    private VolunteerService volunteerService;
+    @Autowired
+    private ObjectMapper objectMapper;
+
     private MockMvc mvc;
 
     @BeforeEach
@@ -53,12 +64,17 @@ class CrudIntegrationTests {
         long id = create("/volunteers", """
             {"name":"Ana","email":"ana@example.com","password":"senha-inicial"}
             """);
-        assertEquals("senha-inicial", volunteers.findById(id).orElseThrow().getPassword());
+        String storedHash = volunteers.findById(id).orElseThrow().getPassword();
+        assertNotEquals("senha-inicial", storedHash);
+        assertTrue(passwordEncoder.matches("senha-inicial", storedHash));
+        assertFalse(passwordEncoder.matches("senha-incorreta", storedHash));
         assertEquals(0.0, volunteers.findById(id).orElseThrow().getTotalTrashCollecting());
         mvc.perform(get("/volunteers"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(id));
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(id))
+            .andExpect(jsonPath("$..password").isEmpty());
         mvc.perform(get("/volunteers/{id}", id))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Ana"));
+            .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Ana"))
+            .andExpect(jsonPath("$..password").isEmpty());
         mvc.perform(put("/volunteers/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"id":999999,"name":"Ana Silva","email":"ana.silva@example.com",
@@ -66,9 +82,10 @@ class CrudIntegrationTests {
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
             .andExpect(jsonPath("$.name").value("Ana Silva"))
-            .andExpect(jsonPath("$.email").value("ana.silva@example.com"));
+            .andExpect(jsonPath("$.email").value("ana.silva@example.com"))
+            .andExpect(jsonPath("$..password").isEmpty());
         Volunteer saved = volunteers.findById(id).orElseThrow();
-        assertEquals("senha-inicial", saved.getPassword());
+        assertEquals(storedHash, saved.getPassword());
         assertEquals(0.0, saved.getTotalTrashCollecting());
         deleteAndCheckMissing("/volunteers", id);
     }
@@ -83,16 +100,19 @@ class CrudIntegrationTests {
         assertNotEquals(existingId, id);
         assertEquals("Evento original", events.findById(existingId).orElseThrow().getTitle());
         mvc.perform(get("/cleanupEvent")).andExpect(status().isOk())
-            .andExpect(jsonPath("$.length()").value(2));
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$..password").isEmpty());
         mvc.perform(get("/cleanupEvent/{id}", id))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("Mutirao"));
+            .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("Mutirao"))
+            .andExpect(jsonPath("$..password").isEmpty());
         mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"id":999999,"title":"Novo titulo","location":"Praia B",
                  "dateTime":"2026-10-20T09:00:00","status":"Concluido"}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
-            .andExpect(jsonPath("$.title").value("Novo titulo"));
+            .andExpect(jsonPath("$.title").value("Novo titulo"))
+            .andExpect(jsonPath("$..password").isEmpty());
         CleanupEvent saved = events.findById(id).orElseThrow();
         assertEquals("Praia B", saved.getLocation());
         assertEquals(LocalDateTime.parse("2026-10-20T09:00:00"), saved.getDateTime());
@@ -106,11 +126,13 @@ class CrudIntegrationTests {
         long eventId = newEvent().getId();
         long id = create("/trashCollection", collectionJson(volunteerId, eventId));
         mvc.perform(get("/trashCollection")).andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].id").value(id));
+            .andExpect(jsonPath("$[0].id").value(id))
+            .andExpect(jsonPath("$..password").isEmpty());
         mvc.perform(get("/trashCollection/{id}", id))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.volunteer.name").value("Voluntario original"))
-            .andExpect(jsonPath("$.event.title").value("Evento original"));
+            .andExpect(jsonPath("$.event.title").value("Evento original"))
+            .andExpect(jsonPath("$..password").isEmpty());
         long anotherVolunteer = newVolunteer().getId();
         long anotherEvent = newEvent().getId();
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
@@ -120,7 +142,8 @@ class CrudIntegrationTests {
                 """.formatted(anotherVolunteer, anotherEvent)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
             .andExpect(jsonPath("$.volunteer.id").value(anotherVolunteer))
-            .andExpect(jsonPath("$.event.id").value(anotherEvent));
+            .andExpect(jsonPath("$.event.id").value(anotherEvent))
+            .andExpect(jsonPath("$..password").isEmpty());
         var saved = collections.findById(id).orElseThrow();
         assertEquals("Praia B", saved.getBeach());
         assertEquals("Vidro", saved.getMaterialType());
@@ -216,9 +239,57 @@ class CrudIntegrationTests {
         assertEquals("Plastico", collections.findById(id).orElseThrow().getMaterialType());
     }
 
+    @Test
+    void samePasswordProducesDifferentHashesAndBothMatch() throws Exception {
+        long first = create("/volunteers", """
+            {"name":"Ana","email":"ana@example.com","password":"mesma-senha"}
+            """);
+        long second = create("/volunteers", """
+            {"name":"Bia","email":"bia@example.com","password":"mesma-senha"}
+            """);
+        String firstHash = volunteers.findById(first).orElseThrow().getPassword();
+        String secondHash = volunteers.findById(second).orElseThrow().getPassword();
+        assertNotEquals(firstHash, secondHash);
+        assertTrue(passwordEncoder.matches("mesma-senha", firstHash));
+        assertTrue(passwordEncoder.matches("mesma-senha", secondHash));
+    }
+
+    @Test
+    void bcryptLimitIsMeasuredInUtf8BytesAndRejectedPasswordsAreNotSaved() throws Exception {
+        String accepted = "a".repeat(70) + "é";
+        long id = create("/volunteers", """
+            {"name":"Ana","email":"ana@example.com","password":"%s"}
+            """.formatted(accepted));
+        assertTrue(passwordEncoder.matches(accepted, volunteers.findById(id).orElseThrow().getPassword()));
+        for (String rejected : new String[] {"a".repeat(73), "a".repeat(71) + "é"}) {
+            MvcResult result = mvc.perform(post("/volunteers").contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"Bia","email":"bia@example.com","password":"%s"}
+                    """.formatted(rejected))).andExpect(status().isBadRequest()).andReturn();
+            assertFalse(result.getResponse().getContentAsString().contains(rejected));
+        }
+        assertEquals(1, volunteers.count());
+    }
+
+    @Test
+    void directSerializationHidesPasswordAndDeserializationStillAcceptsIt() {
+        Volunteer volunteer = newVolunteer();
+        String entityJson = objectMapper.writeValueAsString(volunteer);
+        assertFalse(entityJson.contains("password"));
+        assertFalse(entityJson.contains(volunteer.getPassword()));
+        VolunteerInsertDTO dto = objectMapper.readValue("""
+            {"name":"Ana","email":"ana@example.com","password":"senha-de-entrada"}
+            """, VolunteerInsertDTO.class);
+        assertEquals("senha-de-entrada", dto.getPassword());
+        String dtoJson = objectMapper.writeValueAsString(dto);
+        assertFalse(dtoJson.contains("password"));
+        assertFalse(dtoJson.contains("senha-de-entrada"));
+    }
+
     private long create(String path, String json) throws Exception {
         MvcResult result = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(json))
-            .andExpect(status().isCreated()).andExpect(header().exists("Location")).andReturn();
+            .andExpect(status().isCreated()).andExpect(header().exists("Location"))
+            .andExpect(jsonPath("$..password").isEmpty()).andReturn();
         String location = result.getResponse().getHeader("Location");
         assertNotNull(location);
         assertTrue(location.contains(path + "/"));
@@ -232,7 +303,7 @@ class CrudIntegrationTests {
     }
 
     private Volunteer newVolunteer() {
-        return volunteers.save(new Volunteer(null, "Voluntario original", "original@example.com",
+        return volunteerService.insert(new Volunteer(null, "Voluntario original", "original@example.com",
             "senha-inicial", 0.0));
     }
 

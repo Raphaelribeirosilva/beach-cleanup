@@ -2,6 +2,7 @@ package com.raphael.beachcleanup.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class VolunteerInsertDTO {
 	 
@@ -13,6 +14,7 @@ public class VolunteerInsertDTO {
 	private String email;
 	
 	@NotBlank(message = "A senha é obrigatória")
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
 	
 	public VolunteerInsertDTO() {}

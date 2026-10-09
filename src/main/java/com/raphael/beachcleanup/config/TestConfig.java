@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.raphael.beachcleanup.entities.CleanupEvent;
 import com.raphael.beachcleanup.entities.TrashCollection;
@@ -28,10 +29,14 @@ public class TestConfig implements CommandLineRunner {
 	
 	@Autowired
 	VolunteerRepository volunteerRepository;
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
 	
     @Override
     public void run(String... args) throws Exception {
-        Volunteer v1 = new Volunteer(null, "Raphael", "admin-original@example.com", "demo-original7!", 20.0);
+        Volunteer v1 = new Volunteer(null, "Raphael", "admin-original@example.com",
+                passwordEncoder.encode("demo-original7!"), 20.0);
         
         CleanupEvent e1 = new CleanupEvent(
 	        		null,

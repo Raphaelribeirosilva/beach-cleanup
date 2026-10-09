@@ -1,9 +1,13 @@
 package com.raphael.beachcleanup.services;
 
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.raphael.beachcleanup.entities.Volunteer;
@@ -17,6 +21,9 @@ public class VolunteerService {
     @Autowired
     private VolunteerRepository repository;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Transactional(readOnly = true)
     public List<Volunteer> findAll() {
         return repository.findAll();
@@ -29,6 +36,15 @@ public class VolunteerService {
     }
 
     public Volunteer insert(Volunteer obj) {
+        String password = obj.getPassword();
+        if (password == null || password.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A senha é obrigatória");
+        }
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "A senha deve ter no máximo 72 bytes em UTF-8");
+        }
+        obj.setPassword(passwordEncoder.encode(password));
         obj.setId(null);
         obj.setTotalTrashCollecting(0.0);
         obj.getEvents().clear();

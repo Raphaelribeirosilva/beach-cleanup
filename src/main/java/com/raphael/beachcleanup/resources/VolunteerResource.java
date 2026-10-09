@@ -39,9 +39,9 @@ public class VolunteerResource {
 	}
 	
 	@GetMapping(value = "/{id}")
-	public ResponseEntity<Volunteer> findById(@PathVariable Long id) {
+	public ResponseEntity<VolunteerDTO> findById(@PathVariable Long id) {
 		Volunteer obj = service.findById(id);
-		return ResponseEntity.ok().body(obj);
+		return ResponseEntity.ok().body(new VolunteerDTO(obj));
 	}
 	
 	@PostMapping
@@ -61,8 +61,8 @@ public class VolunteerResource {
 	}
 	
 	@PutMapping(value = "/{id}")
-	public ResponseEntity<Volunteer> update(@PathVariable Long id, @RequestBody Volunteer obj){
+	public ResponseEntity<VolunteerDTO> update(@PathVariable Long id, @RequestBody Volunteer obj){
 		obj = service.update(id, obj);
-		return ResponseEntity.ok().body(obj);
+		return ResponseEntity.ok().body(new VolunteerDTO(obj));
 	}
 }

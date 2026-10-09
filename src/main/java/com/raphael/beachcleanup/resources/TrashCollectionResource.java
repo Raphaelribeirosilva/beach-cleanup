@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.raphael.beachcleanup.entities.TrashCollection;
+import com.raphael.beachcleanup.dto.TrashCollectionDTO;
 import com.raphael.beachcleanup.services.TrashCollectionService;
 
 @RestController
@@ -26,23 +27,23 @@ public class TrashCollectionResource {
 	private TrashCollectionService service;
 	
 	@GetMapping
-	public ResponseEntity<List<TrashCollection>> findAll() {
+	public ResponseEntity<List<TrashCollectionDTO>> findAll() {
 		List<TrashCollection> list = service.findAll();
-		return ResponseEntity.ok().body(list);
+		return ResponseEntity.ok().body(list.stream().map(TrashCollectionDTO::new).toList());
 	}
 	
 	@GetMapping(value = "/{id}")
-	public ResponseEntity<TrashCollection> findById(@PathVariable Long id) {
+	public ResponseEntity<TrashCollectionDTO> findById(@PathVariable Long id) {
 		TrashCollection obj = service.findById(id);
-		return ResponseEntity.ok().body(obj);
+		return ResponseEntity.ok().body(new TrashCollectionDTO(obj));
 	}
 	
 	@PostMapping
-	public ResponseEntity<TrashCollection> insert(@RequestBody TrashCollection obj){
+	public ResponseEntity<TrashCollectionDTO> insert(@RequestBody TrashCollection obj){
 		obj = service.insert(obj);
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
 			.buildAndExpand(obj.getId()).toUri();
-		return ResponseEntity.created(uri).body(obj);
+		return ResponseEntity.created(uri).body(new TrashCollectionDTO(obj));
 	}
 	
 	@DeleteMapping(value = "/{id}")
@@ -52,8 +53,8 @@ public class TrashCollectionResource {
 	}
 	
 	@PutMapping(value = "/{id}")
-	public ResponseEntity<TrashCollection> update(@PathVariable Long id, @RequestBody TrashCollection obj){
+	public ResponseEntity<TrashCollectionDTO> update(@PathVariable Long id, @RequestBody TrashCollection obj){
 		obj = service.update(id, obj);
-		return ResponseEntity.ok().body(obj);
+		return ResponseEntity.ok().body(new TrashCollectionDTO(obj));
 	}
 }

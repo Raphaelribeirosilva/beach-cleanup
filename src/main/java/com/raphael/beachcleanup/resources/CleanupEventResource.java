@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.raphael.beachcleanup.entities.CleanupEvent;
+import com.raphael.beachcleanup.dto.CleanupEventDTO;
 import com.raphael.beachcleanup.services.CleanupEventService;
 
 @RestController
@@ -26,23 +27,23 @@ public class CleanupEventResource {
 	private CleanupEventService service;
 	
 	@GetMapping
-	public ResponseEntity<List<CleanupEvent>> findAll() {
+	public ResponseEntity<List<CleanupEventDTO>> findAll() {
 		List<CleanupEvent> list = service.findAll();
-		return ResponseEntity.ok().body(list);
+		return ResponseEntity.ok().body(list.stream().map(CleanupEventDTO::new).toList());
 	}
 	
 	@GetMapping(value = "/{id}")
-	public ResponseEntity<CleanupEvent> findById(@PathVariable Long id) {
+	public ResponseEntity<CleanupEventDTO> findById(@PathVariable Long id) {
 		CleanupEvent obj = service.findById(id);
-		return ResponseEntity.ok().body(obj);
+		return ResponseEntity.ok().body(new CleanupEventDTO(obj));
 	}
 	
 	@PostMapping
-	public ResponseEntity<CleanupEvent> insert(@RequestBody CleanupEvent obj){
+	public ResponseEntity<CleanupEventDTO> insert(@RequestBody CleanupEvent obj){
 		obj = service.insert(obj);
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
 			.buildAndExpand(obj.getId()).toUri();
-		return ResponseEntity.created(uri).body(obj);
+		return ResponseEntity.created(uri).body(new CleanupEventDTO(obj));
 	}
 	
 	@DeleteMapping(value = "/{id}")
@@ -52,8 +53,8 @@ public class CleanupEventResource {
 	}
 	
 	@PutMapping(value = "/{id}")
-	public ResponseEntity<CleanupEvent> update(@PathVariable Long id, @RequestBody CleanupEvent obj){
+	public ResponseEntity<CleanupEventDTO> update(@PathVariable Long id, @RequestBody CleanupEvent obj){
 		obj = service.update(id, obj);
-		return ResponseEntity.ok().body(obj);
+		return ResponseEntity.ok().body(new CleanupEventDTO(obj));
 	}
 }
