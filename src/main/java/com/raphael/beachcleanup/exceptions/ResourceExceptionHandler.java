@@ -17,6 +17,13 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @ControllerAdvice
 public class ResourceExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(EventStateConflictException.class)
+    public ResponseEntity<StandardError> eventStateConflict(EventStateConflictException e,
+            HttpServletRequest request) {
+        return ResponseEntity.status(409).body(new StandardError(Instant.now(), 409, "Event state conflict",
+            e.getMessage(), request.getRequestURI()));
+    }
+
     @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
     public ResponseEntity<StandardError> concurrentUpdate(
             org.springframework.dao.OptimisticLockingFailureException e, HttpServletRequest request) {

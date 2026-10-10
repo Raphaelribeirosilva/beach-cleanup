@@ -21,12 +21,14 @@ import com.raphael.beachcleanup.repositories.UserRepository;
 public class EventRegistrationService {
     private final UserRepository users;
     private final CleanupEventRepository events;
+    private final EventStateService states;
     @PersistenceContext
     private EntityManager entityManager;
 
-    public EventRegistrationService(UserRepository users, CleanupEventRepository events) {
+    public EventRegistrationService(UserRepository users, CleanupEventRepository events, EventStateService states) {
         this.users = users;
         this.events = events;
+        this.states = states;
     }
 
     @Transactional(readOnly = true)
@@ -40,8 +42,10 @@ public class EventRegistrationService {
         validateEventId(eventId);
         // Serialize changes to this user's owning collection, including simultaneous registrations.
         User user = lockedUser(userId);
-        CleanupEvent event = event(eventId);
-        if (user.getEvents().add(event)) {
+        CleanupEvent event = states.lockedEvent(eventId);
+        if (!user.getEvents().contains(event)) {
+            states.requireNewRecordsAllowed(event);
+            user.getEvents().add(event);
             event.getUsers().add(user);
         }
         users.flush();

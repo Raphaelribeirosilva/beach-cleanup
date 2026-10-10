@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.raphael.beachcleanup.entities.TrashCollection;
 import com.raphael.beachcleanup.exceptions.ResourceNotFoundException;
 import com.raphael.beachcleanup.repositories.TrashCollectionRepository;
-import com.raphael.beachcleanup.repositories.CleanupEventRepository;
 import com.raphael.beachcleanup.repositories.UserRepository;
 import com.raphael.beachcleanup.exceptions.FieldValidationException;
 
@@ -24,7 +23,7 @@ public class TrashCollectionService {
     private UserRepository userRepository;
 
     @Autowired
-    private CleanupEventRepository eventRepository;
+    private EventStateService states;
 
     @Transactional(readOnly = true)
     public List<TrashCollection> findAll() {
@@ -39,7 +38,7 @@ public class TrashCollectionService {
 
     public TrashCollection insert(TrashCollection obj) {
         obj.setId(null);
-        resolveReferences(obj);
+        resolveReferences(obj, null);
         return repository.save(obj);
     }
 
@@ -51,7 +50,7 @@ public class TrashCollectionService {
 
     public TrashCollection update(Long id, TrashCollection obj) {
         TrashCollection entity = findById(id);
-        resolveReferences(obj);
+        resolveReferences(obj, entity.getEvent() == null ? null : entity.getEvent().getId());
         updateData(entity, obj);
         return repository.save(entity);
     }
@@ -65,7 +64,7 @@ public class TrashCollectionService {
         entity.setEvent(obj.getEvent());
     }
 
-    private void resolveReferences(TrashCollection obj) {
+    private void resolveReferences(TrashCollection obj, Long previousEventId) {
         if (obj.getVolunteer() != null) {
             Long userId = obj.getVolunteer().getId();
             if (userId == null || userId <= 0) {
@@ -79,8 +78,11 @@ public class TrashCollectionService {
             if (eventId == null || eventId <= 0) {
                 throw new FieldValidationException("event.id", "Informe um ID positivo para o vínculo");
             }
-            obj.setEvent(eventRepository.findById(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException(eventId)));
+            var event = states.lockedEvent(eventId);
+            if (!eventId.equals(previousEventId)) {
+                states.requireNewRecordsAllowed(event);
+            }
+            obj.setEvent(event);
         }
     }
 }

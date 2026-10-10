@@ -118,7 +118,7 @@ class CrudIntegrationTests {
         mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"id":999999,"title":"Novo titulo","location":"Praia B",
-                 "dateTime":"2026-10-20T09:00:00","status":"Concluido"}
+                 "dateTime":"2026-10-20T09:00:00","status":"Em andamento"}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
             .andExpect(jsonPath("$.title").value("Novo titulo"))
@@ -126,7 +126,7 @@ class CrudIntegrationTests {
         CleanupEvent saved = events.findById(id).orElseThrow();
         assertEquals("Praia B", saved.getLocation());
         assertEquals(LocalDateTime.parse("2026-10-20T09:00:00"), saved.getDateTime());
-        assertEquals("Concluido", saved.getStatus());
+        assertEquals("Em andamento", saved.getStatus());
         deleteAndCheckMissing("/cleanupEvent", id);
     }
 
