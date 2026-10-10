@@ -8,7 +8,8 @@ import jakarta.persistence.LockModeType;
 
 import com.raphael.beachcleanup.entities.User;
 
-public interface UserRepository extends JpaRepository<User, Long>{
+public interface UserRepository extends JpaRepository<User, Long>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<User> {
     java.util.Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
     boolean existsByEmailAndIdNot(String email, Long id);
