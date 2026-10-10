@@ -25,6 +25,8 @@ O perfil MySQL não carrega contas de exemplo. Cadastre a primeira conta por `PO
 
 ## Verificação
 
+O usuário posteriormente configurou o MySQL local e confirmou cadastro, login e persistência da conta após reinício. O ambiente e o relato dessa validação manual estão no [registro do MySQL local](12_MYSQL_LOCAL_VALIDACAO_MANUAL.md).
+
 `PersistentDatabaseIntegrationTests` inicia a aplicação duas vezes usando o perfil `mysql`, com conexão substituída por H2 em arquivo no modo MySQL. Executa as migrações reais, valida o esquema e verifica persistência de conta, senha, evento, inscrição, coleta e total após reinício; também verifica ausência do seed, bloqueio de limpeza, unicidade e integridade dos vínculos.
 
 Esse teste **não substitui uma validação contra um servidor MySQL real**. A conexão ao banco de destino depende de sua configuração externa. O teste usa uma chave JWT exclusiva de teste e dados temporários.
