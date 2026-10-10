@@ -14,11 +14,11 @@ public class UserDTO implements Serializable {
     public UserDTO() {
     }
 
-    public UserDTO(User entity) {
+    public UserDTO(User entity, double totalCollectedKg) {
         this.id = entity.getId();
         this.name = entity.getName();
         this.email = entity.getEmail();
-        this.totalCollectedKg = entity.getTotalCollectedKg();
+        this.totalCollectedKg = totalCollectedKg;
     }
     
     public Long getId() {

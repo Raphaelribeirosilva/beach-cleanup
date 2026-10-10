@@ -144,7 +144,7 @@ class CrudIntegrationTests {
             .andExpect(jsonPath("$.registrationDate").value("2026-10-15"))
             .andExpect(jsonPath("$.weithKg").doesNotExist())
             .andExpect(jsonPath("$.regitrationDate").doesNotExist())
-            .andExpect(jsonPath("$.volunteer.totalCollectedKg").value(0.0))
+            .andExpect(jsonPath("$.volunteer.totalCollectedKg").value(2.0))
             .andExpect(jsonPath("$.volunteer.name").value("Voluntario original"))
             .andExpect(jsonPath("$.event.title").value("Evento original"))
             .andExpect(jsonPath("$..password").isEmpty());

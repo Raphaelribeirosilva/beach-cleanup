@@ -37,7 +37,7 @@ public class TestConfig implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         User v1 = new User(null, "Raphael", "admin-original@example.com",
-                passwordEncoder.encode("demo-original7!"), 20.0);
+                passwordEncoder.encode("demo-original7!"), 15.5);
         v1.setRole(UserRole.ADMIN);
 
         User admin = new User(null, "Administrador de teste", "admin@example.com",

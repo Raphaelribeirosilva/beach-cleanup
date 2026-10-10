@@ -2,7 +2,6 @@ package com.raphael.beachcleanup.resources;
 
 import java.net.URI;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +20,7 @@ import com.raphael.beachcleanup.dto.UserInsertDTO;
 import com.raphael.beachcleanup.entities.User;
 import com.raphael.beachcleanup.dto.UserUpdateDTO;
 import com.raphael.beachcleanup.services.UserService;
+import com.raphael.beachcleanup.services.CollectedTotalsService;
 
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,13 +31,16 @@ public class UserResource {
 
 	@Autowired
 	private UserService service;
+
+    @Autowired
+    private CollectedTotalsService totals;
 	
 	@GetMapping
     @PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<List<UserDTO>> findAll() {
 		
 		List<User> list = service.findAll();
-		List<UserDTO> listDto = list.stream().map(x -> new UserDTO(x)).collect(Collectors.toList());
+		List<UserDTO> listDto = totals.users(list);
 		return ResponseEntity.ok().body(listDto);
 	}
 	
@@ -45,7 +48,7 @@ public class UserResource {
     @PreAuthorize("@accessPolicy.canAccessUser(#id)")
 	public ResponseEntity<UserDTO> findById(@PathVariable Long id) {
 		User obj = service.findById(id);
-		return ResponseEntity.ok().body(new UserDTO(obj));
+		return ResponseEntity.ok().body(totals.user(obj));
 	}
 	
 	@PostMapping
@@ -55,7 +58,7 @@ public class UserResource {
         entity = service.insert(entity);
         URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
             .buildAndExpand(entity.getId()).toUri();
-        return ResponseEntity.created(uri).body(new UserDTO(entity));
+        return ResponseEntity.created(uri).body(totals.user(entity));
     }
 	
 	@DeleteMapping(value = "/{id}")
@@ -69,6 +72,6 @@ public class UserResource {
     @PreAuthorize("@accessPolicy.canAccessUser(#id)")
 	public ResponseEntity<UserDTO> update(@PathVariable Long id, @Valid @RequestBody UserUpdateDTO dto){
 		User obj = service.update(id, dto.toEntity());
-		return ResponseEntity.ok().body(new UserDTO(obj));
+		return ResponseEntity.ok().body(totals.user(obj));
 	}
 }

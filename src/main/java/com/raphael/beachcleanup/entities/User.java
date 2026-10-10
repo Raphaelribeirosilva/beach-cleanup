@@ -48,7 +48,7 @@ public class User implements Serializable{
     @JsonIgnore
     @Version
     private Long rowVersion;
-    /** Stored collected mass in kilograms; currently not recalculated from collections. */
+    /** Legacy stored value retained for schema compatibility; API totals are derived from collections. */
     @Column(name = "total_collected_kg")
 	private Double totalCollectedKg;
 	

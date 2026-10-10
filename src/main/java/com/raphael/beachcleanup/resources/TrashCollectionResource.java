@@ -22,6 +22,7 @@ import com.raphael.beachcleanup.entities.TrashCollection;
 import com.raphael.beachcleanup.dto.TrashCollectionInputDTO;
 import com.raphael.beachcleanup.dto.TrashCollectionDTO;
 import com.raphael.beachcleanup.services.TrashCollectionService;
+import com.raphael.beachcleanup.services.CollectedTotalsService;
 
 @RestController
 @RequestMapping(value = "/trashCollection")
@@ -31,19 +32,22 @@ public class TrashCollectionResource {
 	private TrashCollectionService service;
 
     @Autowired
+    private CollectedTotalsService totals;
+
+    @Autowired
     private AccessPolicy accessPolicy;
 	
 	@GetMapping
 	public ResponseEntity<List<TrashCollectionDTO>> findAll() {
 		List<TrashCollection> list = accessPolicy.visibleCollections();
-		return ResponseEntity.ok().body(list.stream().map(TrashCollectionDTO::new).toList());
+		return ResponseEntity.ok().body(totals.collections(list));
 	}
 	
 	@GetMapping(value = "/{id}")
     @PreAuthorize("@accessPolicy.canAccessCollection(#id)")
 	public ResponseEntity<TrashCollectionDTO> findById(@PathVariable Long id) {
 		TrashCollection obj = service.findById(id);
-		return ResponseEntity.ok().body(new TrashCollectionDTO(obj));
+		return ResponseEntity.ok().body(totals.collection(obj));
 	}
 	
 	@PostMapping
@@ -53,7 +57,7 @@ public class TrashCollectionResource {
         obj = service.insert(obj);
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
 			.buildAndExpand(obj.getId()).toUri();
-		return ResponseEntity.created(uri).body(new TrashCollectionDTO(obj));
+		return ResponseEntity.created(uri).body(totals.collection(obj));
 	}
 	
 	@DeleteMapping(value = "/{id}")
@@ -69,6 +73,6 @@ public class TrashCollectionResource {
 		TrashCollection obj = dto.toEntity();
         accessPolicy.bindCollectionOwner(obj);
         obj = service.update(id, obj);
-		return ResponseEntity.ok().body(new TrashCollectionDTO(obj));
+		return ResponseEntity.ok().body(totals.collection(obj));
 	}
 }

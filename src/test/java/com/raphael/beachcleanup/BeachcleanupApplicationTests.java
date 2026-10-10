@@ -40,7 +40,7 @@ class BeachcleanupApplicationTests {
             assertEquals(0, account.getCredentialVersion());
 
             if (account.getEmail().equals("admin-original@example.com")) {
-                assertEquals(20.0, account.getTotalCollectedKg());
+                assertEquals(15.5, account.getTotalCollectedKg());
                 assertEquals(1, account.getEvents().size());
                 assertTrue(account.getEvents().iterator().next().getUsers().contains(account));
                 assertEquals(1, account.getCollection().size());
