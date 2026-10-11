@@ -1,0 +1,1977 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Beach Cleanup API",
+    "version": "0.0.1-SNAPSHOT",
+    "description": "Contrato estático da API atual. Proteção por JWT Bearer; permissões de perfil/propriedade são descritas por operação. PUT substitui os campos de entrada. Banco MySQL existente deve ser preservado; este contrato não executa migrações."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Aplicação local; ajuste host/porta conforme sua execução."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Autenticação"
+    },
+    {
+      "name": "Usuários"
+    },
+    {
+      "name": "Eventos"
+    },
+    {
+      "name": "Coletas"
+    },
+    {
+      "name": "Inscrições"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "login",
+        "summary": "Autenticar usuário",
+        "description": "Normaliza e-mail removendo espaços nas extremidades e convertendo para minúsculas. A resposta tem Cache-Control: no-store.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password": {
+      "put": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "changePassword",
+        "summary": "Trocar a própria senha",
+        "description": "Requer a senha atual e uma senha diferente. Sucesso revoga todos os tokens anteriores da conta, inclusive o usado nesta chamada. Faça novo login.",
+        "responses": {
+          "204": {
+            "description": "Operação concluída."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "Usuários"
+        ],
+        "operationId": "listUsers",
+        "summary": "Listar usuários",
+        "description": "Somente administrador. Lista completa em array; para paginação use /search.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Usuários"
+        ],
+        "operationId": "createUser",
+        "summary": "Criar User",
+        "description": "Cadastro público cria VOLUNTEER; não permite escolher perfil. E-mail é normalizado e deve ser único.",
+        "responses": {
+          "201": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URI do recurso criado.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserInsertInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": [
+          "Usuários"
+        ],
+        "operationId": "getUser",
+        "summary": "Consultar User",
+        "description": "Administrador ou a própria conta.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Usuários"
+        ],
+        "operationId": "updateUser",
+        "summary": "Atualizar User",
+        "description": "Administrador ou a própria conta. Atualiza nome e e-mail. Não altera senha, perfil ou total; para senha use /auth/password.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdateInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Usuários"
+        ],
+        "operationId": "deleteUser",
+        "summary": "Excluir User",
+        "description": "Administrador ou a própria conta. Exclusão pode retornar 409 se houver registros vinculados.",
+        "responses": {
+          "204": {
+            "description": "Operação concluída."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      }
+    },
+    "/cleanupEvent": {
+      "get": {
+        "tags": [
+          "Eventos"
+        ],
+        "operationId": "listCleanupEvents",
+        "summary": "Listar eventos",
+        "description": "Leitura pública. Lista completa em array; para paginação use /search.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CleanupEvent"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "Eventos"
+        ],
+        "operationId": "createCleanupEvent",
+        "summary": "Criar CleanupEvent",
+        "description": "Somente administrador. Novos eventos devem começar como Agendado; outro estado conhecido retorna 409.",
+        "responses": {
+          "201": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupEvent"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URI do recurso criado.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanupEventInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleanupEvent/{id}": {
+      "get": {
+        "tags": [
+          "Eventos"
+        ],
+        "operationId": "getCleanupEvent",
+        "summary": "Consultar CleanupEvent",
+        "description": "Leitura pública; edição e exclusão somente administrador.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Eventos"
+        ],
+        "operationId": "updateCleanupEvent",
+        "summary": "Atualizar CleanupEvent",
+        "description": "Leitura pública; edição e exclusão somente administrador. Somente administrador. Mantém o estado ou aplica transições: Agendado → Em andamento/Pausado/Cancelado; Em andamento → Pausado/Concluido/Cancelado; Pausado → Agendado/Em andamento/Cancelado. Concluido e Cancelado não reabrem. Mudanças não são automáticas pela data.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanupEventInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Eventos"
+        ],
+        "operationId": "deleteCleanupEvent",
+        "summary": "Excluir CleanupEvent",
+        "description": "Leitura pública; edição e exclusão somente administrador. Exclusão pode retornar 409 se houver registros vinculados.",
+        "responses": {
+          "204": {
+            "description": "Operação concluída."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      }
+    },
+    "/trashCollection": {
+      "get": {
+        "tags": [
+          "Coletas"
+        ],
+        "operationId": "listTrashCollections",
+        "summary": "Listar coletas",
+        "description": "Administrador vê todas; voluntário vê somente as próprias coletas. Lista completa em array; para paginação use /search.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashCollection"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Coletas"
+        ],
+        "operationId": "createTrashCollection",
+        "summary": "Criar TrashCollection",
+        "description": "Voluntário registra em seu nome. Administrador pode definir qualquer proprietário ou deixar sem proprietário. Vínculos inexistentes retornam 404. Novo vínculo exige evento Agendado ou Em andamento. Inscrição no evento não é requisito.",
+        "responses": {
+          "201": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashCollection"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URI do recurso criado.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashCollectionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trashCollection/{id}": {
+      "get": {
+        "tags": [
+          "Coletas"
+        ],
+        "operationId": "getTrashCollection",
+        "summary": "Consultar TrashCollection",
+        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashCollection"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Coletas"
+        ],
+        "operationId": "updateTrashCollection",
+        "summary": "Atualizar TrashCollection",
+        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Substitui todos os campos de entrada. Omitir/null em event remove o vínculo; administrador também pode remover/transferir volunteer. Corrigir coleta no mesmo evento é permitido em qualquer estado; novo destino deve aceitar registros.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashCollection"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashCollectionInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Coletas"
+        ],
+        "operationId": "deleteTrashCollection",
+        "summary": "Excluir TrashCollection",
+        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Exclusão pode retornar 409 se houver registros vinculados.",
+        "responses": {
+          "204": {
+            "description": "Operação concluída."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      }
+    },
+    "/users/me/events": {
+      "get": {
+        "tags": [
+          "Inscrições"
+        ],
+        "operationId": "listMyEvents",
+        "summary": "Listar minhas inscrições",
+        "description": "Eventos da conta autenticada em ordem crescente de ID. Administrador também gerencia somente suas próprias inscrições nesta rota.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CleanupEvent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/users/me/events/{eventId}": {
+      "put": {
+        "tags": [
+          "Inscrições"
+        ],
+        "operationId": "registerForEvent",
+        "summary": "Inscrever-me no evento",
+        "description": "Idempotente. Nova inscrição exige evento Agendado ou Em andamento; inscrição existente retorna 204 mesmo nos demais estados.",
+        "responses": {
+          "204": {
+            "description": "Operação concluída."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Inscrições"
+        ],
+        "operationId": "cancelEventRegistration",
+        "summary": "Cancelar minha inscrição",
+        "description": "Idempotente para evento existente, inclusive sem inscrição. Permitido em qualquer estado do evento; preserva coletas.",
+        "responses": {
+          "204": {
+            "description": "Operação concluída."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "ID do recurso."
+          }
+        ]
+      }
+    },
+    "/users/search": {
+      "get": {
+        "tags": [
+          "Usuários"
+        ],
+        "operationId": "searchUsers",
+        "summary": "Buscar usuários com paginação",
+        "description": "Somente administrador. Filtros combinados com AND. Total coletado considera todas as coletas da conta.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Busca por trecho sem diferenciar caixa; espaços nas extremidades ignorados, vazio não filtra. %, _ e ! são literais."
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Busca por trecho sem diferenciar caixa; espaços nas extremidades ignorados, vazio não filtra. %, _ e ! são literais."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Página a partir de zero; page × size não pode exceder 2147483647."
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Tamanho da página."
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id",
+                "name",
+                "email"
+              ],
+              "default": "id"
+            },
+            "description": "Campo de ordenação. Outro campo usa também ID crescente para desempatar."
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "asc"
+            },
+            "description": "asc ou desc, sem diferenciar caixa."
+          }
+        ]
+      }
+    },
+    "/cleanupEvent/search": {
+      "get": {
+        "tags": [
+          "Eventos"
+        ],
+        "operationId": "searchEvents",
+        "summary": "Buscar eventos com paginação",
+        "description": "Leitura pública. Filtros combinados com AND. Datas locais sem fuso horário.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupEventPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Busca por trecho sem diferenciar caixa; espaços nas extremidades ignorados, vazio não filtra. %, _ e ! são literais."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e Concluído. Novo evento deve começar como Agendado.",
+              "example": "Agendado"
+            },
+            "description": "Estado aceito pela API; vazio é inválido."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "2026-10-15T08:00:00",
+              "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
+            },
+            "description": "Início inclusivo."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "2026-10-15T08:00:00",
+              "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
+            },
+            "description": "Fim inclusivo; deve ser igual ou posterior a from."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Página a partir de zero; page × size não pode exceder 2147483647."
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Tamanho da página."
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id",
+                "title",
+                "location",
+                "dateTime",
+                "status"
+              ],
+              "default": "id"
+            },
+            "description": "Campo de ordenação. Outro campo usa também ID crescente para desempatar."
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "asc"
+            },
+            "description": "asc ou desc, sem diferenciar caixa."
+          }
+        ]
+      }
+    },
+    "/trashCollection/search": {
+      "get": {
+        "tags": [
+          "Coletas"
+        ],
+        "operationId": "searchCollections",
+        "summary": "Buscar coletas com paginação",
+        "description": "Filtros combinados com AND. Isolamento do voluntário abrange registros e contagens. Total do usuário aninhado considera todas as suas coletas, independentemente da página/filtro.",
+        "responses": {
+          "200": {
+            "description": "Operação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashCollectionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "beach",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Busca por trecho sem diferenciar caixa; espaços nas extremidades ignorados, vazio não filtra. %, _ e ! são literais."
+          },
+          {
+            "name": "materialType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Busca por trecho sem diferenciar caixa; espaços nas extremidades ignorados, vazio não filtra. %, _ e ! são literais."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Início inclusivo."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Fim inclusivo; deve ser igual ou posterior a from."
+          },
+          {
+            "name": "volunteerId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Administrador pode filtrar qualquer conta. Voluntário só pode informar o próprio ID; omissão restringe à própria conta."
+          },
+          {
+            "name": "eventId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "ID positivo; sem registros retorna página vazia."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Página a partir de zero; page × size não pode exceder 2147483647."
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Tamanho da página."
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id",
+                "beach",
+                "materialType",
+                "weightKg",
+                "registrationDate"
+              ],
+              "default": "id"
+            },
+            "description": "Campo de ordenação. Outro campo usa também ID crescente para desempatar."
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "asc"
+            },
+            "description": "asc ou desc, sem diferenciar caixa."
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token retornado pelo login. Revogado após troca de senha e inválido após expiração/exclusão da conta."
+      }
+    },
+    "schemas": {
+      "LoginInput": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true,
+            "description": "Obrigatória. Credenciais inválidas ou senha acima de 72 bytes UTF-8 retornam 401."
+          }
+        }
+      },
+      "PasswordChangeInput": {
+        "type": "object",
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true,
+            "description": "Senha atual; incorreta ou acima de 72 bytes UTF-8 retorna 401."
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true,
+            "description": "Obrigatória, não pode conter somente espaços. Máximo de 72 bytes em UTF-8; o limite é em bytes, não caracteres. Deve ser diferente da senha atual."
+          }
+        }
+      },
+      "Token": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "tokenType",
+          "expiresIn",
+          "userId",
+          "role"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "JWT emitido no login; nenhum token real é incluído nesta documentação."
+          },
+          "tokenType": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Validade em segundos."
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "VOLUNTEER",
+              "ADMIN"
+            ]
+          }
+        }
+      },
+      "UserInsertInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true,
+            "description": "Obrigatória, não pode conter somente espaços. Máximo de 72 bytes em UTF-8; o limite é em bytes, não caracteres."
+          }
+        }
+      },
+      "UserUpdateInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "email"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 1
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "totalCollectedKg"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "totalCollectedKg": {
+            "type": "number",
+            "format": "double",
+            "description": "Soma das coletas atuais do usuário, calculada no banco. Zero sem coletas; independe do filtro ou página."
+          }
+        }
+      },
+      "CleanupEventInput": {
+        "type": "object",
+        "required": [
+          "title",
+          "location",
+          "dateTime",
+          "status"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "dateTime": {
+            "type": "string",
+            "example": "2026-10-15T08:00:00",
+            "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e Concluído. Novo evento deve começar como Agendado.",
+            "example": "Agendado"
+          }
+        }
+      },
+      "CleanupEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "location",
+          "dateTime",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "dateTime": {
+            "type": "string",
+            "example": "2026-10-15T08:00:00",
+            "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
+          },
+          "status": {
+            "type": "string",
+            "description": "Estados canônicos para eventos gerenciados pela API: Agendado, Em andamento, Pausado, Concluido, Cancelado. Dados externos legados são retornados como armazenados.",
+            "example": "Agendado"
+          }
+        }
+      },
+      "ResourceReference": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      },
+      "TrashCollectionInput": {
+        "type": "object",
+        "required": [
+          "beach",
+          "materialType",
+          "weightKg",
+          "registrationDate"
+        ],
+        "properties": {
+          "beach": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "materialType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "weightKg": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 1.7976931348623157e+308
+          },
+          "registrationDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "volunteer": {
+            "type": "object",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceReference"
+              }
+            ],
+            "description": "Opcional. Voluntário: omissão/null vincula à própria conta; outra conta retorna 403. Administrador: pode atribuir, transferir ou remover proprietário."
+          },
+          "event": {
+            "type": "object",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceReference"
+              }
+            ],
+            "description": "Opcional. Omitir/null remove o vínculo no PUT. Novo vínculo exige evento Agendado ou Em andamento; inscrição não é requisito."
+          }
+        }
+      },
+      "TrashCollection": {
+        "type": "object",
+        "required": [
+          "id",
+          "beach",
+          "materialType",
+          "weightKg",
+          "registrationDate",
+          "volunteer",
+          "event"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "beach": {
+            "type": "string"
+          },
+          "materialType": {
+            "type": "string"
+          },
+          "weightKg": {
+            "type": "number",
+            "format": "double"
+          },
+          "registrationDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "volunteer": {
+            "type": "object",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ]
+          },
+          "event": {
+            "type": "object",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CleanupEvent"
+              }
+            ]
+          }
+        }
+      },
+      "StandardError": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "status",
+          "error",
+          "message",
+          "path"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "FieldMessage": {
+        "type": "object",
+        "required": [
+          "fieldName",
+          "message"
+        ],
+        "properties": {
+          "fieldName": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationError": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardError"
+          },
+          {
+            "type": "object",
+            "required": [
+              "errors"
+            ],
+            "properties": {
+              "errors": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FieldMessage"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "UserPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "number",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "CleanupEventPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "number",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CleanupEvent"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TrashCollectionPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "number",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrashCollection"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "JSON, tipos, parâmetros ou campos inválidos. Erros de campos incluem errors; falhas de conversão podem usar somente StandardError.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ValidationError"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/StandardError"
+                    }
+                  ],
+                  "not": {
+                    "required": [
+                      "errors"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Autenticação necessária, JWT inválido/revogado ou credenciais incorretas.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardError"
+            }
+          }
+        },
+        "headers": {
+          "WWW-Authenticate": {
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bearer"
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Perfil insuficiente ou acesso a dados de outra conta.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardError"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Recurso ou vínculo não encontrado. Voluntário buscando coleta inexistente pode receber 403 pela checagem de propriedade.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardError"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "E-mail em uso, integridade de vínculos, conflito concorrente ou regra de estado do evento.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardError"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Falha inesperada; detalhes internos não são expostos.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardError"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Envie application/json.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardError"
+            }
+          }
+        }
+      }
+    }
+  }
+}
