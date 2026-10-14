@@ -12,6 +12,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "tb_trash_collection")
@@ -22,6 +24,11 @@ public class TrashCollection implements Serializable{
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
+
+    @JsonIgnore
+    @Version
+    @Column(nullable = false)
+    private Long rowVersion;
 	
 	private String beach;
 	private String materialType;

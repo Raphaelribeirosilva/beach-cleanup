@@ -755,7 +755,7 @@
         ],
         "operationId": "updateTrashCollection",
         "summary": "Atualizar TrashCollection",
-        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Substitui todos os campos de entrada. Omitir/null em event remove o vínculo; administrador também pode remover/transferir volunteer. Corrigir coleta no mesmo evento é permitido em qualquer estado; novo destino deve aceitar registros.",
+        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Substitui todos os campos de entrada. Omitir/null em event remove o vínculo; administrador também pode remover/transferir volunteer. Corrigir coleta no mesmo evento é permitido em qualquer estado; novo destino deve aceitar registros. A autorização é conferida novamente na transação. Se a versão lida pela operação mudar antes da gravação, retorna 409 (Concurrent update). Consulte os dados atuais antes de tentar novamente; a versão interna não faz parte do JSON e não há precondição If-Match.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -818,7 +818,7 @@
         ],
         "operationId": "deleteTrashCollection",
         "summary": "Excluir TrashCollection",
-        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Exclusão pode retornar 409 se houver registros vinculados.",
+        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. A autorização é conferida novamente na transação. Exclusão pode retornar 409 por restrições de integridade ou se a versão lida pela operação mudar antes da exclusão (Concurrent update). Consulte os dados atuais antes de tentar novamente.",
         "responses": {
           "204": {
             "description": "Operação concluída."

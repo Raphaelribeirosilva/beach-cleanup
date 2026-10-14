@@ -2,6 +2,7 @@ package com.raphael.beachcleanup;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Path;
+import java.sql.DriverManager;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,51 @@ class PersistentDatabaseIntegrationTests {
     @TempDir Path directory;
 
     @Test
+    void collectionVersionMigrationPreservesExistingRowsAndLinks() throws Exception {
+        String url = "jdbc:h2:file:" + directory.resolve("migrationdb").toString().replace('\\', '/')
+            + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE";
+        Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration/mysql")
+            .target("2").load().migrate();
+        try (var connection = DriverManager.getConnection(url, "sa", "");
+                var sql = connection.createStatement()) {
+            sql.executeUpdate("""
+                insert into tb_user(id,name,email,password,role,credential_version,row_version,total_collected_kg)
+                values (101,'Ana','ana@example.com','hash-preservado','VOLUNTEER',7,3,99)
+                """);
+            sql.executeUpdate("""
+                insert into tb_cleanup_event(id,title,location,date_time,status)
+                values (202,'Mutirao','Praia A','2026-10-15 08:00:00','Agendado')
+                """);
+            sql.executeUpdate("insert into tb_event_volunteer(volunteer_id,event_id) values (101,202)");
+            sql.executeUpdate("""
+                insert into tb_trash_collection(id,beach,material_type,weight_kg,registration_date,volunteer_id,event_id)
+                values (303,'Praia A','Vidro',2.5,'2026-10-15',101,202)
+                """);
+        }
+        try (var context = start(url)) {
+            JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
+            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(0L, jdbc.queryForObject(
+                "select row_version from tb_trash_collection where id=303", Long.class));
+            assertEquals(2.5, jdbc.queryForObject(
+                "select weight_kg from tb_trash_collection where id=303", Double.class));
+            assertEquals(101L, jdbc.queryForObject(
+                "select volunteer_id from tb_trash_collection where id=303", Long.class));
+            assertEquals(202L, jdbc.queryForObject(
+                "select event_id from tb_trash_collection where id=303", Long.class));
+            assertEquals("Vidro", jdbc.queryForObject(
+                "select material_type from tb_trash_collection where id=303", String.class));
+            assertEquals(LocalDate.parse("2026-10-15"), jdbc.queryForObject(
+                "select registration_date from tb_trash_collection where id=303", java.sql.Date.class).toLocalDate());
+            var user = context.getBean(UserRepository.class).findById(101L).orElseThrow();
+            assertEquals("hash-preservado", user.getPassword());
+            assertEquals(7L, user.getCredentialVersion());
+            assertEquals(1, jdbc.queryForObject("select count(*) from tb_event_volunteer", Integer.class));
+            assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(user).getTotalCollectedKg());
+        }
+    }
+
+    @Test
     void migrationsValidateSchemaAndDataSurviveRestartWithoutTestSeed() {
         String url = "jdbc:h2:file:" + directory.resolve("persistentdb").toString().replace('\\', '/')
             + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE";
@@ -48,7 +94,7 @@ class PersistentDatabaseIntegrationTests {
             collection.setVolunteer(user);
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(2, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
             assertThrows(FlywayException.class, () -> context.getBean(Flyway.class).clean());
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
@@ -62,7 +108,7 @@ class PersistentDatabaseIntegrationTests {
             assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
             assertEquals(userId, context.getBean(AuthService.class)
                 .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
-            assertEquals(2, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
             assertThrows(DataIntegrityViolationException.class, () -> jdbc.update("""
                 insert into tb_user(name,email,password,role,credential_version)

@@ -11,6 +11,7 @@ import com.raphael.beachcleanup.exceptions.ResourceNotFoundException;
 import com.raphael.beachcleanup.repositories.TrashCollectionRepository;
 import com.raphael.beachcleanup.repositories.UserRepository;
 import com.raphael.beachcleanup.exceptions.FieldValidationException;
+import com.raphael.beachcleanup.security.AccessPolicy;
 
 @Service
 @Transactional
@@ -24,6 +25,9 @@ public class TrashCollectionService {
 
     @Autowired
     private EventStateService states;
+
+    @Autowired
+    private AccessPolicy access;
 
     @Transactional(readOnly = true)
     public List<TrashCollection> findAll() {
@@ -44,15 +48,19 @@ public class TrashCollectionService {
 
     public void delete(Long id) {
         TrashCollection entity = findById(id);
+        access.requireCollectionAccess(entity);
         repository.delete(entity);
         repository.flush();
     }
 
     public TrashCollection update(Long id, TrashCollection obj) {
         TrashCollection entity = findById(id);
+        access.requireCollectionAccess(entity);
+        access.bindCollectionOwner(obj);
         resolveReferences(obj, entity.getEvent() == null ? null : entity.getEvent().getId());
         updateData(entity, obj);
-        return repository.save(entity);
+        // Flush before returning so a stale version becomes HTTP 409, also when joining a transaction.
+        return repository.saveAndFlush(entity);
     }
 
     private void updateData(TrashCollection entity, TrashCollection obj) {

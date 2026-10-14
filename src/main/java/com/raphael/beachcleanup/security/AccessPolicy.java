@@ -45,6 +45,20 @@ public class AccessPolicy {
         return isAdmin() ? collections.findAll() : collections.findAllByVolunteerId(currentId());
     }
 
+    /** Check the same managed snapshot that will be written by the service transaction. */
+    public void requireCollectionAccess(TrashCollection collection) {
+        if (isAdmin()) {
+            return;
+        }
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken
+                || collection.getVolunteer() == null
+                || !canAccessUser(collection.getVolunteer().getId())) {
+            throw new AccessDeniedException("Não é permitido alterar ou excluir a coleta de outro usuário.");
+        }
+    }
+
     public void bindCollectionOwner(TrashCollection collection) {
         if (isAdmin()) {
             return;
