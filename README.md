@@ -55,6 +55,17 @@ O perfil MySQL usa Flyway, `ddl-auto=validate`, `open-in-view=false` e desabilit
 
 As migrações atuais são V1 (esquema), V2 (índices) e V3 (versão das coletas). Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica.
 
+## Preparação para implantação
+
+Para preparar a implantação, use o perfil `prod`, que inclui `mysql`, as mesmas variáveis DB/JWT e os [modelos e procedimentos da etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md):
+
+```powershell
+java -jar target/beachcleanup-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+Invoke-RestMethod http://localhost:8080/actuator/health/readiness
+```
+
+`prod` vincula HTTP a `127.0.0.1` por padrão para uso atrás de proxy, habilita logs JSON e encerramento gracioso e rejeita configurações de banco incompatíveis. As rotas de saúde são públicas e não expõem detalhes internos. O destino de hospedagem, proxy HTTPS, backup e restauração devem ser configurados antes de publicar.
+
 ## Primeiras requisições
 
 Com o perfil `test`, faça login com Ana e registre uma coleta sem evento:
@@ -107,7 +118,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/run_mysql_tests.ps
 
 O script exige os binários MySQL 8.0 e executa `verify` com o perfil Maven `mysql-it`, usando diretório/porta próprios e removendo a instância ao terminar. Esse perfil Maven seleciona testes; ele é distinto do perfil Spring `mysql`, que configura a aplicação. Variáveis de teste e alternativas de execução estão na [etapa 15](docs/15_TESTES_MYSQL_E_CI.md).
 
-Última verificação de código, em 14/10/2026: **67 testes aprovados**, incluindo quatro em MySQL real, com empacotamento aprovado. Este número registra a etapa 15; a revisão documental da etapa 16 não reexecuta a suíte de código. O [workflow CI](.github/workflows/ci.yml) executa OpenAPI, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado do GitHub Actions deve ser consultado após o envio do workflow.
+Última verificação de código, em 14/10/2026: **73 testes aprovados**, incluindo quatro em MySQL real com perfil `prod`, com empacotamento e probes HTTP aprovados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md). O [workflow CI](.github/workflows/ci.yml) executa OpenAPI, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado remoto deve ser consultado no GitHub Actions após cada envio.
 
 ## Documentação atual e próximos passos
 
@@ -123,7 +134,8 @@ O script exige os binários MySQL 8.0 e executa `verify` com o perfil Maven `mys
 | Concorrência e autorização das coletas | [Etapa 14](docs/14_CONCORRENCIA_E_AUTORIZACAO_DAS_COLETAS.md) |
 | Testes em MySQL real e CI | [Etapa 15](docs/15_TESTES_MYSQL_E_CI.md) |
 | Revisão documental e prioridades atuais | [Etapa 16](docs/16_DOCUMENTACAO_DE_ENTRADA.md) |
+| Preparação para implantação, saúde, logs e backup/restauração | [Etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md) |
 
 As análises `ANALISE_PROJETO.md` e `07_ANALISE_ATUAL_E_PROXIMO_PASSO.md` são diagnósticos anteriores. Totais, inscrições, estados, persistência, buscas e OpenAPI já foram implementados; eles não devem ser tratados como funcionalidades pendentes.
 
-Próximas etapas: preparar implantação e operação (perfil explícito, saúde, logs, backup/restauração), construir a interface de uso e acrescentar relatórios de impacto. A [etapa 16](docs/16_DOCUMENTACAO_DE_ENTRADA.md) registra a ordem e os resultados esperados.
+O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md); a hospedagem ainda precisa ser escolhida/configurada. As próximas etapas de produto são construir a interface de uso e acrescentar relatórios de impacto.

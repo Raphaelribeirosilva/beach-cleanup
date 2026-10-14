@@ -68,12 +68,25 @@ class MySqlDatabaseIT {
     }
 
     @Test
-    void migrationsRestartAuthenticationAndConstraintsWorkOnMySql() {
+    void migrationsRestartAuthenticationAndConstraintsWorkOnMySql() throws Exception {
         long userId;
         long eventId;
         try (var context = start()) {
             var users = context.getBean(UserRepository.class);
             assertEquals(0, users.count());
+            assertTrue(List.of(context.getEnvironment().getActiveProfiles()).containsAll(List.of("prod", "mysql")));
+            String port = context.getEnvironment().getProperty("local.server.port");
+            try (var client = java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(5)).build()) {
+                for (String probe : new String[] {"health", "health/liveness", "health/readiness"}) {
+                    var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(
+                        "http://127.0.0.1:" + port + "/actuator/" + probe))
+                        .timeout(java.time.Duration.ofSeconds(5)).GET().build();
+                    var response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+                    assertEquals(200, response.statusCode());
+                    assertTrue(response.body().contains("\"status\":\"UP\""));
+                    assertFalse(response.body().contains("components"));
+                }
+            }
             User owner = account(context, "Ana");
             userId = owner.getId();
             var event = context.getBean(CleanupEventService.class).insert(new CleanupEvent(null,
@@ -228,7 +241,7 @@ class MySqlDatabaseIT {
 
     private ConfigurableApplicationContext start() {
         return new SpringApplicationBuilder(BeachcleanupApplication.class).run(
-            "--spring.profiles.active=mysql", "--server.port=0", "--spring.datasource.url=" + url,
+            "--spring.profiles.active=prod", "--server.port=0", "--spring.datasource.url=" + url,
             "--spring.datasource.username=" + username, "--spring.datasource.password=" + password,
             "--security.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--logging.level.root=WARN");
     }
