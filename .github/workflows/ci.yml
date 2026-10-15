@@ -42,6 +42,11 @@ jobs:
           python-version: '3.14'
       - name: Verificar OpenAPI
         run: python tools/validate_openapi.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Testar cliente do portal
+        run: node --test tools/portal-api.test.cjs
       - name: Testar H2 e MySQL e empacotar
         env:
           MYSQL_TEST_SERVER_URL: jdbc:mysql://127.0.0.1:${{ job.services.mysql.ports['3306'] }}/?allowPublicKeyRetrieval=true&useSSL=false

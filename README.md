@@ -2,7 +2,7 @@
 
 API para organizar mutirões de limpeza de praias, cadastrar usuários, gerenciar inscrições e registrar o peso dos resíduos coletados. Implementada com Java 25, Spring Boot 4.1.1, Spring MVC, Spring Security, JPA e Flyway.
 
-O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados e buscas paginadas. A interface web e os relatórios por evento, praia, material e período são etapas futuras.
+O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados e buscas paginadas. O portal web do voluntário permite cadastro, login, consulta de eventos, inscrições e registro/acompanhamento de coletas. A interface administrativa e os relatórios por evento, praia, material e período são etapas futuras.
 
 ## Requisitos
 
@@ -32,6 +32,14 @@ java -jar target/beachcleanup-0.0.1-SNAPSHOT.jar --spring.profiles.active=test
 A API usa `http://localhost:8080`, salvo configuração externa de porta. O perfil `test` é o padrão quando nenhum perfil ativo é informado. Ele cria um H2 em memória, exibe SQL e carrega [contas de exemplo](docs/06_USUARIOS_DE_TESTE.md). Os dados são recriados após o encerramento da aplicação. Sem `JWT_SECRET`, esse perfil gera uma chave temporária, portanto tokens anteriores também deixam de valer após reinício.
 
 Para iniciar pela IDE, importe o projeto como Maven, selecione um JDK compatível e execute `BeachcleanupApplication`. Configure o perfil e as variáveis de ambiente na configuração de execução.
+
+## Portal do voluntário
+
+Com a aplicação iniciada, abra **http://localhost:8080/** no navegador. O portal é servido pelo próprio Spring Boot e não exige servidor frontend, instalação npm ou build JavaScript.
+
+É possível explorar eventos e filtrar por local/status sem login. Crie uma conta ou entre para inscrever-se, cancelar inscrições, registrar coletas independentes ou vinculadas a um evento e consultar suas coletas e seu total em kg. No perfil `test`, pode usar `ana@example.com` / `ana123`. O evento inicial está pausado; novos eventos são cadastrados por administrador pela API.
+
+O token fica somente na memória da página. Ao sair, recarregar ou fechar a página, faça login novamente. Quando o token expira, uma operação autenticada solicita novo login. A interface usa a mesma origem da API, sem CORS adicional ou dependências externas. Detalhes, validação e limites estão na [etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md).
 
 ## Execução com MySQL persistente
 
@@ -106,9 +114,10 @@ Entradas inválidas retornam 400; autenticação ausente/inválida, 401; acesso 
 ```powershell
 .\mvnw.cmd -B test
 python tools/validate_openapi.py
+node --test tools/portal-api.test.cjs
 ```
 
-A suíte padrão usa H2 e não exige MySQL. O contrato [OpenAPI](docs/openapi.json) pode ser importado em ferramentas de API; descreve 13 caminhos e 23 operações. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
+A suíte padrão usa H2 e não exige MySQL. Os testes do cliente do portal usam Node.js 24 ou superior, sem pacotes npm; Node não é necessário para executar a aplicação. O contrato [OpenAPI](docs/openapi.json) pode ser importado em ferramentas de API; descreve 13 caminhos e 23 operações. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
 
 Para executar a suíte completa em uma instância MySQL temporária no Windows:
 
@@ -118,7 +127,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/run_mysql_tests.ps
 
 O script exige os binários MySQL 8.0 e executa `verify` com o perfil Maven `mysql-it`, usando diretório/porta próprios e removendo a instância ao terminar. Esse perfil Maven seleciona testes; ele é distinto do perfil Spring `mysql`, que configura a aplicação. Variáveis de teste e alternativas de execução estão na [etapa 15](docs/15_TESTES_MYSQL_E_CI.md).
 
-Última verificação de código, em 14/10/2026: **73 testes aprovados**, incluindo quatro em MySQL real com perfil `prod`, com empacotamento e probes HTTP aprovados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md). O [workflow CI](.github/workflows/ci.yml) executa OpenAPI, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado remoto deve ser consultado no GitHub Actions após cada envio.
+Verificação do portal, em 15/10/2026: **71 testes Java e 5 testes JavaScript aprovados**, com empacotamento, OpenAPI e fluxo completo no Edge aprovados na [etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md). A última execução em MySQL real foi na etapa 17, em 14/10/2026: 73 testes incluindo quatro em MySQL com perfil `prod` e probes HTTP. O [workflow CI](.github/workflows/ci.yml) executa OpenAPI, cliente JavaScript, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado remoto deve ser consultado no GitHub Actions após cada envio.
 
 ## Documentação atual e próximos passos
 
@@ -135,7 +144,8 @@ O script exige os binários MySQL 8.0 e executa `verify` com o perfil Maven `mys
 | Testes em MySQL real e CI | [Etapa 15](docs/15_TESTES_MYSQL_E_CI.md) |
 | Revisão documental e prioridades atuais | [Etapa 16](docs/16_DOCUMENTACAO_DE_ENTRADA.md) |
 | Preparação para implantação, saúde, logs e backup/restauração | [Etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md) |
+| Portal web do voluntário, uso e verificações | [Etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md) |
 
 As análises `ANALISE_PROJETO.md` e `07_ANALISE_ATUAL_E_PROXIMO_PASSO.md` são diagnósticos anteriores. Totais, inscrições, estados, persistência, buscas e OpenAPI já foram implementados; eles não devem ser tratados como funcionalidades pendentes.
 
-O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md); a hospedagem ainda precisa ser escolhida/configurada. As próximas etapas de produto são construir a interface de uso e acrescentar relatórios de impacto.
+O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md); a hospedagem ainda precisa ser escolhida/configurada. Após o portal do voluntário, as próximas etapas de produto são a interface administrativa e os relatórios de impacto.
