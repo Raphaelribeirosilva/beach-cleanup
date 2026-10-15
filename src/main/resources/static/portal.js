@@ -1,4 +1,4 @@
-/* global createPortalApi */
+/* global createPortalApi, createAdminPortal */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -19,6 +19,7 @@
       value.includes('T') ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(parsed);
   };
   const activeEvent = event => ['Agendado', 'Em andamento'].includes(event.status);
+  const admin = createAdminPortal(api, { node, action, busy, kg, date });
   function node(tag, className, content) {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -46,12 +47,14 @@
     const signed = Boolean(api.session());
     $('account').hidden = signed;
     $('signed-account').hidden = !signed;
-    $('impact').hidden = !signed;
+    $('impact').hidden = !signed || state.view === 'admin';
+    $('admin-tab').hidden = api.session()?.role !== 'ADMIN';
     $('account-name').textContent = state.profile?.name || 'Minha conta';
     $('total-kg').textContent = state.profile ? kg(state.profile.totalCollectedKg) : '—';
     $('total-events').textContent = state.registrations.length;
   }
   function resetAccount() {
+    admin.reset();
     state.generation++;
     state.profile = null;
     state.registrations = [];
@@ -72,8 +75,16 @@
       else button.removeAttribute('aria-current');
     });
     const events = state.view === 'events';
+    const administrative = state.view === 'admin' && api.session()?.role === 'ADMIN';
+    document.querySelector('.hero').hidden = administrative;
+    $('impact').hidden = administrative || !api.session();
+    admin.setActive(administrative);
+    $('results').hidden = administrative;
+    $('collection-open').hidden = administrative;
+    if (administrative) $('pagination').hidden = true;
     $('filters').hidden = !events;
     $('workspace-title').textContent = events ? 'Encontre sua próxima ação'
+      : administrative ? 'Administração dos mutirões'
       : state.view === 'mine' ? 'Seu lugar na próxima mudança' : 'Cada coleta conta';
   }
   function empty(title, description) {
@@ -130,6 +141,7 @@
   }
   async function load() {
     const generation = ++state.generation;
+    if (state.view === 'admin') { state.loading = false; return admin.load(); }
     const view = state.view;
     state.loading = true;
     $('results').setAttribute('aria-busy', 'true');
@@ -210,6 +222,9 @@
   $('unlink-event').addEventListener('click', () => { state.selectedEvent = null; syncCollectionEvent(); });
   document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => $(button.dataset.close).close()));
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.view === 'admin' && api.session()?.role !== 'ADMIN') {
+      notify('Esta área é exclusiva de administradores.', true); return;
+    }
     if (button.dataset.view !== 'events' && !api.session()) { openAuth('login'); return; }
     state.view = button.dataset.view;
     state.page = 0;

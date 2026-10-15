@@ -46,7 +46,28 @@
       }
       return `${path}?${params}`;
     }
+    function adminRequest(path, options = {}) {
+      if (session?.role !== 'ADMIN') {
+        const error = new Error('Esta área é exclusiva de administradores.');
+        error.status = 403;
+        return Promise.reject(error);
+      }
+      return request(path, { ...options, authenticated: true });
+    }
     return {
+      admin: {
+        events: filters => adminRequest(query('/cleanupEvent/search', { size: 6, ...filters })),
+        users: filters => adminRequest(query('/users/search', { size: 6, ...filters })),
+        collections: filters => adminRequest(query('/trashCollection/search', { size: 6, ...filters })),
+        event: id => adminRequest(`/cleanupEvent/${id}`),
+        collection: id => adminRequest(`/trashCollection/${id}`),
+        saveEvent: (id, input) => adminRequest(id == null ? '/cleanupEvent' : `/cleanupEvent/${id}`,
+          { method: id == null ? 'POST' : 'PUT', body: input }),
+        deleteEvent: id => adminRequest(`/cleanupEvent/${id}`, { method: 'DELETE' }),
+        saveCollection: (id, input) => adminRequest(id == null ? '/trashCollection' : `/trashCollection/${id}`,
+          { method: id == null ? 'POST' : 'PUT', body: input }),
+        deleteCollection: id => adminRequest(`/trashCollection/${id}`, { method: 'DELETE' })
+      },
       session: () => session,
       logout: () => { session = null; },
       signup: input => request('/users', { method: 'POST', body: input }),

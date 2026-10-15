@@ -2,7 +2,7 @@
 
 API para organizar mutirões de limpeza de praias, cadastrar usuários, gerenciar inscrições e registrar o peso dos resíduos coletados. Implementada com Java 25, Spring Boot 4.1.1, Spring MVC, Spring Security, JPA e Flyway.
 
-O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados e buscas paginadas. O portal web do voluntário permite cadastro, login, consulta de eventos, inscrições e registro/acompanhamento de coletas. A interface administrativa e os relatórios por evento, praia, material e período são etapas futuras.
+O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados e buscas paginadas. O portal web do voluntário permite cadastro, login, consulta de eventos, inscrições e registro/acompanhamento de coletas. A área administrativa permite gerenciar eventos e coletas e consultar usuários. Os relatórios por evento, praia, material e período são etapas futuras.
 
 ## Requisitos
 
@@ -40,6 +40,8 @@ Com a aplicação iniciada, abra **http://localhost:8080/** no navegador. O port
 É possível explorar eventos e filtrar por local/status sem login. Crie uma conta ou entre para inscrever-se, cancelar inscrições, registrar coletas independentes ou vinculadas a um evento e consultar suas coletas e seu total em kg. No perfil `test`, pode usar `ana@example.com` / `ana123`. O evento inicial está pausado; novos eventos são cadastrados por administrador pela API.
 
 O token fica somente na memória da página. Ao sair, recarregar ou fechar a página, faça login novamente. Quando o token expira, uma operação autenticada solicita novo login. A interface usa a mesma origem da API, sem CORS adicional ou dependências externas. Detalhes, validação e limites estão na [etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md).
+
+Para administrar, entre com uma conta `ADMIN` e abra a aba **Administração**. No perfil `test`, use `admin@example.com` / `admin123`. As abas Eventos, Usuários e Coletas oferecem buscas paginadas; eventos e coletas possuem formulários e exclusão com confirmação. Voluntários não têm acesso à área administrativa, e o backend continua protegendo cada operação. Veja o uso, os testes e os limites na [entrega da interface administrativa](docs/20_INTERFACE_ADMINISTRATIVA.md).
 
 ## Execução com MySQL persistente
 
@@ -145,7 +147,8 @@ Verificação do portal, em 15/10/2026: **71 testes Java e 5 testes JavaScript a
 | Revisão documental e prioridades atuais | [Etapa 16](docs/16_DOCUMENTACAO_DE_ENTRADA.md) |
 | Preparação para implantação, saúde, logs e backup/restauração | [Etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md) |
 | Portal web do voluntário, uso e verificações | [Etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md) |
+| Interface administrativa — entrega 1 do planejamento | [Entrega administrativa](docs/20_INTERFACE_ADMINISTRATIVA.md) |
 
 As análises `ANALISE_PROJETO.md` e `07_ANALISE_ATUAL_E_PROXIMO_PASSO.md` são diagnósticos anteriores. Totais, inscrições, estados, persistência, buscas e OpenAPI já foram implementados; eles não devem ser tratados como funcionalidades pendentes.
 
-O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md); a hospedagem ainda precisa ser escolhida/configurada. Após o portal do voluntário, as próximas etapas de produto são a interface administrativa e os relatórios de impacto.
+O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md); a hospedagem ainda precisa ser escolhida/configurada. Após a interface administrativa, a próxima entrega planejada é a homologação com acesso restrito, conforme o [planejamento](docs/19_PROXIMOS_PASSOS.md).

@@ -57,6 +57,26 @@ async function main() {
       return result.json();
     }
     const admin = await api('/auth/login', { email: 'admin@example.com', password: 'admin123' });
+    const ana = await api('/auth/login', { email: 'ana@example.com', password: 'ana123' });
+    const bruno = await api('/auth/login', { email: 'bruno@example.com', password: 'bruno123' });
+    for (let i = 0; i < 2; i++) await api('/users', {
+      name: `Consulta ${i}`, email: `consulta-${i}@example.com`, password: 'browser-test-password'
+    });
+    async function request(route, method = 'GET', body, token = admin.accessToken) {
+      return fetch(`${base}${route}`, { method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    }
+    // Verify server permissions with real JWTs, independently of hidden controls and client guards.
+    const eventInput = { title: 'Não permitido', location: 'Praia API', dateTime: '2026-11-01T09:00:00', status: 'Agendado' };
+    const collectionInput = { beach: 'Praia API', materialType: 'Vidro', weightKg: 1, registrationDate: '2026-10-15' };
+    for (const [route, method, body] of [
+      ['/users/search', 'GET'], ['/users', 'GET'], [`/users/${admin.userId}`, 'GET'],
+      ['/cleanupEvent', 'POST', eventInput], ['/cleanupEvent/1', 'PUT', eventInput], ['/cleanupEvent/1', 'DELETE'],
+      ['/trashCollection/1', 'GET'], ['/trashCollection/1', 'PUT', collectionInput], ['/trashCollection/1', 'DELETE'],
+      ['/trashCollection', 'POST', { ...collectionInput, volunteer: { id: bruno.userId } }],
+      [`/trashCollection/search?volunteerId=${bruno.userId}`, 'GET']
+    ]) assert.equal((await request(route, method, body, ana.accessToken)).status, 403, `${method} ${route} must deny volunteer`);
     for (let i = 1; i <= 7; i++) await api('/cleanupEvent', {
       title: `Mutirão navegador ${i}`, location: 'Praia do navegador', dateTime: `2026-11-${String(i).padStart(2, '0')}T09:00:00`, status: 'Agendado'
     }, admin.accessToken);
@@ -71,8 +91,10 @@ async function main() {
     await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
     let sequence = 0;
     const pending = new Map();
+    let acceptDialog = true;
     socket.addEventListener('message', event => {
       const data = JSON.parse(event.data);
+      if (data.method === 'Page.javascriptDialogOpening') void cdp('Page.handleJavaScriptDialog', { accept: acceptDialog });
       if (data.method === 'Runtime.exceptionThrown') browserErrors.push(data.params.exceptionDetails.text);
       if (data.method === 'Log.entryAdded' && data.params.entry.source === 'security') browserErrors.push(data.params.entry.text);
       if (!pending.has(data.id)) return;
@@ -159,8 +181,159 @@ async function main() {
     await waitFor('document.querySelector("#results").textContent.includes("Sua primeira coleta")');
     await cdp('Page.reload');
     await waitFor('document.querySelector("#impact").hidden && !document.querySelector("#account").hidden && document.querySelectorAll(".card").length > 0');
+    assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
+
+    // Administrative browser flows use the same login and styles as the volunteer portal.
+    await click('#login-open');
+    await fill('#auth-form [name=email]', 'admin@example.com');
+    await fill('#auth-form [name=password]', 'admin123');
+    await click('#auth-submit');
+    await waitFor('!document.querySelector("#admin-tab").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await click('#admin-tab');
+    const adminReady = () => waitFor('!document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    await adminReady();
+    await click('#admin-next');
+    await waitFor('document.querySelector("#admin-page-info").textContent.includes("2 de 2") && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    await click('#admin-previous');
+    await adminReady();
+    await fill('#admin-filters [name=location]', 'Praia administrativa');
+    await click('#admin-filters [type=submit]');
+    await waitFor('document.querySelector("#admin-results").textContent.includes("Nenhum registro")');
+    await click('#admin-create');
+    await fill('#admin-form [name=title]', 'Mutirão administrativo');
+    await fill('#admin-form [name=location]', 'Praia administrativa');
+    await fill('#admin-form [name=dateTime]', '2026-11-15T09:00:00');
+    assert.deepEqual(await evaluate('[...document.querySelector("#admin-form [name=status]").options].map(o => o.value)'), ['Agendado']);
+    const saveAdmin = () => click('#admin-form [type=submit]');
+    const savedAdmin = async () => {
+      await waitFor('!document.querySelector("#admin-dialog").open && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    };
+    await saveAdmin();
+    await savedAdmin();
+    assert.ok(await evaluate('document.querySelector("#admin-results").textContent.includes("Mutirão administrativo")'));
+    const managedEvent = (await (await request('/cleanupEvent/search?location=Praia%20administrativa')).json()).content[0];
+    for (const status of ['Em andamento', 'Pausado']) {
+      await click('#admin-results .card-actions button:first-child');
+      await waitFor('document.querySelector("#admin-dialog").open');
+      await fill('#admin-form [name=status]', status);
+      await saveAdmin();
+      await savedAdmin();
+      assert.ok(await evaluate(`document.querySelector('#admin-results').textContent.includes(${JSON.stringify(status)})`));
+    }
+    await click('[data-admin-view=users]');
+    await adminReady();
+    assert.equal(await evaluate('document.querySelector("#admin-create").hidden'), true);
+    await click('#admin-next');
+    await waitFor('document.querySelector("#admin-page-info").textContent.includes("2 de 2") && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    await fill('#admin-filters [name=email]', 'ana@example.com');
+    await click('#admin-filters [type=submit]');
+    await waitFor('document.querySelectorAll("#admin-results .card").length === 1 && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    assert.ok(await evaluate('document.querySelector("#admin-results").textContent.includes("Ana Silva")'));
+    assert.equal(await evaluate('document.querySelectorAll("#admin-results .card-actions").length'), 0);
+    await click('[data-admin-view=collections]');
+    await adminReady();
+    await click('#admin-create');
+    await fill('#admin-form [name=beach]', 'Praia administrativa');
+    await fill('#admin-form [name=materialType]', '<img src=x onerror=alert(1)>');
+    await fill('#admin-form [name=weightKg]', '0');
+    await fill('#admin-form [name=registrationDate]', '2026-10-15');
+    await fill('#admin-form [name=volunteerId]', String(ana.userId));
+    await fill('#admin-form [name=eventId]', String(managedEvent.id));
+    await saveAdmin();
+    await waitFor('document.querySelector("#admin-form-error").textContent.includes("maior que zero")');
+    await fill('#admin-form [name=weightKg]', '4.5');
+    await saveAdmin();
+    await waitFor('document.querySelector("#admin-form-error").textContent.includes("não aceita") && !document.querySelector("#admin-form [type=submit]").disabled');
+    assert.equal(await evaluate('document.querySelector("#admin-form [name=weightKg]").value'), '4.5', 'Conflict must preserve the form');
+    await fill('#admin-form [name=eventId]', '999999999');
+    await saveAdmin();
+    await waitFor('document.querySelector("#admin-form-error").textContent.includes("999999999") && !document.querySelector("#admin-form [type=submit]").disabled');
+    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`, 'PUT', { ...managedEvent, status: 'Em andamento' })).status, 200);
+    await fill('#admin-form [name=eventId]', String(managedEvent.id));
+    await saveAdmin();
+    await savedAdmin();
+    await fill('#admin-filters [name=beach]', 'Praia administrativa');
+    await click('#admin-filters [type=submit]');
+    await waitFor('document.querySelectorAll("#admin-results .card").length === 1 && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('document.querySelectorAll("#admin-results img").length'), 0);
+    assert.equal((await (await request(`/users/${ana.userId}`)).json()).totalCollectedKg, 4.5);
+    // Attempt to delete a linked event: the API conflict is shown without hiding the record.
+    await click('[data-admin-view=events]');
+    await adminReady();
+    await fill('#admin-filters [name=location]', 'Praia administrativa');
+    await click('#admin-filters [type=submit]');
+    await adminReady();
+    await click('#admin-results .card-actions button:last-child');
+    await waitFor('!document.querySelector("#admin-message").hidden && document.querySelector("#admin-message").classList.contains("error")');
+    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`)).status, 200);
+    await click('[data-admin-view=collections]');
+    await adminReady();
+    await fill('#admin-filters [name=beach]', 'Praia administrativa');
+    await click('#admin-filters [type=submit]');
+    await adminReady();
+    await click('#admin-results .card-actions button:first-child');
+    await waitFor('document.querySelector("#admin-dialog").open');
+    await fill('#admin-form [name=weightKg]', '6');
+    await fill('#admin-form [name=volunteerId]', String(bruno.userId));
+    await fill('#admin-form [name=eventId]', '');
+    await saveAdmin();
+    await savedAdmin();
+    assert.equal((await (await request(`/users/${ana.userId}`)).json()).totalCollectedKg, 0);
+    assert.equal((await (await request(`/users/${bruno.userId}`)).json()).totalCollectedKg, 6);
+    acceptDialog = false;
+    await click('#admin-results .card-actions button:last-child');
+    assert.equal((await (await request('/trashCollection/search?beach=Praia%20administrativa')).json()).totalElements, 1, 'Cancelling deletion preserves collection');
+    acceptDialog = true;
+    await click('#admin-results .card-actions button:last-child');
+    await waitFor('document.querySelector("#admin-results").textContent.includes("Nenhum registro")');
+    assert.equal((await (await request(`/users/${bruno.userId}`)).json()).totalCollectedKg, 0);
+    await click('[data-admin-view=events]');
+    await adminReady();
+    await fill('#admin-filters [name=location]', 'Praia administrativa');
+    await click('#admin-filters [type=submit]');
+    await adminReady();
+    await click('#admin-results .card-actions button:last-child');
+    await waitFor('document.querySelector("#admin-results").textContent.includes("Nenhum registro")');
+    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`)).status, 404);
+    // Exercise collection pagination and returning to the previous page after deleting its last item.
+    for (let i = 0; i < 7; i++) await api('/trashCollection', { ...collectionInput, beach: 'Paginação administrativa' }, admin.accessToken);
+    await click('[data-admin-view=collections]');
+    await adminReady();
+    await fill('#admin-filters [name=beach]', 'Paginação administrativa');
+    await click('#admin-filters [type=submit]');
+    await adminReady();
+    await click('#admin-next');
+    await waitFor('document.querySelector("#admin-page-info").textContent.includes("2 de 2") && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    await click('#admin-results .card-actions button:last-child');
+    await waitFor('document.querySelector("#admin-page-info").textContent.includes("1 de 1") && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
+    await evaluate('document.querySelector("#admin-results").scrollIntoView({block: "start"})');
+    await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'admin-mobile.png'), Buffer.from(result.data, 'base64')));
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Administrative mobile layout must not overflow');
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 960, deviceScaleFactor: 1, mobile: false });
+    await evaluate('document.querySelector("#workspace").scrollIntoView({block: "start"})');
+    await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'admin-desktop.png'), Buffer.from(result.data, 'base64')));
+    await click('#logout');
+    await waitFor('document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").textContent === ""');
+    await click('#login-open');
+    await fill('#auth-form [name=email]', 'admin@example.com');
+    await fill('#auth-form [name=password]', 'admin123');
+    await click('#auth-submit');
+    await waitFor('!document.querySelector("#admin-tab").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await click('#admin-tab');
+    await adminReady();
+    assert.equal((await request('/auth/password', 'PUT', { currentPassword: 'admin123', newPassword: 'admin-browser-new-password' })).status, 204);
+    await click('[data-admin-view=users]');
+    await waitFor('document.querySelector("#auth-dialog").open && document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").textContent === ""');
+    await fill('#auth-form [name=email]', 'ana@example.com');
+    await fill('#auth-form [name=password]', 'ana123');
+    await click('#auth-submit');
+    await waitFor('document.querySelector("#account-name").textContent === "Ana Silva"');
+    assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
+    await evaluate('document.querySelector("#admin-tab").hidden = false');
+    await click('#admin-tab');
+    assert.equal(await evaluate('document.querySelector("#admin-workspace").hidden'), true, 'Revealing a control must not grant administrative access');
     assert.deepEqual(browserErrors, [], 'No script exceptions or CSP violations');
-    console.log('PASS: public search/pagination, signup/login, registration/cancellation, linked/independent collections, totals, text escaping, account isolation, reload/logout, desktop/mobile layout and CSP.');
+    console.log('PASS: volunteer regression flows; admin event CRUD/status, user searches, collection CRUD/transfer/unlink, all paginations, last-page deletion, validation/404/409, confirmation, totals, desktop/mobile, CSP, logout clearing, volunteer UI denial and direct API denial with real JWTs.');
   } catch (error) {
     console.error(logs.slice(-3000));
     throw error;

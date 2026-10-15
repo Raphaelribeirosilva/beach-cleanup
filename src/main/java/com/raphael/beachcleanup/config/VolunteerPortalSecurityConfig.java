@@ -13,10 +13,10 @@ public class VolunteerPortalSecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain volunteerPortalSecurity(HttpSecurity http) throws Exception {
-        return http.securityMatcher("/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js")
+        return http.securityMatcher("/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js")
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.GET, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js").permitAll()
-                .requestMatchers(HttpMethod.HEAD, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js").permitAll()
+                .requestMatchers(HttpMethod.GET, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js").permitAll()
+                .requestMatchers(HttpMethod.HEAD, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js").permitAll()
                 .anyRequest().denyAll())
             .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(
                 "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "

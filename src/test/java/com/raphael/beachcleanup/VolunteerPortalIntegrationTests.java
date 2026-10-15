@@ -31,7 +31,7 @@ class VolunteerPortalIntegrationTests {
             .andExpect(content().string(containsString("lang=\"pt-BR\"")))
             .andExpect(content().string(containsString("id=\"collection-form\"")))
             .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self'")));
-        for (String asset : new String[] {"/portal.css", "/portal.js", "/portal-api.js"}) {
+        for (String asset : new String[] {"/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js"}) {
             mvc.perform(get(asset)).andExpect(status().isOk())
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"));
         }
@@ -45,5 +45,6 @@ class VolunteerPortalIntegrationTests {
         }
         mvc.perform(get("/cleanupEvent/search")).andExpect(status().isOk());
         mvc.perform(post("/portal.js")).andExpect(status().isForbidden());
+        mvc.perform(post("/portal-admin.js")).andExpect(status().isForbidden());
     }
 }
