@@ -26,6 +26,17 @@
     if (content !== undefined) element.textContent = content;
     return element;
   }
+  function catalogChoices(select, entries, title) {
+    const previous = select.value;
+    const placeholder = node('option', '', title);
+    placeholder.value = '';
+    select.replaceChildren(placeholder, ...entries.map(entry => {
+      const option = node('option', '', entry.name);
+      option.value = entry.id;
+      return option;
+    }));
+    select.value = entries.some(entry => String(entry.id) === previous) ? previous : '';
+  }
   function notify(message, error = false) {
     $('notice').textContent = message;
     $('notice').className = error ? 'notice error' : 'notice';
@@ -150,12 +161,13 @@
     try {
       const signed = Boolean(api.session());
       const resultPromise = view === 'events' ? api.events({ page: state.page,
-        location: $('location-filter').value.trim(), status: $('status-filter').value })
+        beachId: $('location-filter').value, status: $('status-filter').value })
         : view === 'collections' ? api.collections({ page: state.page }) : Promise.resolve(null);
-      const [result, profile, registrations] = await Promise.all([
-        resultPromise, signed ? api.profile() : null, signed ? api.registrations() : []
+      const [result, profile, registrations, beaches] = await Promise.all([
+        resultPromise, signed ? api.profile() : null, signed ? api.registrations() : [], api.catalog('beaches')
       ]);
       if (generation !== state.generation) return false;
+      catalogChoices($('location-filter'), beaches, 'Todas as praias');
       state.profile = profile;
       state.registrations = registrations;
       syncAccount();
@@ -199,13 +211,20 @@
     $('auth-switch').textContent = state.signup ? 'Já tenho uma conta' : 'Ainda não tenho uma conta';
     if (!$('auth-dialog').open) $('auth-dialog').showModal();
   }
-  function openCollection(event = null) {
+  async function openCollection(event = null) {
     if (!api.session()) { openAuth('login'); return; }
+    const session = api.session();
+    let beaches, materials;
+    try { [beaches, materials] = await Promise.all([api.catalog('beaches'), api.catalog('materials')]); }
+    catch (error) { notify(error.message, true); return; }
+    if (api.session() !== session) return;
     state.selectedEvent = event;
     $('collection-form').reset();
+    catalogChoices($('collection-form').elements.beach, beaches, 'Selecione a praia');
+    catalogChoices($('collection-form').elements.materialType, materials, 'Selecione o material');
     const now = new Date();
     $('collection-form').elements.registrationDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (event) $('collection-form').elements.beach.value = event.location;
+    if (event) $('collection-form').elements.beach.value = event.beachId ?? '';
     syncCollectionEvent();
     errorAt('collection-error');
     $('collection-dialog').showModal();
@@ -266,10 +285,10 @@
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    const input = { beach: data.get('beach').trim(), materialType: data.get('materialType').trim(),
+    const input = { beachId: Number(data.get('beach')), materialId: Number(data.get('materialType')),
       weightKg: Number(data.get('weightKg')), registrationDate: data.get('registrationDate') };
     if (state.selectedEvent) input.event = { id: state.selectedEvent.id };
-    if (!input.beach || !input.materialType || !Number.isFinite(input.weightKg) || input.weightKg <= 0) {
+    if (!input.beachId || !input.materialId || !Number.isFinite(input.weightKg) || input.weightKg <= 0) {
       errorAt('collection-error', 'Informe praia, material e um peso maior que zero.'); return;
     }
     void busy(form.querySelector('[type="submit"]'), async () => {

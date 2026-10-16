@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "docs/openapi.json"
 METHODS = {"get", "post", "put", "delete", "patch", "head", "options", "trace"}
 PUBLIC = {
+    ("get", "/catalog/{kind}"),
     ("post", "/auth/login"),
     ("post", "/users"),
     ("get", "/cleanupEvent"),

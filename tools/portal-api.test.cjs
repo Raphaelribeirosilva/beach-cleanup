@@ -203,6 +203,29 @@ test('administrative client rejects anonymous and volunteer operations without s
   }
 });
 
+test('catalogs are read publicly and mutations carry admin JWT and explicit versions', async () => {
+  const calls = [];
+  const api = createPortalApi(async (path, options) => {
+    calls.push({ path, options });
+    return path === '/auth/login' ? response(200, { ...token, role: 'ADMIN' }) : response(200, []);
+  });
+  await api.catalog('beaches');
+  assert.equal(calls[0].options.headers.Authorization, undefined);
+  await assert.rejects(api.admin.saveCatalog('materials', null, { name: 'Vidro' }), error => error.status === 403);
+  await assert.rejects(api.admin.mergeCatalog('beaches', 1, {}), error => error.status === 403);
+  await api.login({});
+  const input = { name: 'Vidro', aliases: ['Vidros'], version: 2 };
+  await api.admin.saveCatalog('materials', 7, input);
+  const merge = { targetId: 3, version: 2, targetVersion: 4 };
+  await api.admin.mergeCatalog('beaches', 8, merge);
+  assert.equal(calls[2].path, '/catalog/materials/7');
+  assert.equal(calls[2].options.method, 'PUT');
+  assert.deepEqual(JSON.parse(calls[2].options.body), input);
+  assert.equal(calls[3].path, '/catalog/beaches/8/merge');
+  assert.deepEqual(JSON.parse(calls[3].options.body), merge);
+  assert.equal(calls[3].options.headers.Authorization, 'Bearer test-token');
+});
+
 test('administrators query all collections with pagination and filters, and send CRUD payloads with JWT', async () => {
   const calls = [];
   const api = createPortalApi(async (path, options) => {

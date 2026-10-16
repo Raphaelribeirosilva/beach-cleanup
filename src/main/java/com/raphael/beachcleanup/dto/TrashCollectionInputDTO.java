@@ -13,9 +13,7 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.PositiveOrZero;
 
 public record TrashCollectionInputDTO(
-        @NotBlank(message = "A praia é obrigatória")
         @Size(max = 255, message = "A praia deve ter no máximo 255 caracteres") String beach,
-        @NotBlank(message = "O material é obrigatório")
         @Size(max = 255, message = "O material deve ter no máximo 255 caracteres") String materialType,
         @NotNull(message = "O peso é obrigatório")
         @Positive(message = "O peso deve ser maior que zero")
@@ -23,10 +21,14 @@ public record TrashCollectionInputDTO(
         @NotNull(message = "A data de registro é obrigatória") LocalDate registrationDate,
         @Valid ResourceReferenceDTO volunteer,
         @Valid ResourceReferenceDTO event,
-        @PositiveOrZero(message = "A versão deve ser zero ou positiva") Long version) {
+        @PositiveOrZero(message = "A versão deve ser zero ou positiva") Long version,
+        @jakarta.validation.constraints.Positive Long beachId,
+        @jakarta.validation.constraints.Positive Long materialId) {
 
     public TrashCollection toEntity() {
         TrashCollection entity = new TrashCollection(null, beach, materialType, weightKg, registrationDate);
+        if (beachId != null) entity.setBeachReference(com.raphael.beachcleanup.entities.CatalogEntry.reference(beachId));
+        if (materialId != null) entity.setMaterialReference(com.raphael.beachcleanup.entities.CatalogEntry.reference(materialId));
         if (volunteer != null) {
             User reference = new User();
             reference.setId(volunteer.id());

@@ -29,6 +29,9 @@ public class TrashCollectionService {
     @Autowired
     private AccessPolicy access;
 
+    @Autowired
+    private CatalogService catalogs;
+
     @Transactional(readOnly = true)
     public List<TrashCollection> findAll() {
         return repository.findAll();
@@ -41,6 +44,7 @@ public class TrashCollectionService {
     }
 
     public TrashCollection insert(TrashCollection obj) {
+        resolveCatalogs(obj);
         obj.setId(null);
         resolveReferences(obj, null);
         return repository.save(obj);
@@ -58,15 +62,27 @@ public class TrashCollectionService {
         access.requireCollectionAccess(entity);
         FormVersion.requireCurrent(version, entity.getRowVersion());
         access.bindCollectionOwner(obj);
+        resolveCatalogs(obj);
         resolveReferences(obj, entity.getEvent() == null ? null : entity.getEvent().getId());
         updateData(entity, obj);
         // Flush before returning so a stale version becomes HTTP 409, also when joining a transaction.
         return repository.saveAndFlush(entity);
     }
 
+    private void resolveCatalogs(TrashCollection obj) {
+        var beach = catalogs.resolve("beaches", obj.getBeachReference(), obj.getBeach(), "beach");
+        obj.setBeachReference(beach);
+        obj.setBeach(beach.getName());
+        var material = catalogs.resolve("materials", obj.getMaterialReference(), obj.getMaterialType(), "materialType");
+        obj.setMaterialReference(material);
+        obj.setMaterialType(material.getName());
+    }
+
     private void updateData(TrashCollection entity, TrashCollection obj) {
         entity.setWeightKg(obj.getWeightKg());
         entity.setBeach(obj.getBeach());
+        entity.setBeachReference(obj.getBeachReference());
+        entity.setMaterialReference(obj.getMaterialReference());
         entity.setMaterialType(obj.getMaterialType());
         entity.setRegistrationDate(obj.getRegistrationDate());
         entity.setVolunteer(obj.getVolunteer());

@@ -131,7 +131,7 @@ class MySqlDatabaseIT {
                 assertEquals(7, owner.getCredentialVersion());
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(4, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(6, context.getBean(Flyway.class).info().applied().length);
             }
         } finally {
             Files.deleteIfExists(dump);
@@ -209,7 +209,7 @@ class MySqlDatabaseIT {
             var collection = input(owner, 2.5);
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(4, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(6, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -252,7 +252,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(4, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(6, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -358,10 +358,12 @@ class MySqlDatabaseIT {
     }
 
     private ConfigurableApplicationContext start(String databaseUrl) {
-        return new SpringApplicationBuilder(BeachcleanupApplication.class).run(
+        var context = new SpringApplicationBuilder(BeachcleanupApplication.class).run(
             "--spring.profiles.active=prod", "--server.port=0", "--spring.datasource.url=" + databaseUrl,
             "--spring.datasource.username=" + username, "--spring.datasource.password=" + password,
             "--security.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--logging.level.root=WARN");
+        CatalogTestData.seed(context);
+        return context;
     }
 
     private static String required(String name) {

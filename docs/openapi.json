@@ -1082,7 +1082,7 @@
         ],
         "operationId": "searchEvents",
         "summary": "Buscar eventos com paginação",
-        "description": "Leitura pública. Filtros combinados com AND. Datas locais sem fuso horário.",
+        "description": "Leitura pública. Filtros combinados com AND. Datas locais sem fuso horário. Filtros textuais de praia/material reconhecem nomes alternativos, caixa e acentos; beachId/materialId filtram por identidade.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -1199,6 +1199,17 @@
               "default": "asc"
             },
             "description": "asc ou desc, sem diferenciar caixa."
+          },
+          {
+            "in": "query",
+            "name": "beachId",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Filtro exato pelo ID do catalogo."
           }
         ]
       }
@@ -1210,7 +1221,7 @@
         ],
         "operationId": "searchCollections",
         "summary": "Buscar coletas com paginação",
-        "description": "Filtros combinados com AND. Isolamento do voluntário abrange registros e contagens. Total do usuário aninhado considera todas as suas coletas, independentemente da página/filtro.",
+        "description": "Filtros combinados com AND. Isolamento do voluntário abrange registros e contagens. Total do usuário aninhado considera todas as suas coletas, independentemente da página/filtro. Filtros textuais de praia/material reconhecem nomes alternativos, caixa e acentos; beachId/materialId filtram por identidade.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -1347,8 +1358,270 @@
               "default": "asc"
             },
             "description": "asc ou desc, sem diferenciar caixa."
+          },
+          {
+            "in": "query",
+            "name": "beachId",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Filtro exato pelo ID do catalogo."
+          },
+          {
+            "in": "query",
+            "name": "materialId",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Filtro exato pelo ID do catalogo."
           }
         ]
+      }
+    },
+    "/catalog/{kind}": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "beaches",
+              "materials"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Catalogos"
+        ],
+        "operationId": "listCatalog",
+        "summary": "Consultar praias ou materiais ativos",
+        "responses": {
+          "200": {
+            "description": "Operacao concluida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Catalog"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "Catalogos"
+        ],
+        "operationId": "createCatalog",
+        "summary": "Cadastrar nome principal e nomes alternativos",
+        "responses": {
+          "201": {
+            "description": "Operacao concluida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/{kind}/{id}": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "beaches",
+              "materials"
+            ]
+          }
+        },
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "Catalogos"
+        ],
+        "operationId": "updateCatalog",
+        "summary": "Renomear ou acrescentar nomes alternativos",
+        "responses": {
+          "200": {
+            "description": "Operacao concluida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogUpdateInput"
+              }
+            }
+          }
+        },
+        "description": "Somente administrador. Preserva nomes antigos como aliases. Nao permite tomar nomes de outro item. Renomear atualiza os rotulos dos registros vinculados e invalida seus formularios antigos."
+      }
+    },
+    "/catalog/{kind}/{id}/merge": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "beaches",
+              "materials"
+            ]
+          }
+        },
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Catalogos"
+        ],
+        "operationId": "mergeCatalog",
+        "summary": "Unificar registros duplicados e seus vinculos",
+        "responses": {
+          "200": {
+            "description": "Operacao concluida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogMergeInput"
+              }
+            }
+          }
+        },
+        "description": "Somente administrador. Requer versoes atuais da origem e do destino; move nomes alternativos, eventos e coletas sem alterar pesos, contas ou inscricoes. Atualiza as versoes dos registros afetados. A origem sai da listagem; seu ID deixa de aceitar novas gravacoes (409)."
       }
     }
   },
@@ -1537,7 +1810,6 @@
         "type": "object",
         "required": [
           "title",
-          "location",
           "dateTime",
           "status"
         ],
@@ -1552,7 +1824,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Obrigatório e não pode conter somente espaços."
+            "description": "Compatibilidade: nome principal ou alternativo de uma praia cadastrada. Prefira beachId. Se ambos forem enviados, devem identificar a mesma praia."
           },
           "dateTime": {
             "type": "string",
@@ -1572,8 +1844,29 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "beachId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
           }
-        }
+        },
+        "allOf": [
+          {
+            "anyOf": [
+              {
+                "required": [
+                  "beachId"
+                ]
+              },
+              {
+                "required": [
+                  "location"
+                ]
+              }
+            ]
+          }
+        ]
       },
       "CleanupEvent": {
         "type": "object",
@@ -1583,7 +1876,8 @@
           "location",
           "dateTime",
           "status",
-          "version"
+          "version",
+          "beachId"
         ],
         "properties": {
           "id": {
@@ -1594,7 +1888,9 @@
             "type": "string"
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "description": "Nome principal do catalogo vinculado; valor original em registros legados sem catalogo.",
+            "nullable": true
           },
           "dateTime": {
             "type": "string",
@@ -1612,6 +1908,13 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "beachId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true,
+            "description": "ID estavel do catalogo. Pode ser nulo apenas em registros legados incompletos."
           }
         }
       },
@@ -1631,8 +1934,6 @@
       "TrashCollectionInput": {
         "type": "object",
         "required": [
-          "beach",
-          "materialType",
           "weightKg",
           "registrationDate"
         ],
@@ -1641,13 +1942,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Obrigatório e não pode conter somente espaços."
+            "description": "Compatibilidade: nome principal ou alternativo cadastrado. Prefira o ID. Nomes desconhecidos retornam 400; nome e ID devem corresponder quando enviados juntos."
           },
           "materialType": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Obrigatório e não pode conter somente espaços."
+            "description": "Compatibilidade: nome principal ou alternativo cadastrado. Prefira o ID. Nomes desconhecidos retornam 400; nome e ID devem corresponder quando enviados juntos."
           },
           "weightKg": {
             "type": "number",
@@ -1685,8 +1986,48 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "beachId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "materialId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
           }
-        }
+        },
+        "allOf": [
+          {
+            "anyOf": [
+              {
+                "required": [
+                  "beachId"
+                ]
+              },
+              {
+                "required": [
+                  "beach"
+                ]
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "required": [
+                  "materialId"
+                ]
+              },
+              {
+                "required": [
+                  "materialType"
+                ]
+              }
+            ]
+          }
+        ]
       },
       "TrashCollection": {
         "type": "object",
@@ -1698,7 +2039,9 @@
           "registrationDate",
           "volunteer",
           "event",
-          "version"
+          "version",
+          "beachId",
+          "materialId"
         ],
         "properties": {
           "id": {
@@ -1706,10 +2049,14 @@
             "format": "int64"
           },
           "beach": {
-            "type": "string"
+            "type": "string",
+            "description": "Nome principal do catalogo vinculado; valor original em registros legados sem catalogo.",
+            "nullable": true
           },
           "materialType": {
-            "type": "string"
+            "type": "string",
+            "description": "Nome principal do catalogo vinculado; valor original em registros legados sem catalogo.",
+            "nullable": true
           },
           "weightKg": {
             "type": "number",
@@ -1742,6 +2089,20 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "beachId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true,
+            "description": "ID estavel do catalogo. Pode ser nulo apenas em registros legados incompletos."
+          },
+          "materialId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true,
+            "description": "ID estavel do catalogo. Pode ser nulo apenas em registros legados incompletos."
           }
         }
       },
@@ -1921,7 +2282,6 @@
         "type": "object",
         "required": [
           "title",
-          "location",
           "dateTime",
           "status",
           "version"
@@ -1937,7 +2297,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Obrigatório e não pode conter somente espaços."
+            "description": "Compatibilidade: nome principal ou alternativo de uma praia cadastrada. Prefira beachId. Se ambos forem enviados, devem identificar a mesma praia."
           },
           "dateTime": {
             "type": "string",
@@ -1957,14 +2317,33 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "beachId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
           }
-        }
+        },
+        "allOf": [
+          {
+            "anyOf": [
+              {
+                "required": [
+                  "beachId"
+                ]
+              },
+              {
+                "required": [
+                  "location"
+                ]
+              }
+            ]
+          }
+        ]
       },
       "TrashCollectionUpdateInput": {
         "type": "object",
         "required": [
-          "beach",
-          "materialType",
           "weightKg",
           "registrationDate",
           "version"
@@ -1974,13 +2353,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Obrigatório e não pode conter somente espaços."
+            "description": "Compatibilidade: nome principal ou alternativo cadastrado. Prefira o ID. Nomes desconhecidos retornam 400; nome e ID devem corresponder quando enviados juntos."
           },
           "materialType": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Obrigatório e não pode conter somente espaços."
+            "description": "Compatibilidade: nome principal ou alternativo cadastrado. Prefira o ID. Nomes desconhecidos retornam 400; nome e ID devem corresponder quando enviados juntos."
           },
           "weightKg": {
             "type": "number",
@@ -2018,6 +2397,158 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "beachId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "materialId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "allOf": [
+          {
+            "anyOf": [
+              {
+                "required": [
+                  "beachId"
+                ]
+              },
+              {
+                "required": [
+                  "beach"
+                ]
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "required": [
+                  "materialId"
+                ]
+              },
+              {
+                "required": [
+                  "materialType"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "Catalog": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "aliases"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nomes reconhecidos, normalizados sem acentos, em minusculas e com espacos simples."
+          }
+        }
+      },
+      "CatalogInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "aliases": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CatalogUpdateInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "aliases": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CatalogMergeInput": {
+        "type": "object",
+        "required": [
+          "targetId",
+          "version",
+          "targetVersion"
+        ],
+        "properties": {
+          "targetId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "targetVersion": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       }

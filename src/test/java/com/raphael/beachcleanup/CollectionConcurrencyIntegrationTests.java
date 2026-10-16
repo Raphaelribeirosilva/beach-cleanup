@@ -50,6 +50,7 @@ class CollectionConcurrencyIntegrationTests {
 
     @BeforeEach
     void setUp() {
+        CatalogTestData.seed(context);
         collections.deleteAll();
         users.deleteAll();
         events.deleteAll();

@@ -59,6 +59,11 @@ async function main() {
     const admin = await api('/auth/login', { email: 'admin@example.com', password: 'admin123' });
     const ana = await api('/auth/login', { email: 'ana@example.com', password: 'ana123' });
     const bruno = await api('/auth/login', { email: 'bruno@example.com', password: 'bruno123' });
+    // Register controlled names explicitly; application writes never invent catalog entries.
+    for (const [kind, names] of [
+      ['beaches', ['Praia API', 'Praia do navegador', 'Praia independente', 'Praia administrativa', 'Paginação administrativa', 'Lugar inexistente']],
+      ['materials', ['<img src=x onerror=alert(1)>']]
+    ]) for (const name of names) await api(`/catalog/${kind}`, { name }, admin.accessToken);
     for (let i = 0; i < 2; i++) await api('/users', {
       name: `Consulta ${i}`, email: `consulta-${i}@example.com`, password: 'browser-test-password'
     });
@@ -117,7 +122,15 @@ async function main() {
       return result.result.value;
     }
     const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
-    const fill = (selector, value) => evaluate(`document.querySelector(${JSON.stringify(selector)}).value = ${JSON.stringify(value)}`);
+    const fill = (selector, value) => evaluate(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      const value = ${JSON.stringify(value)};
+      if (element.tagName === 'SELECT') {
+        const option = [...element.options].find(option => option.value === value || option.textContent === value);
+        if (!option) throw new Error('Missing catalog choice: ' + value);
+        element.value = option.value;
+      } else element.value = value;
+    })()`);
     const waitFor = expression => until(() => evaluate(expression), expression);
     async function reloadPage() {
       await evaluate('window.portalBeforeReload = true');
@@ -158,6 +171,7 @@ async function main() {
     await click('#collection-form [type=submit]');
     await waitFor('!document.querySelector("#collection-dialog").open && document.querySelector("#total-kg").textContent === "2,5" && document.querySelector("#results").textContent.includes("Mutirão navegador")');
     await click('#collection-open');
+    await waitFor('document.querySelector("#collection-dialog").open');
     await fill('#collection-form [name=beach]', 'Praia independente');
     await fill('#collection-form [name=materialType]', '<img src=x onerror=alert(1)>');
     await fill('#collection-form [name=weightKg]', '1.25');
@@ -216,6 +230,7 @@ async function main() {
     await click('#admin-filters [type=submit]');
     await waitFor('document.querySelector("#admin-results").textContent.includes("Nenhum registro")');
     await click('#admin-create');
+    await waitFor('document.querySelector("#admin-dialog").open');
     await fill('#admin-form [name=title]', 'Mutirão administrativo');
     await fill('#admin-form [name=location]', 'Praia administrativa');
     await fill('#admin-form [name=dateTime]', '2026-11-15T09:00:00');
@@ -265,6 +280,7 @@ async function main() {
     await click('[data-admin-view=collections]');
     await adminReady();
     await click('#admin-create');
+    await waitFor('document.querySelector("#admin-dialog").open');
     await fill('#admin-form [name=beach]', 'Praia administrativa');
     await fill('#admin-form [name=materialType]', '<img src=x onerror=alert(1)>');
     await fill('#admin-form [name=weightKg]', '0');
@@ -354,6 +370,41 @@ async function main() {
     await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 960, deviceScaleFactor: 1, mobile: false });
     await evaluate('document.querySelector("#workspace").scrollIntoView({block: "start"})');
     await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'admin-desktop.png'), Buffer.from(result.data, 'base64')));
+    // Manage aliases and merge two explicit beach identities through the administrative UI.
+    await click('[data-admin-view=beaches]');
+    await adminReady();
+    await click('#admin-create');
+    await waitFor('document.querySelector("#admin-dialog").open');
+    await fill('#admin-form [name=name]', 'Praia de catálogo');
+    await fill('#admin-form [name=aliases]', 'Apelido de catálogo');
+    await saveAdmin();
+    await savedAdmin();
+    const catalogBeach = (await (await request('/catalog/beaches')).json()).find(item => item.name === 'Praia de catálogo');
+    assert.ok(catalogBeach.aliases.includes('apelido de catalogo'));
+    const legacyBeach = await api('/catalog/beaches', { name: 'Nome antigo da praia' }, admin.accessToken);
+    const managedMaterial = (await (await request('/catalog/materials')).json()).find(item => item.name === 'Vidro');
+    const mergedCollection = await api('/trashCollection', { beachId: legacyBeach.id, materialId: managedMaterial.id,
+      weightKg: 2, registrationDate: '2026-10-15' }, admin.accessToken);
+    await click('[data-admin-view=beaches]');
+    await adminReady();
+    await evaluate(`[...document.querySelectorAll('#admin-results .card')].find(card => card.querySelector('h3').textContent === 'Nome antigo da praia').querySelector('button:last-child').click()`);
+    await waitFor('document.querySelector("#admin-dialog").open');
+    await fill('#admin-form [name=targetId]', String(catalogBeach.id));
+    await saveAdmin();
+    await savedAdmin();
+    const afterMerge = await (await request(`/trashCollection/${mergedCollection.id}`)).json();
+    assert.equal(afterMerge.beachId, catalogBeach.id);
+    assert.equal(afterMerge.beach, 'Praia de catálogo');
+    assert.equal(afterMerge.weightKg, 2);
+    assert.equal((await (await request('/catalog/beaches')).json()).some(item => item.id === legacyBeach.id), false);
+    await click('[data-admin-view=materials]');
+    await adminReady();
+    await evaluate(`[...document.querySelectorAll('#admin-results .card')].find(card => card.querySelector('h3').textContent === 'Vidro').querySelector('button').click()`);
+    await waitFor('document.querySelector("#admin-dialog").open');
+    await fill('#admin-form [name=aliases]', 'Vidros');
+    await saveAdmin();
+    await savedAdmin();
+    assert.ok((await (await request('/catalog/materials')).json()).find(item => item.name === 'Vidro').aliases.includes('vidros'));
     await click('#logout');
     await waitFor('document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").textContent === ""');
     await click('#login-open');

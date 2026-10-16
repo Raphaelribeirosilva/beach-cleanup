@@ -37,6 +37,7 @@ class StaleFormIntegrationTests {
 
     @BeforeEach
     void setUp() {
+        CatalogTestData.seed(context);
         collections.deleteAll();
         users.deleteAll();
         events.deleteAll();
@@ -62,6 +63,7 @@ class StaleFormIntegrationTests {
         long originalVersion = first.get("version").asLong();
         assertTrue(originalVersion >= 0);
         first.put(field, "Primeira edicao");
+        if (resource.equals("trashCollection")) first.remove("beachId");
         ObjectNode saved = save(path, first);
         assertTrue(saved.get("version").asLong() > originalVersion);
 
@@ -73,6 +75,7 @@ class StaleFormIntegrationTests {
 
         ObjectNode reloaded = read(path);
         reloaded.put(field, "Edicao revisada");
+        if (resource.equals("trashCollection")) reloaded.remove("beachId");
         ObjectNode updated = save(path, reloaded);
         assertEquals("Edicao revisada", updated.get(field).asText());
         assertTrue(updated.get("version").asLong() > saved.get("version").asLong());

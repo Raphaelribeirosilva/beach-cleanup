@@ -10,7 +10,14 @@
   const statuses = Object.keys(transitions);
   window.createAdminPortal = (api, { node, action, busy, kg, date }) => {
     const $ = id => document.getElementById(id);
-    const state = { active: false, view: 'events', page: 0, pages: 0, generation: 0, loading: false, editing: null };
+    const state = { active: false, view: 'events', page: 0, pages: 0, generation: 0, loading: false, editing: null,
+      catalogs: { beaches: [], materials: [] } };
+    const isCatalog = view => ['beaches', 'materials'].includes(view);
+    const choices = kind => [{ id: '', name: 'Selecione' }, ...state.catalogs[kind]];
+    async function refreshCatalogs() {
+      const [beaches, materials] = await Promise.all([api.catalog('beaches'), api.catalog('materials')]);
+      return { beaches, materials };
+    }
     const authorized = () => state.active && api.session()?.role === 'ADMIN';
     const current = session => authorized() && api.session() === session;
     function message(text = '', error = false) {
@@ -23,8 +30,9 @@
       const input = node(choices ? 'select' : 'input');
       input.name = name;
       if (choices) choices.forEach(choice => {
-        const option = node('option', '', choice === 'Concluido' ? 'Concluído' : choice || 'Todos');
-        option.value = choice;
+        const option = node('option', '', typeof choice === 'object' ? choice.name
+          : choice === 'Concluido' ? 'Concluído' : choice || 'Todos');
+        option.value = typeof choice === 'object' ? choice.id : choice;
         input.append(option);
       });
       else input.type = type;
@@ -38,15 +46,17 @@
     function filters() {
       const form = $('admin-filters');
       form.replaceChildren();
+      form.hidden = isCatalog(state.view);
+      if (isCatalog(state.view)) return;
       if (state.view === 'events') {
-        field(form, 'location', 'Praia ou local', { maxlength: 255 });
+        field(form, 'location', 'Praia', { choices: choices('beaches') });
         field(form, 'status', 'Status', { choices: ['', ...statuses] });
       } else if (state.view === 'users') {
         field(form, 'name', 'Nome', { maxlength: 255 });
         field(form, 'email', 'E-mail contém', { maxlength: 255 });
       } else {
-        field(form, 'beach', 'Praia', { maxlength: 255 });
-        field(form, 'materialType', 'Material', { maxlength: 255 });
+        field(form, 'beach', 'Praia', { choices: choices('beaches') });
+        field(form, 'materialType', 'Material', { choices: choices('materials') });
         field(form, 'volunteerId', 'ID do usuário', { type: 'number', min: 1, step: 1 });
         field(form, 'eventId', 'ID do evento', { type: 'number', min: 1, step: 1 });
         field(form, 'from', 'De', { type: 'date' });
@@ -64,9 +74,11 @@
         else button.removeAttribute('aria-current');
       });
       $('admin-title').textContent = state.view === 'users' ? 'Consultar usuários'
-        : state.view === 'events' ? 'Gerenciar eventos' : 'Gerenciar coletas';
+        : state.view === 'events' ? 'Gerenciar eventos' : state.view === 'beaches' ? 'Gerenciar praias'
+          : state.view === 'materials' ? 'Gerenciar materiais' : 'Gerenciar coletas';
       $('admin-create').hidden = state.view === 'users';
-      $('admin-create').textContent = state.view === 'events' ? '+ Criar evento' : '+ Registrar coleta';
+      $('admin-create').textContent = isCatalog(state.view) ? '+ Cadastrar item'
+        : state.view === 'events' ? '+ Criar evento' : '+ Registrar coleta';
       filters();
     }
     function empty(text) { $('admin-results').replaceChildren(node('p', 'empty', text)); }
@@ -80,7 +92,25 @@
       $('admin-pagination').hidden = true;
       empty('Carregando…');
       try {
+        const catalogs = await refreshCatalogs();
+        if (!current(session) || generation !== state.generation) return false;
+        state.catalogs = catalogs;
+        const previousFilters = Object.fromEntries(new FormData($('admin-filters')));
+        filters();
+        for (const [name, value] of Object.entries(previousFilters)) {
+          if ($('admin-filters').elements[name]) $('admin-filters').elements[name].value = value;
+        }
+        if (isCatalog(view)) {
+          state.pages = 1;
+          const entries = catalogs[view];
+          if (!entries.length) empty('Nenhum item cadastrado. Cadastre o primeiro item para disponibilizá-lo nos formulários.');
+          else $('admin-results').replaceChildren(...entries.map(record => catalogCard(record, view)));
+          return true;
+        }
         const values = Object.fromEntries(new FormData($('admin-filters')));
+        for (const [name, target] of [['location', 'beachId'], ['beach', 'beachId'], ['materialType', 'materialId']]) {
+          if (name in values) { values[target] = values[name]; delete values[name]; }
+        }
         const result = await api.admin[view]({ ...values, page: state.page });
         if (!current(session) || generation !== state.generation) return false;
         // A deletion can remove the last record of the current page.
@@ -109,6 +139,18 @@
         }
       }
     }
+    function catalogCard(record, view) {
+      const card = node('article', 'card');
+      const body = node('div', 'card-body');
+      body.append(node('span', 'card-id', `#${record.id}`), node('h3', '', record.name),
+        node('p', '', `Nomes reconhecidos: ${record.aliases.join(', ')}`));
+      const actions = node('div', 'card-actions');
+      actions.append(action('Editar nomes', () => edit(view, record.id)),
+        action('Unificar com outro item', () => edit(view, record.id, true)));
+      body.append(actions);
+      card.append(body);
+      return card;
+    }
     function card(record, view) {
       const card = node('article', 'card');
       const top = node('div', 'card-top');
@@ -130,26 +172,40 @@
       card.append(top, body);
       return card;
     }
-    async function edit(view, id = null) {
+    async function edit(view, id = null, merge = false) {
       if (!authorized()) return;
       const session = api.session();
       const generation = state.generation;
       try {
-        const record = id == null ? {} : await api.admin[view === 'events' ? 'event' : 'collection'](id);
+        const catalogs = await refreshCatalogs();
+        const record = id == null ? {} : isCatalog(view) ? catalogs[view].find(item => item.id === id)
+          : await api.admin[view === 'events' ? 'event' : 'collection'](id);
         if (!current(session) || generation !== state.generation) return;
-        state.editing = { view, id, version: record.version };
+        if (!record) { message('O item foi unificado. Recarregue a lista.', true); return; }
+        state.catalogs = catalogs;
+        state.editing = { view, id, version: record.version, merge, targets: isCatalog(view) ? catalogs[view] : [] };
         const form = $('admin-form');
         form.replaceChildren();
-        $('admin-editor-title').textContent = `${id == null ? 'Criar' : 'Editar'} ${view === 'events' ? 'evento' : 'coleta'}${id == null ? '' : ` #${id}`}`;
-        if (view === 'events') {
+        $('admin-editor-title').textContent = `${merge ? 'Unificar' : id == null ? 'Criar' : 'Editar'} ${isCatalog(view) ? 'item do catálogo' : view === 'events' ? 'evento' : 'coleta'}${id == null ? '' : ` #${id}`}`;
+        if (isCatalog(view)) {
+          if (merge) {
+            form.append(node('p', '', `Unificar ${record.name} em outro item move seus eventos, coletas e nomes alternativos para o destino. Confira se representam o mesmo local ou material.`));
+            field(form, 'targetId', 'Manter como cadastro principal', {
+              choices: [{ id: '', name: 'Selecione o destino' }, ...catalogs[view].filter(item => item.id !== id)], required: true });
+          } else {
+            field(form, 'name', 'Nome principal', { value: record.name || '', required: true, maxlength: 255 });
+            field(form, 'aliases', 'Outros nomes (separados por vírgula)', { value: record.aliases?.join(', ') || '', maxlength: 12800 });
+            form.append(node('p', 'hint', 'Inclua a cidade no nome de praias homônimas. Nomes antigos continuam reconhecidos após a edição.'));
+          }
+        } else if (view === 'events') {
           field(form, 'title', 'Título', { value: record.title || '', required: true, maxlength: 255 });
-          field(form, 'location', 'Local', { value: record.location || '', required: true, maxlength: 255 });
+          field(form, 'location', 'Praia', { value: record.beachId ?? '', required: true, choices: choices('beaches') });
           field(form, 'dateTime', 'Data e hora', { type: 'datetime-local', value: record.dateTime || '', required: true, step: 1 });
           field(form, 'status', 'Status', { value: record.status || 'Agendado', choices: id == null ? ['Agendado'] : transitions[record.status] });
           form.append(node('p', 'hint', 'Novos eventos começam como Agendado. As opções seguem as transições permitidas pela API.'));
         } else {
-          field(form, 'beach', 'Praia', { value: record.beach || '', required: true, maxlength: 255 });
-          field(form, 'materialType', 'Material', { value: record.materialType || '', required: true, maxlength: 255 });
+          field(form, 'beach', 'Praia', { value: record.beachId ?? '', required: true, choices: choices('beaches') });
+          field(form, 'materialType', 'Material', { value: record.materialId ?? '', required: true, choices: choices('materials') });
           field(form, 'weightKg', 'Peso (kg)', { type: 'number', value: record.weightKg ?? '', required: true, min: 0, step: 'any', inputmode: 'decimal' });
           field(form, 'registrationDate', 'Data da coleta', { type: 'date', value: record.registrationDate || '', required: true });
           field(form, 'volunteerId', 'ID do proprietário (opcional)', { type: 'number', value: record.volunteer?.id ?? '', min: 1, step: 1 });
@@ -165,7 +221,7 @@
         form.append(error, submit);
         if (id != null) {
           form.append(action('Recarregar registro atual', () => {
-            if (window.confirm('Descartar o formulário e carregar os dados atuais?')) return edit(view, id);
+            if (window.confirm('Descartar o formulário e carregar os dados atuais?')) return edit(view, id, merge);
           }));
           form.append(node('p', 'hint', 'Após um conflito, recarregue e revise os dados antes de salvar. Alterações salvas desde a abertura do formulário impedem o envio até você recarregar e revisar.'));
         }
@@ -193,6 +249,25 @@
       for (const key of ['title', 'location', 'beach', 'materialType']) if (key in input) input[key] = input[key].trim();
       const errorBox = $('admin-form-error');
       const showError = text => { errorBox.textContent = text; errorBox.hidden = !text; };
+      if (isCatalog(editing.view)) {
+        if (editing.merge) {
+          const target = editing.targets.find(item => item.id === Number(input.targetId));
+          if (!target) { showError('Selecione o destino.'); return; }
+          input.targetId = target.id;
+          input.targetVersion = target.version;
+          if (!window.confirm('Confirmar a unificação dos registros e de seus vínculos?')) return;
+        } else {
+          input.name = input.name.trim();
+          input.aliases = input.aliases.split(',').map(value => value.trim()).filter(Boolean);
+        }
+      } else {
+        for (const [name, target] of [['location', 'beachId'], ['beach', 'beachId'], ['materialType', 'materialId']]) {
+          if (name in input) { input[target] = Number(input[name]); delete input[name]; }
+        }
+        if (!input.beachId || (editing.view === 'collections' && !input.materialId)) {
+          showError('Selecione praia e material nos catálogos.'); return;
+        }
+      }
       if (['title', 'location', 'beach', 'materialType'].some(key => key in input && !input[key])) {
         showError('Preencha os campos obrigatórios com texto.'); return;
       }
@@ -209,7 +284,10 @@
       void busy(form.querySelector('[type=submit]'), async () => {
         showError('');
         try {
-          await api.admin[editing.view === 'events' ? 'saveEvent' : 'saveCollection'](editing.id, input);
+          if (isCatalog(editing.view)) {
+            if (editing.merge) await api.admin.mergeCatalog(editing.view, editing.id, input);
+            else await api.admin.saveCatalog(editing.view, editing.id, input);
+          } else await api.admin[editing.view === 'events' ? 'saveEvent' : 'saveCollection'](editing.id, input);
           if (!current(session)) return;
           if (state.editing === editing) $('admin-dialog').close();
           const refreshed = await load();

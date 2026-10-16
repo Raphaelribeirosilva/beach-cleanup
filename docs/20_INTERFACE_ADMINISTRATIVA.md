@@ -73,6 +73,6 @@ O roteiro de navegador exige Node.js 24+ e Edge/Chromium instalado. `PORTAL_BROW
 
 - A [proteção de formulários antigos](23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md) evoluiu este contrato: a API exige `version` nas edições e os formulários administrativos enviam a versão carregada. Alterações intermediárias retornam 409 e exigem recarregar e revisar os dados.
 - A consulta de usuários não oferece edição de contas, alteração de perfis ou recuperação de senha nesta área. A etapa solicitada prevê consulta, e esses fluxos não foram acrescentados.
-- Os vínculos de coleta usam IDs opcionais, sem seletor com busca de nomes. Praias e materiais continuam como texto livre, conforme o contrato atual.
+- Os vínculos de proprietário/evento usam IDs opcionais. A [padronização de praias e materiais](24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md) acrescentou seletores e abas para gerir nomes alternativos e unificar duplicatas. As identidades passam a ser os IDs dos catálogos.
 - A suíte MySQL real e o CI remoto não foram executados nesta entrega. Não houve alteração de esquema ou persistência; a validação desta interface utilizou H2. Nenhuma hospedagem, homologação, proteção contra abuso ou relatório foi implementado.
 - As alterações locais anteriores à tarefa, incluindo o planejamento, o resumo anterior e arquivos já modificados ou preparados no Git, foram preservadas. Não foi feito commit nem push.

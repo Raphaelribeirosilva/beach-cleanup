@@ -54,13 +54,15 @@ public class SearchService {
     }
 
     public PageDTO<CleanupEventDTO> events(String location, String status,
-            LocalDateTime from, LocalDateTime to, Pageable pageable) {
+            LocalDateTime from, LocalDateTime to, Long beachId, Pageable pageable) {
         validateText("location", location);
+        validateId("beachId", beachId);
         validateRange(from, to);
         String state = status == null ? null : EventStatus.parse(status).value();
         Specification<CleanupEvent> filter = (root, query, builder) -> {
             var predicates = new ArrayList<Predicate>();
-            contains(predicates, root, builder, "location", location);
+            catalogContains(predicates, root, query, builder, "beachReference", "location", "beaches", location);
+            if (beachId != null) predicates.add(builder.equal(root.get("beachReference").get("id"), beachId));
             if (state != null) predicates.add(builder.equal(root.get("status"), state));
             if (from != null) predicates.add(builder.greaterThanOrEqualTo(root.get("dateTime"), from));
             if (to != null) predicates.add(builder.lessThanOrEqualTo(root.get("dateTime"), to));
@@ -71,12 +73,14 @@ public class SearchService {
     }
 
     public PageDTO<TrashCollectionDTO> collections(String beach, String materialType, LocalDate from,
-            LocalDate to, Long volunteerId, Long eventId, Pageable pageable) {
+            LocalDate to, Long volunteerId, Long eventId, Long beachId, Long materialId, Pageable pageable) {
         validateText("beach", beach);
         validateText("materialType", materialType);
         validateRange(from, to);
         validateId("volunteerId", volunteerId);
         validateId("eventId", eventId);
+        validateId("beachId", beachId);
+        validateId("materialId", materialId);
         Long owner = volunteerId;
         if (!access.isAdmin()) {
             long current = access.currentId();
@@ -88,8 +92,10 @@ public class SearchService {
         final Long visibleOwner = owner;
         Specification<TrashCollection> filter = (root, query, builder) -> {
             var predicates = new ArrayList<Predicate>();
-            contains(predicates, root, builder, "beach", beach);
-            contains(predicates, root, builder, "materialType", materialType);
+            catalogContains(predicates, root, query, builder, "beachReference", "beach", "beaches", beach);
+            catalogContains(predicates, root, query, builder, "materialReference", "materialType", "materials", materialType);
+            if (beachId != null) predicates.add(builder.equal(root.get("beachReference").get("id"), beachId));
+            if (materialId != null) predicates.add(builder.equal(root.get("materialReference").get("id"), materialId));
             if (from != null) predicates.add(builder.greaterThanOrEqualTo(root.get("registrationDate"), from));
             if (to != null) predicates.add(builder.lessThanOrEqualTo(root.get("registrationDate"), to));
             if (visibleOwner != null) predicates.add(builder.equal(root.get("volunteer").get("id"), visibleOwner));
@@ -98,6 +104,23 @@ public class SearchService {
         };
         var page = collections.findAll(filter, pageable);
         return PageDTO.of(page, totals.collections(page.getContent()));
+    }
+
+    private void catalogContains(List<Predicate> predicates, Root<?> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query, CriteriaBuilder builder,
+            String reference, String legacyField, String kind, String value) {
+        if (value == null || value.isBlank()) return;
+        String key = CatalogNames.key(value).replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        var matching = query.subquery(Integer.class);
+        var alias = matching.from(CatalogAlias.class);
+        matching.select(builder.literal(1)).where(
+            builder.equal(alias.get("id").get("kind"), kind),
+            builder.equal(alias.get("entry").get("id"), root.get(reference).get("id")),
+            builder.like(alias.get("id").get("name"), "%" + key + "%", '!'));
+        var legacy = new ArrayList<Predicate>();
+        contains(legacy, root, builder, legacyField, value);
+        predicates.add(builder.or(builder.exists(matching),
+            builder.and(builder.isNull(root.get(reference)), legacy.getFirst())));
     }
 
     private void contains(List<Predicate> predicates, Root<?> root, CriteriaBuilder builder,

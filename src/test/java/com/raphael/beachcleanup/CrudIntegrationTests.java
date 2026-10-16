@@ -58,6 +58,7 @@ class CrudIntegrationTests {
 
     @BeforeEach
     void setUp() {
+        CatalogTestData.seed(context);
         collections.deleteAll();
         users.deleteAll();
         events.deleteAll();
@@ -273,7 +274,7 @@ class CrudIntegrationTests {
              "registrationDate":"2026-10-21"}
             """.formatted(id));
         assertEquals(2, collections.count());
-        assertEquals("Plastico", collections.findById(id).orElseThrow().getMaterialType());
+        assertEquals("Pl\u00e1stico", collections.findById(id).orElseThrow().getMaterialType());
     }
 
     @Test

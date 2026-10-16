@@ -38,6 +38,10 @@ public class CleanupEvent implements Serializable{
 	
 	private String title;
 	private String location;
+
+    @jakarta.persistence.ManyToOne
+    @jakarta.persistence.JoinColumn(name = "beach_id")
+    private CatalogEntry beachReference;
 	private LocalDateTime dateTime;
 	private String status;
 	
@@ -59,6 +63,9 @@ public class CleanupEvent implements Serializable{
 		this.dateTime = dateTime;
 		this.status = status;
 	}
+
+	public CatalogEntry getBeachReference() { return beachReference; }
+    public void setBeachReference(CatalogEntry entry) { beachReference = entry; }
 
 	public Long getRowVersion() {
         return rowVersion;

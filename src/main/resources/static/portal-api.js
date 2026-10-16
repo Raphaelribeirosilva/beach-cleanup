@@ -104,6 +104,9 @@
     }
     return {
       admin: {
+        saveCatalog: (kind, id, input) => adminRequest(`/catalog/${kind}${id == null ? '' : `/${id}`}`,
+          { method: id == null ? 'POST' : 'PUT', body: input }),
+        mergeCatalog: (kind, id, input) => adminRequest(`/catalog/${kind}/${id}/merge`, { method: 'POST', body: input }),
         events: filters => adminRequest(query('/cleanupEvent/search', { size: 6, ...filters })),
         users: filters => adminRequest(query('/users/search', { size: 6, ...filters })),
         collections: filters => adminRequest(query('/trashCollection/search', { size: 6, ...filters })),
@@ -117,6 +120,7 @@
         deleteCollection: id => adminRequest(`/trashCollection/${id}`, { method: 'DELETE' })
       },
       session: currentSession,
+      catalog: kind => request(`/catalog/${kind}`),
       logout: clearSession,
       signup: input => request('/users', { method: 'POST', body: input }),
       async login(input) {

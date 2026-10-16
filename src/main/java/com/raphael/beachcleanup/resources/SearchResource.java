@@ -31,24 +31,26 @@ public class SearchResource {
 
     @GetMapping("/cleanupEvent/search")
     public PageDTO<CleanupEventDTO> events(@RequestParam(required = false) String location,
+            @RequestParam(required = false) Long beachId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "id") String sortBy, @RequestParam(defaultValue = "asc") String direction) {
-        return service.events(location, status, from, to,
+        return service.events(location, status, from, to, beachId,
             SearchPagination.of(page, size, sortBy, direction, Set.of("id", "title", "location", "dateTime", "status")));
     }
 
     @GetMapping("/trashCollection/search")
     public PageDTO<TrashCollectionDTO> collections(@RequestParam(required = false) String beach,
+            @RequestParam(required = false) Long beachId, @RequestParam(required = false) Long materialId,
             @RequestParam(required = false) String materialType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long volunteerId, @RequestParam(required = false) Long eventId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "id") String sortBy, @RequestParam(defaultValue = "asc") String direction) {
-        return service.collections(beach, materialType, from, to, volunteerId, eventId,
+        return service.collections(beach, materialType, from, to, volunteerId, eventId, beachId, materialId,
             SearchPagination.of(page, size, sortBy, direction,
                 Set.of("id", "beach", "materialType", "weightKg", "registrationDate")));
     }

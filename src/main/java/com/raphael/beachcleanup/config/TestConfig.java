@@ -33,9 +33,20 @@ public class TestConfig implements CommandLineRunner {
 
 	@Autowired
 	PasswordEncoder passwordEncoder;
+
+    @Autowired
+    com.raphael.beachcleanup.services.CatalogService catalogs;
+
+    @Autowired
+    com.raphael.beachcleanup.repositories.CatalogEntryRepository catalogEntries;
 	
     @Override
     public void run(String... args) throws Exception {
+        var beach = catalogs.create("beaches", new com.raphael.beachcleanup.dto.CatalogInputDTO("Praia do Morro", java.util.List.of("Morro"), null));
+        var material = catalogs.create("materials", new com.raphael.beachcleanup.dto.CatalogInputDTO("Pl\u00e1stico", java.util.List.of(), null));
+        for (String label : java.util.List.of("Vidro", "Metal", "Papel", "Res\u00edduos mistos")) {
+            catalogs.create("materials", new com.raphael.beachcleanup.dto.CatalogInputDTO(label, java.util.List.of(), null));
+        }
         User v1 = new User(null, "Raphael", "admin-original@example.com",
                 passwordEncoder.encode("demo-original7!"), 15.5);
         v1.setRole(UserRole.ADMIN);
@@ -59,6 +70,7 @@ public class TestConfig implements CommandLineRunner {
         		);
         
         userRepository.saveAll(Arrays.asList(v1, admin, ana, bruno, carla));
+        e1.setBeachReference(catalogEntries.findById(beach.id()).orElseThrow());
         eventRepository.saveAll(Arrays.asList(e1));
         
         v1.getEvents().add(e1);
@@ -67,6 +79,8 @@ public class TestConfig implements CommandLineRunner {
         
         TrashCollection t1 = new TrashCollection(null, "Praia do Morro", "Plástico", 15.5, LocalDate.now());
                
+        t1.setBeachReference(catalogEntries.findById(beach.id()).orElseThrow());
+        t1.setMaterialReference(catalogEntries.findById(material.id()).orElseThrow());
         t1.setVolunteer(v1);
         t1.setEvent(e1);
         

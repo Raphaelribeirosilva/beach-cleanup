@@ -10,14 +10,16 @@ import jakarta.validation.constraints.PositiveOrZero;
 public record CleanupEventInputDTO(
         @NotBlank(message = "O título é obrigatório")
         @Size(max = 255, message = "O título deve ter no máximo 255 caracteres") String title,
-        @NotBlank(message = "O local é obrigatório")
         @Size(max = 255, message = "O local deve ter no máximo 255 caracteres") String location,
         @NotNull(message = "A data e hora são obrigatórias") LocalDateTime dateTime,
         @NotBlank(message = "O status é obrigatório")
         @Size(max = 255, message = "O status deve ter no máximo 255 caracteres") String status,
-        @PositiveOrZero(message = "A versão deve ser zero ou positiva") Long version) {
+        @PositiveOrZero(message = "A versão deve ser zero ou positiva") Long version,
+        @jakarta.validation.constraints.Positive Long beachId) {
 
     public CleanupEvent toEntity() {
-        return new CleanupEvent(null, title, location, dateTime, status);
+        CleanupEvent entity = new CleanupEvent(null, title, location, dateTime, status);
+        if (beachId != null) entity.setBeachReference(com.raphael.beachcleanup.entities.CatalogEntry.reference(beachId));
+        return entity;
     }
 }

@@ -17,6 +17,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @ControllerAdvice
 public class ResourceExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(CatalogConflictException.class)
+    public ResponseEntity<StandardError> catalogConflict(CatalogConflictException e, HttpServletRequest request) {
+        return ResponseEntity.status(409).body(new StandardError(Instant.now(), 409, "Catalog conflict",
+            e.getMessage(), request.getRequestURI()));
+    }
+
     @ExceptionHandler(EventStateConflictException.class)
     public ResponseEntity<StandardError> eventStateConflict(EventStateConflictException e,
             HttpServletRequest request) {

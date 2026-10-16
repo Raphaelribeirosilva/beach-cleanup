@@ -21,6 +21,9 @@ public class CleanupEventService {
     @Autowired
     private EventStateService states;
 
+    @Autowired
+    private CatalogService catalogs;
+
     @Transactional(readOnly = true)
     public List<CleanupEvent> findAll() {
         return repository.findAll();
@@ -33,6 +36,7 @@ public class CleanupEventService {
     }
 
     public CleanupEvent insert(CleanupEvent obj) {
+        resolveCatalogs(obj);
         EventStatus status = EventStatus.parse(obj.getStatus());
         if (status != EventStatus.SCHEDULED) {
             throw new EventStateConflictException("Novos eventos devem começar como Agendado.");
@@ -49,6 +53,7 @@ public class CleanupEventService {
     }
 
     public CleanupEvent update(Long id, CleanupEvent obj, Long version) {
+        resolveCatalogs(obj);
         CleanupEvent entity = states.lockedEvent(id);
         FormVersion.requireCurrent(version, entity.getRowVersion());
         EventStatus next = EventStatus.parse(obj.getStatus());
@@ -60,9 +65,16 @@ public class CleanupEventService {
         return repository.saveAndFlush(entity);
     }
 
+    private void resolveCatalogs(CleanupEvent obj) {
+        var beach = catalogs.resolve("beaches", obj.getBeachReference(), obj.getLocation(), "location");
+        obj.setBeachReference(beach);
+        obj.setLocation(beach.getName());
+    }
+
     private void updateData(CleanupEvent entity, CleanupEvent obj) {
         entity.setTitle(obj.getTitle());
         entity.setLocation(obj.getLocation());
+        entity.setBeachReference(obj.getBeachReference());
         entity.setDateTime(obj.getDateTime());
         entity.setStatus(obj.getStatus());
     }

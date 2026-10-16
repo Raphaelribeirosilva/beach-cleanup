@@ -31,6 +31,13 @@ public class TrashCollection implements Serializable{
     private Long rowVersion;
 	
 	private String beach;
+
+    @ManyToOne
+    @JoinColumn(name = "beach_id")
+    private CatalogEntry beachReference;
+    @ManyToOne
+    @JoinColumn(name = "material_id")
+    private CatalogEntry materialReference;
 	private String materialType;
     @Column(name = "weight_kg")
 	private Double weightKg;
@@ -56,6 +63,9 @@ public class TrashCollection implements Serializable{
 		this.registrationDate = registrationDate;
 	}
 
+	public CatalogEntry getBeachReference() { return beachReference; }
+    public void setBeachReference(CatalogEntry entry) { beachReference = entry; }
+
 	public Long getRowVersion() {
         return rowVersion;
     }
@@ -75,6 +85,9 @@ public class TrashCollection implements Serializable{
 	public void setBeach(String beach) {
 		this.beach = beach;
 	}
+
+	public CatalogEntry getMaterialReference() { return materialReference; }
+    public void setMaterialReference(CatalogEntry entry) { materialReference = entry; }
 
 	public String getMaterialType() {
 		return materialType;

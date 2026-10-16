@@ -34,6 +34,7 @@ class EventStateIntegrationTests {
 
     @BeforeEach
     void setUp() {
+        CatalogTestData.seed(context);
         collections.deleteAll();
         users.deleteAll();
         events.deleteAll();
