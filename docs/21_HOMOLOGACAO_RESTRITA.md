@@ -6,6 +6,26 @@ Data: 16/10/2026.
 
 A preparação local foi implementada. **A implantação hospedada continua pendente:** não foram informados provedor, servidor, domínio ou acesso operacional. Não existe URL de homologação criada por esta entrega. O critério de conclusão da etapa dois exige executar a instalação e os testes abaixo no destino escolhido; os testes locais não substituem essa aceitação.
 
+## Registro da tentativa de conclusão em 16/10/2026
+
+**Resultado: homologação hospedada não concluída, aguardando identificação e acesso ao destino.** A revisão `20f8b80` contém os artefatos de preparação; sua existência não comprova HTTPS, firewall, backup ou funcionamento em servidor. Os resultados locais descritos adiante pertencem à entrega anterior e não foram executados novamente nesta tentativa.
+
+Foram consultados os arquivos de implantação e a documentação do repositório. O Nginx ainda aponta para `homologacao.example.com`, um placeholder, e não foi identificado um destino operacional nesses arquivos. O cliente SSH está disponível nesta máquina, mas não existe arquivo de configuração em `C:\Users\EXEMPLO\.ssh\config`. Isso não comprova a inexistência de um servidor; significa que faltam informações para acessá-lo nesta sessão.
+
+Foi solicitado ao responsável informar provedor, IP/host, domínio, acesso operacional já configurado, IPs/VPN dos participantes e destino de backup fora da VM. Senhas e chaves privadas devem permanecer fora da conversa e do Git. A partir desses dados, executar a instalação e a aceitação neste documento, registrando evidências reais antes de aprovar a etapa.
+
+| Item | Situação nesta tentativa | Evidência necessária para aprovação |
+|---|---|---|
+| Destino e versão | Não informados; nenhum deploy executado | Provedor/host, URL, data UTC, executor, commit de origem, SHA-256 do JAR instalado e confirmação de que corresponde à revisão verificada. |
+| HTTPS | Não verificado | Acesso ao domínio com validação de certificado, cadeia, nome e validade; renovação configurada e verificada. Não aceitar teste com validação TLS desabilitada. |
+| Restrição e firewall | Não verificados | Regras efetivas do host e do provedor; acesso permitido pela VPN/IP autorizado e negado por outra rede; portas 8080/3306 inacessíveis externamente, incluindo IPv6 quando houver. |
+| Serviço e banco | Não verificados | Serviço ativo no perfil `prod`, probes locais UP e conferência dos mesmos registros antes/depois do reinício. |
+| Portal e autorização | Não verificados no destino | Fluxos administrativos e de voluntário pela URL hospedada, rejeição de operação administrativa com conta voluntária e teste em computador e celular físico. |
+| Backup e recuperação | Não executados no destino | Dump real com checksum, execução agendada, cópia protegida fora da VM e restauração em banco separado com conferência de dados e funcionamento da aplicação. Registrar tempos de recuperação e retenção definida. |
+| Operação e retorno | Não verificados | Logs acessíveis ao operador, Actuator bloqueado externamente, alertas verificados e JAR anterior compatível disponível para retorno. |
+
+Todos os itens acima permanecem pendentes. Ao executar cada um, registrar resultado, horário e referência de evidência operacional sem incluir tokens, dumps, dados pessoais ou arquivos de ambiente neste documento. Falhas devem manter a etapa pendente até correção e nova verificação. Nenhuma infraestrutura, DNS, regra de firewall ou banco remoto foi alterado nesta tentativa.
+
 ## Análise do projeto e alterações
 
 O portal do voluntário e a administração já utilizam a API no mesmo domínio. O perfil `prod` ativa MySQL, Flyway e validação do esquema, impede o seed de demonstração, produz logs JSON e oferece liveness/readiness. O modelo systemd existente mantém o Java em loopback e carrega segredos de `/etc/beachcleanup/prod.env`. Esses componentes foram reutilizados sem alterar regras de negócio ou migrações.
