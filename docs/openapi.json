@@ -267,7 +267,7 @@
         ],
         "operationId": "updateUser",
         "summary": "Atualizar User",
-        "description": "Administrador ou a própria conta. Atualiza nome e e-mail. Não altera senha, perfil ou total; para senha use /auth/password.",
+        "description": "Administrador ou a própria conta. Atualiza nome e e-mail. Não altera senha, perfil ou total; para senha use /auth/password. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -506,7 +506,7 @@
         ],
         "operationId": "updateCleanupEvent",
         "summary": "Atualizar CleanupEvent",
-        "description": "Leitura pública; edição e exclusão somente administrador. Somente administrador. Mantém o estado ou aplica transições: Agendado → Em andamento/Pausado/Cancelado; Em andamento → Pausado/Concluido/Cancelado; Pausado → Agendado/Em andamento/Cancelado. Concluido e Cancelado não reabrem. Mudanças não são automáticas pela data.",
+        "description": "Leitura pública; edição e exclusão somente administrador. Somente administrador. Mantém o estado ou aplica transições: Agendado → Em andamento/Pausado/Cancelado; Em andamento → Pausado/Concluido/Cancelado; Pausado → Agendado/Em andamento/Cancelado. Concluido e Cancelado não reabrem. Mudanças não são automáticas pela data. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -557,7 +557,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CleanupEventInput"
+                "$ref": "#/components/schemas/CleanupEventUpdateInput"
               }
             }
           }
@@ -755,7 +755,7 @@
         ],
         "operationId": "updateTrashCollection",
         "summary": "Atualizar TrashCollection",
-        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Substitui todos os campos de entrada. Omitir/null em event remove o vínculo; administrador também pode remover/transferir volunteer. Corrigir coleta no mesmo evento é permitido em qualquer estado; novo destino deve aceitar registros. A autorização é conferida novamente na transação. Se a versão lida pela operação mudar antes da gravação, retorna 409 (Concurrent update). Consulte os dados atuais antes de tentar novamente; a versão interna não faz parte do JSON e não há precondição If-Match.",
+        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Substitui todos os campos de entrada. Omitir/null em event remove o vínculo; administrador também pode remover/transferir volunteer. Corrigir coleta no mesmo evento é permitido em qualquer estado; novo destino deve aceitar registros. A autorização é conferida novamente na transação. Se a versão lida pela operação mudar antes da gravação, retorna 409 (Concurrent update). Consulte os dados atuais antes de tentar novamente; o campo version no JSON protege também formulários carregados antes de outra edição. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -806,7 +806,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TrashCollectionInput"
+                "$ref": "#/components/schemas/TrashCollectionUpdateInput"
               }
             }
           }
@@ -1475,7 +1475,8 @@
         "type": "object",
         "required": [
           "name",
-          "email"
+          "email",
+          "version"
         ],
         "properties": {
           "name": {
@@ -1489,6 +1490,12 @@
             "format": "email",
             "maxLength": 255,
             "minLength": 1
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
           }
         }
       },
@@ -1498,7 +1505,8 @@
           "id",
           "name",
           "email",
-          "totalCollectedKg"
+          "totalCollectedKg",
+          "version"
         ],
         "properties": {
           "id": {
@@ -1516,6 +1524,12 @@
             "type": "number",
             "format": "double",
             "description": "Soma das coletas atuais do usuário, calculada no banco. Zero sem coletas; independe do filtro ou página."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
           }
         }
       },
@@ -1552,6 +1566,12 @@
             "maxLength": 255,
             "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e Concluído. Novo evento deve começar como Agendado.",
             "example": "Agendado"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
           }
         }
       },
@@ -1562,7 +1582,8 @@
           "title",
           "location",
           "dateTime",
-          "status"
+          "status",
+          "version"
         ],
         "properties": {
           "id": {
@@ -1585,6 +1606,12 @@
             "type": "string",
             "description": "Estados canônicos para eventos gerenciados pela API: Agendado, Em andamento, Pausado, Concluido, Cancelado. Dados externos legados são retornados como armazenados.",
             "example": "Agendado"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
           }
         }
       },
@@ -1652,6 +1679,12 @@
               }
             ],
             "description": "Opcional. Omitir/null remove o vínculo no PUT. Novo vínculo exige evento Agendado ou Em andamento; inscrição não é requisito."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
           }
         }
       },
@@ -1664,7 +1697,8 @@
           "weightKg",
           "registrationDate",
           "volunteer",
-          "event"
+          "event",
+          "version"
         ],
         "properties": {
           "id": {
@@ -1702,6 +1736,12 @@
                 "$ref": "#/components/schemas/CleanupEvent"
               }
             ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
           }
         }
       },
@@ -1874,6 +1914,110 @@
           "totalPages": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "CleanupEventUpdateInput": {
+        "type": "object",
+        "required": [
+          "title",
+          "location",
+          "dateTime",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "dateTime": {
+            "type": "string",
+            "example": "2026-10-15T08:00:00",
+            "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e Concluído. Novo evento deve começar como Agendado.",
+            "example": "Agendado"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          }
+        }
+      },
+      "TrashCollectionUpdateInput": {
+        "type": "object",
+        "required": [
+          "beach",
+          "materialType",
+          "weightKg",
+          "registrationDate",
+          "version"
+        ],
+        "properties": {
+          "beach": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "materialType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Obrigatório e não pode conter somente espaços."
+          },
+          "weightKg": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 1.7976931348623157e+308
+          },
+          "registrationDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "volunteer": {
+            "type": "object",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceReference"
+              }
+            ],
+            "description": "Opcional. Voluntário: omissão/null vincula à própria conta; outra conta retorna 403. Administrador: pode atribuir, transferir ou remover proprietário."
+          },
+          "event": {
+            "type": "object",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceReference"
+              }
+            ],
+            "description": "Opcional. Omitir/null remove o vínculo no PUT. Novo vínculo exige evento Agendado ou Em andamento; inscrição não é requisito."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
           }
         }
       }

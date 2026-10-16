@@ -75,6 +75,10 @@ public class User implements Serializable{
 		this.totalCollectedKg = totalCollectedKg;
 	}
 
+	public Long getRowVersion() {
+        return rowVersion;
+    }
+
 	public Long getId() {
 		return id;
 	}

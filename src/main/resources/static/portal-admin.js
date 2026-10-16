@@ -137,7 +137,7 @@
       try {
         const record = id == null ? {} : await api.admin[view === 'events' ? 'event' : 'collection'](id);
         if (!current(session) || generation !== state.generation) return;
-        state.editing = { view, id };
+        state.editing = { view, id, version: record.version };
         const form = $('admin-form');
         form.replaceChildren();
         $('admin-editor-title').textContent = `${id == null ? 'Criar' : 'Editar'} ${view === 'events' ? 'evento' : 'coleta'}${id == null ? '' : ` #${id}`}`;
@@ -167,7 +167,7 @@
           form.append(action('Recarregar registro atual', () => {
             if (window.confirm('Descartar o formulário e carregar os dados atuais?')) return edit(view, id);
           }));
-          form.append(node('p', 'hint', 'Após um conflito, recarregue e revise os dados antes de salvar. O formulário não detecta alterações salvas anteriormente por outra pessoa.'));
+          form.append(node('p', 'hint', 'Após um conflito, recarregue e revise os dados antes de salvar. Alterações salvas desde a abertura do formulário impedem o envio até você recarregar e revisar.'));
         }
         if (!$('admin-dialog').open) $('admin-dialog').showModal();
       } catch (error) { if (current(session)) message(error.message, true); }
@@ -189,6 +189,7 @@
       const editing = state.editing;
       const form = event.currentTarget;
       const input = Object.fromEntries(new FormData(form));
+      if (editing.id != null) input.version = editing.version;
       for (const key of ['title', 'location', 'beach', 'materialType']) if (key in input) input[key] = input[key].trim();
       const errorBox = $('admin-form-error');
       const showError = text => { errorBox.textContent = text; errorBox.hidden = !text; };

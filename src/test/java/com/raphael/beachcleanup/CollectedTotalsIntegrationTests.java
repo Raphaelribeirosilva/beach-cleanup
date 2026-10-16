@@ -68,7 +68,7 @@ class CollectedTotalsIntegrationTests {
             .andExpect(status().isOk()).andExpect(jsonPath("$.volunteer.totalCollectedKg").value(7.5));
         assertTotal(ana, 7.5);
         mvc.perform(put("/trashCollection/{id}", first).contentType(MediaType.APPLICATION_JSON)
-            .content(collectionJson(bruno, 4.0)))
+            .content(collectionJson(bruno, 4.0, 1)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.volunteer.totalCollectedKg").value(4.0));
         assertTotal(ana, 3.5);
         assertTotal(bruno, 4.0);
@@ -87,7 +87,7 @@ class CollectedTotalsIntegrationTests {
         assertTotal(ana, 0.0);
         long collection = create(ana, 2.0, 2.0);
         mvc.perform(put("/users/{id}", ana).contentType(MediaType.APPLICATION_JSON).content("""
-            {"name":"Ana Silva","email":"ana@example.com","totalCollectedKg":500}
+            {"version":0,"name":"Ana Silva","email":"ana@example.com","totalCollectedKg":500}
             """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.totalCollectedKg").value(2.0));
         mvc.perform(put("/trashCollection/{id}", collection).contentType(MediaType.APPLICATION_JSON)
@@ -113,7 +113,7 @@ class CollectedTotalsIntegrationTests {
             .andExpect(jsonPath("$.volunteer.totalCollectedKg").value(9.0));
         assertTotal(ana, 9.0);
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
-            .content(collectionJson(null, 9.0))).andExpect(status().isOk())
+            .content(collectionJson(null, 9.0, 1))).andExpect(status().isOk())
             .andExpect(jsonPath("$.volunteer").isEmpty());
         assertTotal(ana, 0.0);
     }
@@ -160,10 +160,14 @@ class CollectedTotalsIntegrationTests {
     }
 
     private String collectionJson(Long owner, double weight) {
+        return collectionJson(owner, weight, 0);
+    }
+
+    private String collectionJson(Long owner, double weight, long version) {
         String volunteer = owner == null ? "null" : "{\"id\":" + owner + "}";
         return """
-            {"beach":"Praia A","materialType":"Plastico","weightKg":%s,
+            {"version":%d,"beach":"Praia A","materialType":"Plastico","weightKg":%s,
              "registrationDate":"2026-10-15","volunteer":%s}
-            """.formatted(weight, volunteer);
+            """.formatted(version, weight, volunteer);
     }
 }

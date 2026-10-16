@@ -71,7 +71,7 @@ O roteiro de navegador exige Node.js 24+ e Edge/Chromium instalado. `PORTAL_BROW
 
 ## Limites e pendências
 
-- A API mantém sua versão de coletas interna. Conflitos concorrentes detectados pelo servidor são tratados, mas um formulário antigo enviado depois de outra gravação pode sobrescrever os campos. Não há ETag/`If-Match` nem promessa de detecção de formulários desatualizados; a evolução desse contrato continua prevista no planejamento.
+- A [proteção de formulários antigos](23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md) evoluiu este contrato: a API exige `version` nas edições e os formulários administrativos enviam a versão carregada. Alterações intermediárias retornam 409 e exigem recarregar e revisar os dados.
 - A consulta de usuários não oferece edição de contas, alteração de perfis ou recuperação de senha nesta área. A etapa solicitada prevê consulta, e esses fluxos não foram acrescentados.
 - Os vínculos de coleta usam IDs opcionais, sem seletor com busca de nomes. Praias e materiais continuam como texto livre, conforme o contrato atual.
 - A suíte MySQL real e o CI remoto não foram executados nesta entrega. Não houve alteração de esquema ou persistência; a validação desta interface utilizou H2. Nenhuma hospedagem, homologação, proteção contra abuso ou relatório foi implementado.

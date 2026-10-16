@@ -87,7 +87,7 @@ class CrudIntegrationTests {
             Double.class, id));
         mvc.perform(put("/users/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"id":999999,"name":"Ana Silva","email":"ana.silva@example.com",
+                {"version":0,"id":999999,"name":"Ana Silva","email":"ana.silva@example.com",
                  "password":"outra-senha","totalCollectedKg":500}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
@@ -117,7 +117,7 @@ class CrudIntegrationTests {
             .andExpect(jsonPath("$..password").isEmpty());
         mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"id":999999,"title":"Novo titulo","location":"Praia B",
+                {"version":0,"id":999999,"title":"Novo titulo","location":"Praia B",
                  "dateTime":"2026-10-20T09:00:00","status":"Em andamento"}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
@@ -152,7 +152,7 @@ class CrudIntegrationTests {
         long anotherEvent = newEvent().getId();
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"id":999999,"beach":"Praia B","materialType":"Vidro","weightKg":3.5,
+                {"version":0,"id":999999,"beach":"Praia B","materialType":"Vidro","weightKg":3.5,
                  "registrationDate":"2026-10-20","volunteer":{"id":%d},"event":{"id":%d}}
                 """.formatted(anotherUser, anotherEvent)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
@@ -262,7 +262,7 @@ class CrudIntegrationTests {
             collectionJson(newUser().getId(), newEvent().getId()));
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"beach":"Praia A","materialType":"Plastico","weightKg":1,
+                {"version":0,"beach":"Praia A","materialType":"Plastico","weightKg":1,
                  "registrationDate":"2026-10-21","volunteer":null,"event":null}
                 """)).andExpect(status().isOk());
         var saved = collections.findById(id).orElseThrow();
@@ -468,7 +468,7 @@ class CrudIntegrationTests {
 
     private String collectionJson(long userId, long eventId) {
         return """
-            {"beach":"Praia A","materialType":"Plastico","weightKg":2,
+            {"version":0,"beach":"Praia A","materialType":"Plastico","weightKg":2,
              "registrationDate":"2026-10-15",
              "volunteer":{"id":%d,"name":"Ignorar nome recebido"},
              "event":{"id":%d,"title":"Ignorar titulo recebido"}}

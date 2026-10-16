@@ -10,6 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.PositiveOrZero;
 
 public record TrashCollectionInputDTO(
         @NotBlank(message = "A praia é obrigatória")
@@ -21,7 +22,8 @@ public record TrashCollectionInputDTO(
         @DecimalMax(value = "1.7976931348623157E308", message = "O peso deve ser finito") Double weightKg,
         @NotNull(message = "A data de registro é obrigatória") LocalDate registrationDate,
         @Valid ResourceReferenceDTO volunteer,
-        @Valid ResourceReferenceDTO event) {
+        @Valid ResourceReferenceDTO event,
+        @PositiveOrZero(message = "A versão deve ser zero ou positiva") Long version) {
 
     public TrashCollection toEntity() {
         TrashCollection entity = new TrashCollection(null, beach, materialType, weightKg, registrationDate);

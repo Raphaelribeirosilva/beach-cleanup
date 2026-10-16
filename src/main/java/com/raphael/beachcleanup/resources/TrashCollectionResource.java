@@ -71,7 +71,7 @@ public class TrashCollectionResource {
     @PreAuthorize("@accessPolicy.canAccessCollection(#id)")
 	public ResponseEntity<TrashCollectionDTO> update(@PathVariable Long id, @Valid @RequestBody TrashCollectionInputDTO dto){
 		TrashCollection obj = dto.toEntity();
-        obj = service.update(id, obj);
+        obj = service.update(id, obj, dto.version());
 		return ResponseEntity.ok().body(totals.collection(obj));
 	}
 }

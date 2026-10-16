@@ -53,9 +53,11 @@ class PersistentDatabaseIntegrationTests {
         }
         try (var context = start(url)) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
-            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(4, context.getBean(Flyway.class).info().applied().length);
             assertEquals(0L, jdbc.queryForObject(
                 "select row_version from tb_trash_collection where id=303", Long.class));
+            assertEquals(0L, jdbc.queryForObject(
+                "select row_version from tb_cleanup_event where id=202", Long.class));
             assertEquals(2.5, jdbc.queryForObject(
                 "select weight_kg from tb_trash_collection where id=303", Double.class));
             assertEquals(101L, jdbc.queryForObject(
@@ -94,7 +96,7 @@ class PersistentDatabaseIntegrationTests {
             collection.setVolunteer(user);
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(4, context.getBean(Flyway.class).info().applied().length);
             assertThrows(FlywayException.class, () -> context.getBean(Flyway.class).clean());
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
@@ -108,7 +110,7 @@ class PersistentDatabaseIntegrationTests {
             assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
             assertEquals(userId, context.getBean(AuthService.class)
                 .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
-            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(4, context.getBean(Flyway.class).info().applied().length);
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
             assertThrows(DataIntegrityViolationException.class, () -> jdbc.update("""
                 insert into tb_user(name,email,password,role,credential_version)

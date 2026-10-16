@@ -56,6 +56,10 @@ public class TrashCollection implements Serializable{
 		this.registrationDate = registrationDate;
 	}
 
+	public Long getRowVersion() {
+        return rowVersion;
+    }
+
 	public Long getId() {
 		return id;
 	}

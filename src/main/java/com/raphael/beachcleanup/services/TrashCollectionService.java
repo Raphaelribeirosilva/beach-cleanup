@@ -53,9 +53,10 @@ public class TrashCollectionService {
         repository.flush();
     }
 
-    public TrashCollection update(Long id, TrashCollection obj) {
+    public TrashCollection update(Long id, TrashCollection obj, Long version) {
         TrashCollection entity = findById(id);
         access.requireCollectionAccess(entity);
+        FormVersion.requireCurrent(version, entity.getRowVersion());
         access.bindCollectionOwner(obj);
         resolveReferences(obj, entity.getEvent() == null ? null : entity.getEvent().getId());
         updateData(entity, obj);

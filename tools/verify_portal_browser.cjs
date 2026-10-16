@@ -236,6 +236,22 @@ async function main() {
       await savedAdmin();
       assert.ok(await evaluate(`document.querySelector('#admin-results').textContent.includes(${JSON.stringify(status)})`));
     }
+    // A separately committed edit must invalidate the open event form.
+    await click('#admin-results .card-actions button:first-child');
+    await waitFor('document.querySelector("#admin-dialog").open');
+    const eventSnapshot = await (await request(`/cleanupEvent/${managedEvent.id}`)).json();
+    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`, 'PUT', { ...eventSnapshot, title: 'Saved elsewhere' })).status, 200);
+    await fill('#admin-form [name=title]', 'Old form draft');
+    await saveAdmin();
+    await waitFor('!document.querySelector("#admin-form-error").hidden && !document.querySelector("#admin-form [type=submit]").disabled');
+    assert.equal(await evaluate('document.querySelector("#admin-dialog").open'), true);
+    assert.equal(await evaluate('document.querySelector("#admin-form [name=title]").value'), 'Old form draft');
+    assert.equal((await (await request(`/cleanupEvent/${managedEvent.id}`)).json()).title, 'Saved elsewhere');
+    await evaluate(`[...document.querySelectorAll('#admin-form button')].find(button => button.textContent === 'Recarregar registro atual').click()`);
+    await waitFor('document.querySelector("#admin-form [name=title]").value === "Saved elsewhere"');
+    await fill('#admin-form [name=title]', 'Reviewed event');
+    await saveAdmin();
+    await savedAdmin();
     await click('[data-admin-view=users]');
     await adminReady();
     assert.equal(await evaluate('document.querySelector("#admin-create").hidden'), true);
@@ -264,7 +280,7 @@ async function main() {
     await fill('#admin-form [name=eventId]', '999999999');
     await saveAdmin();
     await waitFor('document.querySelector("#admin-form-error").textContent.includes("999999999") && !document.querySelector("#admin-form [type=submit]").disabled');
-    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`, 'PUT', { ...managedEvent, status: 'Em andamento' })).status, 200);
+    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`, 'PUT', { ...await (await request(`/cleanupEvent/${managedEvent.id}`)).json(), status: 'Em andamento' })).status, 200);
     await fill('#admin-form [name=eventId]', String(managedEvent.id));
     await saveAdmin();
     await savedAdmin();
@@ -289,6 +305,16 @@ async function main() {
     await adminReady();
     await click('#admin-results .card-actions button:first-child');
     await waitFor('document.querySelector("#admin-dialog").open');
+    // The same protection applies to the collection form and its totals.
+    const collectionSnapshot = (await (await request('/trashCollection/search?beach=Praia%20administrativa')).json()).content[0];
+    assert.equal((await request(`/trashCollection/${collectionSnapshot.id}`, 'PUT', { ...collectionSnapshot, weightKg: 5 })).status, 200);
+    await fill('#admin-form [name=weightKg]', '7');
+    await saveAdmin();
+    await waitFor('!document.querySelector("#admin-form-error").hidden && !document.querySelector("#admin-form [type=submit]").disabled');
+    assert.equal(await evaluate('document.querySelector("#admin-form [name=weightKg]").value'), '7');
+    assert.equal((await (await request(`/users/${ana.userId}`)).json()).totalCollectedKg, 5);
+    await evaluate(`[...document.querySelectorAll('#admin-form button')].find(button => button.textContent === 'Recarregar registro atual').click()`);
+    await waitFor('document.querySelector("#admin-form [name=weightKg]").value === "5"');
     await fill('#admin-form [name=weightKg]', '6');
     await fill('#admin-form [name=volunteerId]', String(bruno.userId));
     await fill('#admin-form [name=eventId]', '');

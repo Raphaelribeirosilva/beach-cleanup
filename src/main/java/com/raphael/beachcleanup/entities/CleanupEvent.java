@@ -11,6 +11,8 @@ import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Version;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -28,6 +30,11 @@ public class CleanupEvent implements Serializable{
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
+
+    @JsonIgnore
+    @Version
+    @Column(nullable = false)
+    private Long rowVersion;
 	
 	private String title;
 	private String location;
@@ -52,6 +59,10 @@ public class CleanupEvent implements Serializable{
 		this.dateTime = dateTime;
 		this.status = status;
 	}
+
+	public Long getRowVersion() {
+        return rowVersion;
+    }
 
 	public Long getId() {
 		return id;

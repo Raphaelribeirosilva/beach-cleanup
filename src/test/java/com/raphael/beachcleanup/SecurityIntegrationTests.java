@@ -51,7 +51,7 @@ class SecurityIntegrationTests {
     @Test
     void registrationAndLoginIssueUsableTokenWithoutAllowingRoleEscalation() throws Exception {
         var registration = mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content("""
-            {"name":"Ana","email":"ANA@EXAMPLE.COM","password":"senha-segura","role":"ADMIN"}
+            {"version":0,"name":"Ana","email":"ANA@EXAMPLE.COM","password":"senha-segura","role":"ADMIN"}
             """)).andExpect(status().isCreated()).andExpect(jsonPath("$.email").value("ana@example.com"))
             .andExpect(jsonPath("$..password").isEmpty()).andReturn();
         long id = mapper.readTree(registration.getResponse().getContentAsString()).get("id").asLong();
@@ -118,7 +118,7 @@ class SecurityIntegrationTests {
         for (String method : new String[] {"GET", "PUT", "DELETE"}) {
             var request = request(org.springframework.http.HttpMethod.valueOf(method), "/users/" + second.getId());
             mvc.perform(request.header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Alterado\",\"email\":\"alterado@example.com\"}"))
+                .content("{\"version\":0,\"name\":\"Alterado\",\"email\":\"alterado@example.com\"}"))
                 .andExpect(status().isForbidden());
         }
         mvc.perform(post("/cleanupEvent").header("Authorization", "Bearer " + token)
@@ -129,7 +129,7 @@ class SecurityIntegrationTests {
             .andExpect(status().isForbidden());
         mvc.perform(put("/users/" + first.getId()).header("Authorization", "Bearer " + token)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"name\":\"Nome novo\",\"email\":\"new@example.com\",\"role\":\"ADMIN\"}"))
+            .content("{\"version\":0,\"name\":\"Nome novo\",\"email\":\"new@example.com\",\"role\":\"ADMIN\"}"))
             .andExpect(status().isOk());
         assertEquals(UserRole.VOLUNTEER, users.findById(first.getId()).orElseThrow().getRole());
         assertEquals("second@example.com", users.findById(second.getId()).orElseThrow().getEmail());
@@ -230,11 +230,11 @@ class SecurityIntegrationTests {
         User first = account("ana@example.com", false);
         User second = account("bia@example.com", false);
         mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"name\":\"Outra Ana\",\"email\":\"ANA@EXAMPLE.COM\",\"password\":\"senha-segura\"}"))
+            .content("{\"version\":0,\"name\":\"Outra Ana\",\"email\":\"ANA@EXAMPLE.COM\",\"password\":\"senha-segura\"}"))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("Email conflict"));
         String token = login("bia@example.com");
         mvc.perform(put("/users/" + second.getId()).header("Authorization", "Bearer " + token)
-            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Alterado\",\"email\":\"ANA@EXAMPLE.COM\"}"))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"version\":0,\"name\":\"Alterado\",\"email\":\"ANA@EXAMPLE.COM\"}"))
             .andExpect(status().isConflict());
         assertEquals(2, users.count());
         assertEquals("bia@example.com", users.findById(second.getId()).orElseThrow().getEmail());
@@ -269,10 +269,10 @@ class SecurityIntegrationTests {
     }
 
     private String collectionJson(String reference) {
-        return "{\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weightKg\":1,\"registrationDate\":\"2026-10-15\"" + reference + "}";
+        return "{\"version\":0,\"beach\":\"Praia A\",\"materialType\":\"Vidro\",\"weightKg\":1,\"registrationDate\":\"2026-10-15\"" + reference + "}";
     }
 
     private String eventJson() {
-        return "{\"title\":\"Mutirao\",\"location\":\"Praia A\",\"dateTime\":\"2026-10-15T08:00:00\",\"status\":\"Agendado\"}";
+        return "{\"version\":0,\"title\":\"Mutirao\",\"location\":\"Praia A\",\"dateTime\":\"2026-10-15T08:00:00\",\"status\":\"Agendado\"}";
     }
 }

@@ -71,7 +71,7 @@ public class UserResource {
 	@PutMapping(value = "/{id}")
     @PreAuthorize("@accessPolicy.canAccessUser(#id)")
 	public ResponseEntity<UserDTO> update(@PathVariable Long id, @Valid @RequestBody UserUpdateDTO dto){
-		User obj = service.update(id, dto.toEntity());
+		User obj = service.update(id, dto.toEntity(), dto.version());
 		return ResponseEntity.ok().body(totals.user(obj));
 	}
 }

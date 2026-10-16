@@ -7,6 +7,7 @@ public class UserDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private Long id;
+    private Long version;
     private String name;
     private String email;
     private Double totalCollectedKg;
@@ -16,11 +17,16 @@ public class UserDTO implements Serializable {
 
     public UserDTO(User entity, double totalCollectedKg) {
         this.id = entity.getId();
+        this.version = entity.getRowVersion();
         this.name = entity.getName();
         this.email = entity.getEmail();
         this.totalCollectedKg = totalCollectedKg;
     }
     
+    public Long getVersion() {
+        return version;
+    }
+
     public Long getId() {
         return id;
     }

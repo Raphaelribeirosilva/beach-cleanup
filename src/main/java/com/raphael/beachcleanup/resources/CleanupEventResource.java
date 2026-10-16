@@ -60,7 +60,7 @@ public class CleanupEventResource {
 	@PutMapping(value = "/{id}")
     @PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<CleanupEventDTO> update(@PathVariable Long id, @Valid @RequestBody CleanupEventInputDTO dto){
-		CleanupEvent obj = service.update(id, dto.toEntity());
+		CleanupEvent obj = service.update(id, dto.toEntity(), dto.version());
 		return ResponseEntity.ok().body(new CleanupEventDTO(obj));
 	}
 }

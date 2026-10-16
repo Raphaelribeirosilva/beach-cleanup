@@ -48,15 +48,16 @@ public class CleanupEventService {
         repository.flush();
     }
 
-    public CleanupEvent update(Long id, CleanupEvent obj) {
+    public CleanupEvent update(Long id, CleanupEvent obj, Long version) {
         CleanupEvent entity = states.lockedEvent(id);
+        FormVersion.requireCurrent(version, entity.getRowVersion());
         EventStatus next = EventStatus.parse(obj.getStatus());
         if (!EventStatus.parse(entity.getStatus()).canTransitionTo(next)) {
             throw new EventStateConflictException("Transição de status não permitida para o evento.");
         }
         obj.setStatus(next.value());
         updateData(entity, obj);
-        return repository.save(entity);
+        return repository.saveAndFlush(entity);
     }
 
     private void updateData(CleanupEvent entity, CleanupEvent obj) {

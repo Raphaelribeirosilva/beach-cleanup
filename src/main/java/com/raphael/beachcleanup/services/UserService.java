@@ -65,15 +65,16 @@ public class UserService {
         repository.flush();
     }
 
-    public User update(Long id, User obj) {
+    public User update(Long id, User obj, Long version) {
         User entity = findById(id);
+        FormVersion.requireCurrent(version, entity.getRowVersion());
         String email = normalizeEmail(obj.getEmail());
         if (repository.existsByEmailAndIdNot(email, id)) {
             throw new EmailConflictException();
         }
         obj.setEmail(email);
         updateData(entity, obj);
-        return repository.save(entity);
+        return repository.saveAndFlush(entity);
     }
 
     private void updateData(User entity, User obj) {

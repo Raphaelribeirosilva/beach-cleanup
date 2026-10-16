@@ -120,7 +120,7 @@ class EventStateIntegrationTests {
             .andExpect(status().isOk()).andExpect(jsonPath("$.volunteer.totalCollectedKg").value(3.5));
         long other = event("Cancelado").getId();
         mvc.perform(put("/trashCollection/{id}", collection).contentType(MediaType.APPLICATION_JSON)
-            .content(collectionJson(volunteer.getId(), other, 4.0)))
+            .content(collectionJson(volunteer.getId(), other, 4.0, 1)))
             .andExpect(status().isConflict());
         assertEquals(id, collections.findById(collection).orElseThrow().getEvent().getId());
         mvc.perform(delete("/users/me/events/{id}", id).with(user(volunteer.getId().toString()).roles("VOLUNTEER")))
@@ -136,14 +136,18 @@ class EventStateIntegrationTests {
 
     private String eventJson(String state) {
         return """
-            {"title":"Novo titulo","location":"Praia B","dateTime":"2026-10-20T09:00:00","status":"%s"}
+            {"version":0,"title":"Novo titulo","location":"Praia B","dateTime":"2026-10-20T09:00:00","status":"%s"}
             """.formatted(state);
     }
 
     private String collectionJson(long userId, long eventId, double weight) {
+        return collectionJson(userId, eventId, weight, 0);
+    }
+
+    private String collectionJson(long userId, long eventId, double weight, long version) {
         return """
-            {"beach":"Praia A","materialType":"Vidro","weightKg":%s,"registrationDate":"2026-10-15",
+            {"version":%d,"beach":"Praia A","materialType":"Vidro","weightKg":%s,"registrationDate":"2026-10-15",
              "volunteer":{"id":%d},"event":{"id":%d}}
-            """.formatted(weight, userId, eventId);
+            """.formatted(version, weight, userId, eventId);
     }
 }

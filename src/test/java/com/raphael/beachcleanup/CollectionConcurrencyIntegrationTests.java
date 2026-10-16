@@ -96,7 +96,7 @@ class CollectionConcurrencyIntegrationTests {
             List.of(new SimpleGrantedAuthority("ROLE_VOLUNTEER"))));
         SecurityContextHolder.setContext(security);
         try {
-            assertThrows(AccessDeniedException.class, () -> service.update(collectionId, input(first, 9.0)));
+            assertThrows(AccessDeniedException.class, () -> service.update(collectionId, input(first, 9.0), 0L));
             assertThrows(AccessDeniedException.class, () -> service.delete(collectionId));
         } finally {
             SecurityContextHolder.clearContext();
@@ -104,7 +104,7 @@ class CollectionConcurrencyIntegrationTests {
         assertTransferred();
         mvc.perform(put("/trashCollection/{id}", collectionId)
             .with(user(second.getId().toString()).roles("VOLUNTEER"))
-            .contentType(MediaType.APPLICATION_JSON).content(json(second, 5.0)))
+            .contentType(MediaType.APPLICATION_JSON).content(json(second, 5.0, 1)))
             .andExpect(status().isOk());
         mvc.perform(delete("/trashCollection/{id}", collectionId)
             .with(user(second.getId().toString()).roles("VOLUNTEER")))
@@ -198,9 +198,13 @@ class CollectionConcurrencyIntegrationTests {
     }
 
     private String json(User owner, double weight) {
+        return json(owner, weight, 0);
+    }
+
+    private String json(User owner, double weight, long version) {
         return """
-            {"beach":"Praia A","materialType":"Vidro","weightKg":%s,
+            {"version":%d,"beach":"Praia A","materialType":"Vidro","weightKg":%s,
              "registrationDate":"2026-10-15","volunteer":{"id":%d}}
-            """.formatted(weight, owner.getId());
+            """.formatted(version, weight, owner.getId());
     }
 }

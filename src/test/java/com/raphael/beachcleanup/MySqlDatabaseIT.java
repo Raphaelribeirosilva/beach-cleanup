@@ -131,7 +131,7 @@ class MySqlDatabaseIT {
                 assertEquals(7, owner.getCredentialVersion());
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(4, context.getBean(Flyway.class).info().applied().length);
             }
         } finally {
             Files.deleteIfExists(dump);
@@ -209,7 +209,7 @@ class MySqlDatabaseIT {
             var collection = input(owner, 2.5);
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(4, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -232,7 +232,7 @@ class MySqlDatabaseIT {
     }
 
     @Test
-    void v3PreservesExistingMySqlData() throws Exception {
+    void versionMigrationsPreserveExistingMySqlData() throws Exception {
         Flyway.configure().dataSource(url, username, password).locations("classpath:db/migration/mysql")
             .target("2").load().migrate();
         try (var connection = DriverManager.getConnection(url, username, password);
@@ -252,7 +252,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(4, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -264,6 +264,7 @@ class MySqlDatabaseIT {
             assertEquals(202L, context.getBean(EventRegistrationService.class).findMyEvents(101L).getFirst().id());
             var jdbc = context.getBean(JdbcTemplate.class);
             assertEquals(0L, jdbc.queryForObject("select row_version from tb_trash_collection where id=303", Long.class));
+            assertEquals(0L, jdbc.queryForObject("select row_version from tb_cleanup_event where id=202", Long.class));
         }
     }
 
@@ -303,7 +304,7 @@ class MySqlDatabaseIT {
                                 loaded.countDown();
                                 await(transferred);
                                 if (delete) context.getBean(TrashCollectionService.class).delete(id);
-                                else context.getBean(TrashCollectionService.class).update(id, input(first, 9.0));
+                                else context.getBean(TrashCollectionService.class).update(id, input(first, 9.0), 0L);
                                 return null;
                             }));
                         } finally {
@@ -313,7 +314,7 @@ class MySqlDatabaseIT {
                     try {
                         await(loaded);
                         authenticate("admin", "ADMIN");
-                        context.getBean(TrashCollectionService.class).update(id, input(second, 4.0));
+                        context.getBean(TrashCollectionService.class).update(id, input(second, 4.0), 0L);
                     } finally {
                         SecurityContextHolder.clearContext();
                         transferred.countDown();
@@ -341,7 +342,7 @@ class MySqlDatabaseIT {
                 context.getBean(TrashCollectionRepository.class).findById(id).orElseThrow();
                 loaded.countDown();
                 await(loaded);
-                context.getBean(TrashCollectionService.class).update(id, input(owner, weight));
+                context.getBean(TrashCollectionService.class).update(id, input(owner, weight), 0L);
                 return null;
             });
             return true;
