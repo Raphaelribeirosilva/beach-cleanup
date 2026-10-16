@@ -39,7 +39,7 @@ Com a aplicação iniciada, abra **http://localhost:8080/** no navegador. O port
 
 É possível explorar eventos e filtrar por local/status sem login. Crie uma conta ou entre para inscrever-se, cancelar inscrições, registrar coletas independentes ou vinculadas a um evento e consultar suas coletas e seu total em kg. No perfil `test`, pode usar `ana@example.com` / `ana123`. O evento inicial está pausado; novos eventos são cadastrados por administrador pela API.
 
-O token fica somente na memória da página. Ao sair, recarregar ou fechar a página, faça login novamente. Quando o token expira, uma operação autenticada solicita novo login. A interface usa a mesma origem da API, sem CORS adicional ou dependências externas. Detalhes, validação e limites estão na [etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md).
+O portal preserva a sessão da aba ao recarregar a página, usando `sessionStorage`. O token dura 30 minutos a partir do login; recarregar não renova esse prazo. Sair remove a sessão armazenada. Ao expirar, o portal solicita novo login. Se o navegador bloquear o armazenamento, o login continua funcionando em memória. A interface usa a mesma origem da API, sem CORS adicional ou dependências externas. Detalhes na [melhoria de sessão](docs/22_EXPERIENCIA_DE_SESSAO.md).
 
 Para administrar, entre com uma conta `ADMIN` e abra a aba **Administração**. No perfil `test`, use `admin@example.com` / `admin123`. As abas Eventos, Usuários e Coletas oferecem buscas paginadas; eventos e coletas possuem formulários e exclusão com confirmação. Voluntários não têm acesso à área administrativa, e o backend continua protegendo cada operação. Veja o uso, os testes e os limites na [entrega da interface administrativa](docs/20_INTERFACE_ADMINISTRATIVA.md).
 
@@ -91,7 +91,7 @@ Invoke-RestMethod -Uri "$api/trashCollection/search?page=0&size=10" -Headers $he
 
 A coleta será vinculada automaticamente à Ana. Seu `totalCollectedKg` será calculado a partir das coletas existentes. No perfil MySQL, cadastre sua própria conta por `POST /users` com `name`, `email` e `password`, e substitua as credenciais de exemplo no login.
 
-O token dura 15 minutos. Use `Authorization: Bearer <accessToken>` nas rotas protegidas. A troca de senha por `PUT /auth/password` revoga os tokens anteriores da conta; faça novo login. Senhas aceitam no máximo 72 bytes UTF-8.
+O token dura 30 minutos (`expiresIn: 1800`). Use `Authorization: Bearer <accessToken>` nas rotas protegidas. A troca de senha por `PUT /auth/password` revoga os tokens anteriores da conta; faça novo login. Senhas aceitam no máximo 72 bytes UTF-8.
 
 ## Rotas e regras principais
 

@@ -1,9 +1,58 @@
 (function (root) {
   'use strict';
-  function createPortalApi(fetcher, onSessionExpired = () => {}) {
+  const SESSION_KEY = 'beachcleanup.session.v1';
+  function browserStorage() {
+    try { return root.sessionStorage; } catch (_) { return null; }
+  }
+  function createPortalApi(fetcher, onSessionExpired = () => {}, {
+    storage = browserStorage(), now = () => Date.now(),
+    schedule = setTimeout, cancel = clearTimeout
+  } = {}) {
     let session = null;
+    let expiresAt = 0;
+    let expiryTimer;
+    let loginGeneration = 0;
+    function clearSession() {
+      loginGeneration++;
+      session = null;
+      expiresAt = 0;
+      cancel(expiryTimer);
+      try { storage?.removeItem(SESSION_KEY); } catch (_) { /* storage may be disabled */ }
+    }
+    function expire() {
+      if (!session) return;
+      clearSession();
+      onSessionExpired();
+    }
+    function currentSession() {
+      if (session && now() >= expiresAt) expire();
+      return session;
+    }
+    function armExpiry() {
+      cancel(expiryTimer);
+      expiryTimer = schedule(() => {
+        if (now() >= expiresAt) expire();
+        else armExpiry();
+      }, Math.min(Math.max(expiresAt - now(), 1), 2147483647));
+      expiryTimer?.unref?.();
+    }
+    function validSession(value) {
+      return value && typeof value.accessToken === 'string' && value.accessToken.length > 0
+        && value.tokenType === 'Bearer' && Number.isSafeInteger(value.userId) && value.userId > 0
+        && ['ADMIN', 'VOLUNTEER'].includes(value.role)
+        && Number.isFinite(value.expiresIn) && value.expiresIn > 0 && value.expiresIn <= 1800;
+    }
+    try {
+      const saved = JSON.parse(storage?.getItem(SESSION_KEY) || 'null');
+      if (validSession(saved?.session) && Number.isFinite(saved.expiresAt)
+          && saved.expiresAt > now() && saved.expiresAt <= now() + 1800000) {
+        session = saved.session;
+        expiresAt = saved.expiresAt;
+        armExpiry();
+      } else clearSession();
+    } catch (_) { clearSession(); }
     async function request(path, { method = 'GET', body, authenticated = false } = {}) {
-      const current = session;
+      const current = currentSession();
       if (authenticated && !current) throw new Error('Entre na sua conta para continuar.');
       const headers = { Accept: 'application/json' };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -18,8 +67,7 @@
       const data = response.status === 204 ? null : await response.json().catch(() => null);
       if (!response.ok) {
         if (response.status === 401 && authenticated && session === current) {
-          session = null;
-          onSessionExpired();
+          expire();
         }
         const messages = {
           401: authenticated ? 'Sua sessão expirou. Entre novamente para continuar.' : 'E-mail ou senha inválidos.',
@@ -36,7 +84,7 @@
         throw error;
       }
       // An older response must not restore data belonging to a session that has ended.
-      if (authenticated && session !== current) throw new Error('A sessão mudou. Entre novamente para continuar.');
+      if (authenticated && currentSession() !== current) throw new Error('A sessão mudou. Entre novamente para continuar.');
       return data;
     }
     function query(path, values) {
@@ -47,7 +95,7 @@
       return `${path}?${params}`;
     }
     function adminRequest(path, options = {}) {
-      if (session?.role !== 'ADMIN') {
+      if (currentSession()?.role !== 'ADMIN') {
         const error = new Error('Esta área é exclusiva de administradores.');
         error.status = 403;
         return Promise.reject(error);
@@ -68,12 +116,22 @@
           { method: id == null ? 'POST' : 'PUT', body: input }),
         deleteCollection: id => adminRequest(`/trashCollection/${id}`, { method: 'DELETE' })
       },
-      session: () => session,
-      logout: () => { session = null; },
+      session: currentSession,
+      logout: clearSession,
       signup: input => request('/users', { method: 'POST', body: input }),
       async login(input) {
+        const generation = ++loginGeneration;
         const result = await request('/auth/login', { method: 'POST', body: input });
+        if (generation !== loginGeneration) throw new Error('A sessão mudou. Entre novamente para continuar.');
+        if (!validSession(result)) throw new Error('Não foi possível iniciar a sessão. Tente entrar novamente.');
         session = result;
+        expiresAt = now() + result.expiresIn * 1000;
+        try {
+          storage?.removeItem(SESSION_KEY);
+          storage?.setItem(SESSION_KEY, JSON.stringify({ session, expiresAt }));
+        }
+        catch (_) { /* login remains available in memory when storage is unavailable */ }
+        armExpiry();
         return result;
       },
       profile: () => request(`/users/${session?.userId}`, { authenticated: true }),

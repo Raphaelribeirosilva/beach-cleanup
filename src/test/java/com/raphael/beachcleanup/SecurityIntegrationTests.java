@@ -59,7 +59,7 @@ class SecurityIntegrationTests {
         var login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
             {"email":"ANA@EXAMPLE.COM","password":"senha-segura"}
             """)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
-            .andExpect(jsonPath("$.tokenType").value("Bearer")).andExpect(jsonPath("$.expiresIn").value(900))
+            .andExpect(jsonPath("$.tokenType").value("Bearer")).andExpect(jsonPath("$.expiresIn").value(1800))
             .andExpect(jsonPath("$.userId").value(id)).andExpect(jsonPath("$.volunteerId").doesNotExist())
             .andExpect(jsonPath("$.role").value("VOLUNTEER"))
             .andExpect(jsonPath("$..password").isEmpty()).andReturn();
@@ -69,7 +69,7 @@ class SecurityIntegrationTests {
         assertEquals(Long.toString(id), jwt.getSubject());
         assertEquals(JwtConfig.ISSUER, jwt.getIssuer().toString());
         assertEquals(List.of(JwtConfig.AUDIENCE), jwt.getAudience());
-        assertEquals(900, java.time.Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt()).getSeconds());
+        assertEquals(1800, java.time.Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt()).getSeconds());
         assertFalse(jwt.getClaims().containsKey("password"));
         mvc.perform(get("/users/" + id).header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());

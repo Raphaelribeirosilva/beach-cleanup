@@ -3,7 +3,111 @@ const assert = require('node:assert/strict');
 const { createPortalApi } = require('../src/main/resources/static/portal-api.js');
 
 const response = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => body });
-const token = { accessToken: 'test-token', userId: 17, role: 'VOLUNTEER' };
+const token = { accessToken: 'test-token', tokenType: 'Bearer', expiresIn: 1800, userId: 17, role: 'VOLUNTEER' };
+const sessionKey = 'beachcleanup.session.v1';
+function memoryStorage() {
+  const data = new Map();
+  return {
+    getItem: key => data.get(key) ?? null,
+    setItem: (key, value) => data.set(key, value),
+    removeItem: key => data.delete(key)
+  };
+}
+
+test('reload restores the session without extending its original expiry; logout removes it', async () => {
+  const storage = memoryStorage();
+  let time = 100000;
+  const fetcher = async (path, options) => {
+    if (path === '/auth/login') return response(200, token);
+    assert.equal(options.headers.Authorization, 'Bearer test-token');
+    return response(200, { name: 'Ana' });
+  };
+  const options = { storage, now: () => time };
+  const first = createPortalApi(fetcher, undefined, options);
+  await first.login({ email: 'ana@example.com', password: 'never-store-this' });
+  const persisted = storage.getItem(sessionKey);
+  assert.ok(!persisted.includes('never-store-this') && !persisted.includes('ana@example.com'));
+  time += 600000;
+  const reloaded = createPortalApi(fetcher, undefined, options);
+  assert.deepEqual(reloaded.session(), token);
+  assert.equal(storage.getItem(sessionKey), persisted);
+  assert.equal((await reloaded.profile()).name, 'Ana');
+  time = 1900000;
+  assert.equal(reloaded.session(), null);
+  assert.equal(storage.getItem(sessionKey), null);
+  await reloaded.login({});
+  reloaded.logout();
+  assert.equal(createPortalApi(fetcher, undefined, options).session(), null);
+});
+
+test('expiration clears storage and notifies once even before a network request', async () => {
+  const storage = memoryStorage();
+  let time = 100000;
+  let expired = 0;
+  let calls = 0;
+  let timer;
+  const api = createPortalApi(async () => { calls++; return response(200, token); }, () => expired++, {
+    storage, now: () => time, schedule: callback => { timer = callback; }, cancel: () => {}
+  });
+  await api.login({});
+  time += 1800000;
+  timer();
+  assert.equal(api.session(), null);
+  assert.equal(storage.getItem(sessionKey), null);
+  await assert.rejects(api.profile(), /Entre na sua conta/);
+  assert.equal(expired, 1);
+  assert.equal(calls, 1);
+});
+
+test('corrupt, malformed and expired stored sessions are discarded', () => {
+  const storage = memoryStorage();
+  for (const saved of ['invalid-json', 'null', '{}',
+    JSON.stringify({ session: token, expiresAt: 1000 }),
+    JSON.stringify({ session: { ...token, role: 'ROOT' }, expiresAt: 2000000 }),
+    JSON.stringify({ session: { ...token, userId: -1 }, expiresAt: 2000000 }),
+    JSON.stringify({ session: token, expiresAt: 9999999999 })]) {
+    storage.setItem(sessionKey, saved);
+    const api = createPortalApi(async () => { throw new Error('No request expected'); }, undefined,
+      { storage, now: () => 1000000 });
+    assert.equal(api.session(), null);
+    assert.equal(storage.getItem(sessionKey), null);
+  }
+});
+
+test('unavailable storage does not prevent login or logout', async () => {
+  const blocked = () => { throw new Error('Storage blocked'); };
+  const api = createPortalApi(async () => response(200, token), undefined, {
+    storage: { getItem: blocked, setItem: blocked, removeItem: blocked }
+  });
+  await api.login({});
+  assert.deepEqual(api.session(), token);
+  api.logout();
+  assert.equal(api.session(), null);
+});
+
+test('a restored session rejected by the server is removed from storage', async () => {
+  const storage = memoryStorage();
+  const first = createPortalApi(async () => response(200, token), undefined, { storage });
+  await first.login({});
+  let expired = 0;
+  const restored = createPortalApi(async () => response(401, {}), () => expired++, { storage });
+  await assert.rejects(restored.profile(), /sessão expirou/);
+  assert.equal(restored.session(), null);
+  assert.equal(expired, 1);
+  assert.equal(storage.getItem(sessionKey), null);
+});
+
+test('logout during a pending login cannot restore credentials', async () => {
+  const storage = memoryStorage();
+  let complete;
+  const api = createPortalApi(() => new Promise(resolve => { complete = resolve; }), undefined, { storage });
+  const pending = api.login({});
+  api.logout();
+  complete(response(200, token));
+  await assert.rejects(pending, /sessão mudou/);
+  assert.equal(api.session(), null);
+  assert.equal(storage.getItem(sessionKey), null);
+});
 
 test('public browsing encodes filters without credentials or a token', async () => {
   const api = createPortalApi(async (path, options) => {

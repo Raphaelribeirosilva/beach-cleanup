@@ -287,5 +287,9 @@
       } catch (error) { errorAt('collection-error', error.message); }
     });
   });
+  // Restored credentials still go through the API before private data is rendered.
+  syncAccount();
+  syncView();
+  window.addEventListener('focus', () => { api.session(); });
   void load();
 })();

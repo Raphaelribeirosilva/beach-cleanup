@@ -119,6 +119,11 @@ async function main() {
     const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
     const fill = (selector, value) => evaluate(`document.querySelector(${JSON.stringify(selector)}).value = ${JSON.stringify(value)}`);
     const waitFor = expression => until(() => evaluate(expression), expression);
+    async function reloadPage() {
+      await evaluate('window.portalBeforeReload = true');
+      await cdp('Page.reload');
+      await waitFor('window.portalBeforeReload !== true && document.readyState === "complete"');
+    }
     await cdp('Runtime.enable');
     await cdp('Log.enable');
     await cdp('Page.enable');
@@ -140,6 +145,8 @@ async function main() {
     await click('#auth-submit');
     await waitFor('!document.querySelector("#auth-dialog").open && !document.querySelector("#impact").hidden && document.querySelector("#account-name").textContent === "Voluntário navegador"');
     await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await reloadPage();
+    await waitFor('document.querySelector("#account-name").textContent === "Voluntário navegador" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('.card-actions .primary');
     await waitFor('document.querySelector("#total-events").textContent === "1" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('[data-view=mine]');
@@ -169,6 +176,9 @@ async function main() {
     await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'portal-mobile.png'), Buffer.from(result.data, 'base64')));
     await click('#logout');
     await waitFor('document.querySelector("#impact").hidden && !document.querySelector("#account").hidden');
+    assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v1")'), null);
+    await reloadPage();
+    await waitFor('!document.querySelector("#account").hidden && document.querySelectorAll(".card").length > 0');
     await click('#login-open');
     await fill('#auth-form [name=email]', 'ana@example.com');
     await fill('#auth-form [name=password]', 'wrong-password');
@@ -179,8 +189,14 @@ async function main() {
     await waitFor('document.querySelector("#account-name").textContent === "Ana Silva"');
     await click('[data-view=collections]');
     await waitFor('document.querySelector("#results").textContent.includes("Sua primeira coleta")');
-    await cdp('Page.reload');
+    await reloadPage();
+    await waitFor('document.querySelector("#account-name").textContent === "Ana Silva" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
+    // Reloading must not revive an expired token or silently extend its deadline.
+    await evaluate('(() => { const key = "beachcleanup.session.v1"; const saved = JSON.parse(sessionStorage.getItem(key)); saved.expiresAt = Date.now() - 1; sessionStorage.setItem(key, JSON.stringify(saved)); })()');
+    await reloadPage();
     await waitFor('document.querySelector("#impact").hidden && !document.querySelector("#account").hidden && document.querySelectorAll(".card").length > 0');
+    assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v1")'), null);
     assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
 
     // Administrative browser flows use the same login and styles as the volunteer portal.

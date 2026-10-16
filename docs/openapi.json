@@ -1427,7 +1427,8 @@
           "expiresIn": {
             "type": "integer",
             "format": "int64",
-            "description": "Validade em segundos."
+            "description": "Validade em segundos: 1800 (30 minutos) a partir do login.",
+            "example": 1800
           },
           "userId": {
             "type": "integer",
