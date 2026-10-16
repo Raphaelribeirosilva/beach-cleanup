@@ -1,6 +1,8 @@
 HELP.md
 backups/
 deploy/prod.env
+deploy/backup.cnf
+deploy/staging.env
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

@@ -1,0 +1,8 @@
+# Install OUTSIDE the checkout, e.g. /etc/beachcleanup/backup.cnf, mode 0600.
+# The account needs privileges for tables, triggers, routines and events in this DB.
+[client]
+host=127.0.0.1
+port=3306
+user=replace-with-backup-account
+password=replace-with-backup-password
+default-character-set=utf8mb4

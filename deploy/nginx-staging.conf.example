@@ -1,0 +1,50 @@
+# Include inside nginx's http context. Replace the domain and certificate paths.
+# This host must be reached directly (no CDN/load balancer before nginx).
+log_format beachcleanup_staging '$remote_addr [$time_local] $request_method $uri '
+                               '$status $body_bytes_sent $request_time';
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name homologacao.example.com;
+    # Certificates must use DNS validation; no public HTTP challenge exception.
+    return 308 https://homologacao.example.com$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name homologacao.example.com;
+    ssl_certificate /etc/letsencrypt/live/homologacao.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/homologacao.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header Strict-Transport-Security "max-age=86400" always;
+    server_tokens off;
+    client_max_body_size 1m;
+
+    # Add only the public IPs/CIDRs of testers or the VPN exit BEFORE deny all.
+    # With no allow entries the entire application remains blocked (IPv4/IPv6).
+    # allow 192.0.2.10/32;
+    # allow 2001:db8::10/128;
+    deny all;
+
+    access_log /var/log/nginx/beachcleanup-staging.access.log beachcleanup_staging;
+    error_log /var/log/nginx/beachcleanup-staging.error.log warn;
+
+    # Operational checks run locally and never need an external exception.
+    location = /actuator { deny all; }
+    location ^~ /actuator/ { deny all; }
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+}

@@ -3,6 +3,8 @@ package com.raphael.beachcleanup;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.sql.DriverManager;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +39,7 @@ class MySqlDatabaseIT {
     private String password;
     private String schema;
     private String url;
+    private String restoreSchema;
 
     @BeforeEach
     void createSchema() throws Exception {
@@ -58,6 +61,13 @@ class MySqlDatabaseIT {
 
     @AfterEach
     void dropOwnedSchema() throws Exception {
+        if (restoreSchema != null) {
+            assertTrue(restoreSchema.matches("beachcleanup_ci_[a-f0-9]{32}"));
+            try (var connection = DriverManager.getConnection(serverUrl, username, password);
+                    var statement = connection.createStatement()) {
+                statement.executeUpdate("DROP DATABASE " + restoreSchema);
+            }
+        }
         if (schema != null) {
             assertTrue(schema.matches("beachcleanup_ci_[a-f0-9]{32}"));
             try (var connection = DriverManager.getConnection(serverUrl, username, password);
@@ -65,6 +75,109 @@ class MySqlDatabaseIT {
                 statement.executeUpdate("DROP DATABASE " + schema);
             }
         }
+    }
+
+    @Test
+    void backupRestoresAllDataAndStartsInSeparateDatabase() throws Exception {
+        long userId;
+        long eventId;
+        try (var context = start()) {
+            User owner = account(context, "Ana");
+            userId = owner.getId();
+            var event = context.getBean(CleanupEventService.class).insert(new CleanupEvent(null,
+                "Mutirão de homologação", "Praia São José", LocalDateTime.parse("2026-10-16T08:00:00"), "Agendado"));
+            eventId = event.getId();
+            context.getBean(EventRegistrationService.class).register(userId, eventId);
+            var collection = input(owner, 2.5);
+            collection.setEvent(event);
+            context.getBean(TrashCollectionService.class).insert(collection);
+            var jdbc = context.getBean(JdbcTemplate.class);
+            jdbc.update("update tb_user set role='ADMIN', credential_version=7, row_version=3 where id=?", userId);
+            jdbc.update("update tb_trash_collection set row_version=4");
+        }
+
+        String generated = "beachcleanup_ci_" + UUID.randomUUID().toString().replace("-", "");
+        try (var connection = DriverManager.getConnection(serverUrl, username, password);
+                var statement = connection.createStatement()) {
+            statement.executeUpdate("CREATE DATABASE " + generated + " CHARACTER SET utf8mb4");
+        }
+        restoreSchema = generated;
+        String restoredUrl = serverUrl.replace("/?", "/" + restoreSchema + "?");
+        Path dump = Files.createTempFile("beachcleanup-backup-", ".sql");
+        Path log = Files.createTempFile("beachcleanup-backup-", ".log");
+        try {
+            var dumpCommand = mysqlClient("mysqldump", "--single-transaction", "--quick", "--no-tablespaces",
+                "--set-gtid-purged=OFF", "--routines", "--events", "--triggers",
+                "--result-file=" + dump, schema).redirectOutput(log.toFile()).redirectErrorStream(true);
+            runClient(dumpCommand);
+            assertTrue(Files.size(dump) > 0);
+            byte[] checksum = java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(dump));
+            runClient(mysqlClient("mysql", "--binary-mode=1", restoreSchema)
+                .redirectInput(dump.toFile()).redirectOutput(log.toFile()).redirectErrorStream(true));
+            assertArrayEquals(checksum, java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(dump)));
+            // Compare every column, including hashes, roles, versions, links and Flyway history.
+            try (var source = DriverManager.getConnection(url, username, password);
+                    var restored = DriverManager.getConnection(restoredUrl, username, password)) {
+                for (String table : List.of("tb_user", "tb_cleanup_event", "tb_event_volunteer",
+                        "tb_trash_collection", "flyway_schema_history")) {
+                    assertEquals(tableRows(source, table), tableRows(restored, table), table);
+                }
+            }
+            try (var context = start(restoredUrl)) {
+                var owner = context.getBean(UserRepository.class).findById(userId).orElseThrow();
+                assertEquals(userId, context.getBean(AuthService.class)
+                    .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
+                assertEquals(UserRole.ADMIN, owner.getRole());
+                assertEquals(7, owner.getCredentialVersion());
+                assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg());
+                assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
+                assertEquals(3, context.getBean(Flyway.class).info().applied().length);
+            }
+        } finally {
+            Files.deleteIfExists(dump);
+            Files.deleteIfExists(log);
+        }
+    }
+
+    private ProcessBuilder mysqlClient(String executable, String... arguments) {
+        String directory = System.getenv("MYSQL_TEST_CLIENT_BIN");
+        String command = directory == null || directory.isBlank() ? executable : Path.of(directory, executable).toString();
+        var address = java.net.URI.create(serverUrl.substring("jdbc:".length()));
+        var args = new java.util.ArrayList<>(List.of(command, "--no-defaults", "--protocol=tcp",
+            "--host=" + address.getHost(), "--port=" + address.getPort(), "--user=" + username,
+            "--default-character-set=utf8mb4"));
+        args.addAll(List.of(arguments));
+        var process = new ProcessBuilder(args);
+        // Only disposable test credentials; never expose the password through argv or test logs.
+        process.environment().put("MYSQL_PWD", password);
+        return process;
+    }
+
+    private static void runClient(ProcessBuilder builder) throws Exception {
+        Process process = builder.start();
+        try {
+            assertTrue(process.waitFor(60, TimeUnit.SECONDS), "MySQL client timeout");
+            assertEquals(0, process.exitValue(), "MySQL client failed (check local client installation/compatibility)");
+        } finally {
+            if (process.isAlive()) {
+                process.destroyForcibly();
+                process.waitFor(10, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private static List<List<String>> tableRows(java.sql.Connection connection, String table) throws Exception {
+        var rows = new java.util.ArrayList<List<String>>();
+        try (var statement = connection.createStatement(); var result = statement.executeQuery("SELECT * FROM " + table)) {
+            int columns = result.getMetaData().getColumnCount();
+            while (result.next()) {
+                var row = new java.util.ArrayList<String>();
+                for (int column = 1; column <= columns; column++) row.add(result.getString(column));
+                rows.add(row);
+            }
+        }
+        rows.sort(java.util.Comparator.comparing(Object::toString));
+        return rows;
     }
 
     @Test
@@ -240,8 +353,12 @@ class MySqlDatabaseIT {
     }
 
     private ConfigurableApplicationContext start() {
+        return start(url);
+    }
+
+    private ConfigurableApplicationContext start(String databaseUrl) {
         return new SpringApplicationBuilder(BeachcleanupApplication.class).run(
-            "--spring.profiles.active=prod", "--server.port=0", "--spring.datasource.url=" + url,
+            "--spring.profiles.active=prod", "--server.port=0", "--spring.datasource.url=" + databaseUrl,
             "--spring.datasource.username=" + username, "--spring.datasource.password=" + password,
             "--security.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--logging.level.root=WARN");
     }

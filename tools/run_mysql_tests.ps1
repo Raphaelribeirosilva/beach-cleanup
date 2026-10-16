@@ -8,7 +8,8 @@ $ErrorActionPreference = 'Stop'
 $serverExe = Join-Path $MySqlBin 'mysqld.exe'
 $clientExe = Join-Path $MySqlBin 'mysql.exe'
 $adminExe = Join-Path $MySqlBin 'mysqladmin.exe'
-foreach ($binary in @($serverExe, $clientExe, $adminExe)) {
+$dumpExe = Join-Path $MySqlBin 'mysqldump.exe'
+foreach ($binary in @($serverExe, $clientExe, $adminExe, $dumpExe)) {
     if (-not (Test-Path -LiteralPath $binary)) { throw "Executável ausente: $binary" }
 }
 $version = & $serverExe --no-defaults --version
@@ -21,7 +22,7 @@ $dataDirectory = Join-Path $taskDirectory 'data'
 $baseDirectory = Split-Path -Parent $MySqlBin
 $serverProcess = $null
 $savedEnvironment = @{}
-foreach ($name in @('MYSQL_TEST_SERVER_URL', 'MYSQL_TEST_USER', 'MYSQL_TEST_PASSWORD')) {
+foreach ($name in @('MYSQL_TEST_SERVER_URL', 'MYSQL_TEST_USER', 'MYSQL_TEST_PASSWORD', 'MYSQL_TEST_CLIENT_BIN')) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 
@@ -62,6 +63,7 @@ try {
     $env:MYSQL_TEST_SERVER_URL = "jdbc:mysql://127.0.0.1:$testPort/?allowPublicKeyRetrieval=true&useSSL=false"
     $env:MYSQL_TEST_USER = 'root'
     $env:MYSQL_TEST_PASSWORD = 'ci-only-password'
+    $env:MYSQL_TEST_CLIENT_BIN = $MySqlBin
     Write-Host "MySQL temporário: $version; porta $testPort."
     Push-Location (Join-Path $PSScriptRoot '..')
     try {
