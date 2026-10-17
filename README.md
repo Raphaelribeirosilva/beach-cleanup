@@ -2,7 +2,9 @@
 
 API para organizar mutirões de limpeza de praias, cadastrar usuários, gerenciar inscrições e registrar o peso dos resíduos coletados. Implementada com Java 25, Spring Boot 4.1.1, Spring MVC, Spring Security, JPA e Flyway.
 
-O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados e buscas paginadas. O portal web do voluntário permite cadastro, login, consulta de eventos, inscrições e registro/acompanhamento de coletas. A área administrativa permite gerenciar eventos e coletas e consultar usuários. Os relatórios por evento, praia, material e período são etapas futuras.
+O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados, catálogos de praias/materiais e buscas paginadas. O portal web do voluntário permite cadastro, login, consulta de eventos, inscrições e registro/acompanhamento de coletas. A área administrativa permite gerenciar eventos, coletas e catálogos e consultar usuários. Os relatórios por evento, praia, material e período são etapas futuras.
+
+A [consolidação da versão atual](docs/25_CONSOLIDACAO_DA_BASE.md) reúne instalação, atualização de bancos anteriores aos catálogos e resultados da validação em JDK 25/MySQL real. Documentos de etapas anteriores registram resultados históricos; para o contrato atual, consulte este README, o [OpenAPI](docs/openapi.json) e as etapas [23](docs/23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md) e [24](docs/24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md).
 
 ## Requisitos
 
@@ -63,7 +65,7 @@ java -jar target/beachcleanup-0.0.1-SNAPSHOT.jar --spring.profiles.active=mysql
 
 O perfil MySQL usa Flyway, `ddl-auto=validate`, `open-in-view=false` e desabilita console H2 e logs SQL. Não carrega contas de exemplo. O cadastro público cria contas `VOLUNTEER`; a definição do primeiro administrador é uma operação controlada no banco, descrita na [etapa 10](docs/10_PERSISTENCIA_E_MIGRACOES.md).
 
-As migrações atuais são V1 (esquema), V2 (índices) e V3 (versão das coletas). Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica.
+As migrações atuais são V1 (esquema), V2 (índices), V3 (versão das coletas), V4 (versão dos eventos), V5 (tabelas e referências dos catálogos) e V6 (associação dos textos antigos aos catálogos). V6 é uma migração Java incluída no JAR. Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica. Siga o [procedimento de instalação e atualização](docs/25_CONSOLIDACAO_DA_BASE.md) para conferir histórico, backup e dados após a atualização.
 
 ## Preparação para implantação
 
@@ -84,12 +86,17 @@ Com o perfil `test`, faça login com Ana e registre uma coleta sem evento:
 $api = 'http://localhost:8080'
 $login = Invoke-RestMethod -Method Post -Uri "$api/auth/login" -ContentType 'application/json' -Body '{"email":"ana@example.com","password":"ana123"}'
 $headers = @{ Authorization = "Bearer $($login.accessToken)" }
-$coleta = Invoke-RestMethod -Method Post -Uri "$api/trashCollection" -Headers $headers -ContentType 'application/json' -Body '{"beach":"Praia A","materialType":"Vidro","weightKg":2.5,"registrationDate":"2026-10-15"}'
+$praias = Invoke-RestMethod -Uri "$api/catalog/beaches"
+$materiais = Invoke-RestMethod -Uri "$api/catalog/materials"
+$praia = $praias | Where-Object name -eq 'Praia do Morro' | Select-Object -First 1
+$material = $materiais | Where-Object name -eq 'Vidro' | Select-Object -First 1
+$body = @{ beachId = $praia.id; materialId = $material.id; weightKg = 2.5; registrationDate = '2026-10-17' } | ConvertTo-Json
+$coleta = Invoke-RestMethod -Method Post -Uri "$api/trashCollection" -Headers $headers -ContentType 'application/json' -Body $body
 Invoke-RestMethod -Uri "$api/users/$($login.userId)" -Headers $headers
 Invoke-RestMethod -Uri "$api/trashCollection/search?page=0&size=10" -Headers $headers
 ```
 
-A coleta será vinculada automaticamente à Ana. Seu `totalCollectedKg` será calculado a partir das coletas existentes. No perfil MySQL, cadastre sua própria conta por `POST /users` com `name`, `email` e `password`, e substitua as credenciais de exemplo no login.
+A coleta será vinculada automaticamente à Ana. Seu `totalCollectedKg` será calculado a partir das coletas existentes. No perfil MySQL, cadastre sua própria conta por `POST /users` com `name`, `email` e `password`, e substitua as credenciais de exemplo no login. O banco novo não possui catálogos demonstrativos: um administrador precisa cadastrar praia e material antes de registrar eventos/coletas. Nomes livres desconhecidos retornam 400; use IDs obtidos nas listas. Nomes principais e aliases cadastrados continuam aceitos nos campos antigos.
 
 O token dura 30 minutos (`expiresIn: 1800`). Use `Authorization: Bearer <accessToken>` nas rotas protegidas. A troca de senha por `PUT /auth/password` revoga os tokens anteriores da conta; faça novo login. Senhas aceitam no máximo 72 bytes UTF-8.
 
@@ -104,12 +111,34 @@ O token dura 30 minutos (`expiresIn: 1800`). Use `Authorization: Bearer <accessT
 | `/users/me/events` | GET dos eventos da própria conta; PUT/DELETE em `/{eventId}` para inscrição/cancelamento |
 | `/trashCollection` e `/trashCollection/{id}` | Voluntário acessa suas coletas; administrador gerencia todas e pode transferir/remover proprietário |
 | `/users/search`, `/cleanupEvent/search`, `/trashCollection/search` | Buscas paginadas; preservam as permissões dos respectivos recursos |
+| `/catalog/beaches` e `/catalog/materials` | GET público; POST somente administrador |
+| `/catalog/{kind}/{id}` | PUT somente administrador, com `version`; `kind` aceita `beaches` ou `materials` |
+| `/catalog/{kind}/{id}/merge` | POST somente administrador; recebe `targetId`, `version` da origem e `targetVersion` do destino |
 
 Novos eventos começam como `Agendado`. Eventos `Agendado` e `Em andamento` aceitam novas inscrições e vínculos de coletas. Inscrição não é requisito para coleta, e uma coleta pode existir sem evento. Veja a matriz de transições na [etapa 9](docs/09_STATUS_DOS_EVENTOS.md).
 
 As buscas usam páginas a partir de zero, tamanho padrão 20 e limite 100, com filtros e ordenação. Prefira essas rotas às listagens originais, que retornam arrays completos. Veja [exemplos de busca](docs/11_EXEMPLOS_DE_BUSCA.md).
 
-Entradas inválidas retornam 400; autenticação ausente/inválida, 401; acesso negado, 403; recurso não encontrado, 404; conflitos de integridade, estado ou versão concorrente, 409. Para voluntários, IDs de coletas inexistentes ou inacessíveis retornam 403. Após conflito concorrente, consulte o registro atual antes de tentar novamente. O controle de versão é interno ao servidor; não há precondição `If-Match` para detectar formulários antigos no cliente.
+Entradas inválidas retornam 400; autenticação ausente/inválida, 401; acesso negado, 403; recurso não encontrado, 404; conflitos de integridade, estado ou versão concorrente, 409. Para voluntários, IDs de coletas inexistentes ou inacessíveis retornam 403. Filtros `beachId` (eventos e coletas) e `materialId` (coletas) selecionam identidades exatas; os filtros textuais também reconhecem aliases.
+
+## Campo `version` nas edições
+
+Respostas de usuários, eventos, coletas e catálogos incluem `version`. Nos PUTs, envie a versão do próprio registro recebida quando abriu o formulário. Ausente/nula/negativa/inválida retorna 400; diferente da atual retorna 409 (`Concurrent update`) sem salvar. Após conflito, recarregue e revise os campos antes de reenviar. O servidor devolve a versão resultante; não a incremente no cliente. Uma edição sem mudança pode mantê-la.
+
+Exemplo com a coleta criada acima, preservando seus vínculos opcionais:
+
+```powershell
+$atual = Invoke-RestMethod -Uri "$api/trashCollection/$($coleta.id)" -Headers $headers
+$body = @{
+    beachId = $atual.beachId; materialId = $atual.materialId
+    weightKg = 3.0; registrationDate = $atual.registrationDate; version = $atual.version
+    volunteer = $(if ($null -ne $atual.volunteer) { @{ id = $atual.volunteer.id } } else { $null })
+    event = $(if ($null -ne $atual.event) { @{ id = $atual.event.id } } else { $null })
+} | ConvertTo-Json -Depth 3
+$coleta = Invoke-RestMethod -Method Put -Uri "$api/trashCollection/$($atual.id)" -Headers $headers -ContentType 'application/json' -Body $body
+```
+
+PUT substitui os campos de entrada; omitir `event` remove o vínculo e administrador também pode remover `volunteer`. POSTs de criação dispensam versão. A unificação exige versões da origem e do destino. Exclusões, inscrições e troca de senha mantêm seus contratos próprios. `version` não é `credentialVersion`, não representa a soma das versões dos vínculos e não usa ETag/If-Match. Mudanças de catálogos podem invalidar formulários de eventos/coletas relacionados. Veja [as regras completas](docs/23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md).
 
 ## Testes, contrato e CI
 
@@ -119,7 +148,7 @@ python tools/validate_openapi.py
 node --test tools/portal-api.test.cjs
 ```
 
-A suíte padrão usa H2 e não exige MySQL. Os testes do cliente do portal usam Node.js 24 ou superior, sem pacotes npm; Node não é necessário para executar a aplicação. O contrato [OpenAPI](docs/openapi.json) pode ser importado em ferramentas de API; descreve 13 caminhos e 23 operações. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
+A suíte padrão usa H2 e não exige MySQL. Os testes do cliente do portal usam Node.js 24 ou superior, sem pacotes npm; Node não é necessário para executar a aplicação. O contrato [OpenAPI](docs/openapi.json) pode ser importado em ferramentas de API; descreve 16 caminhos e 27 operações. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
 
 Para executar a suíte completa em uma instância MySQL temporária no Windows:
 
@@ -129,7 +158,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/run_mysql_tests.ps
 
 O script exige os binários MySQL 8.0 e executa `verify` com o perfil Maven `mysql-it`, usando diretório/porta próprios e removendo a instância ao terminar. Esse perfil Maven seleciona testes; ele é distinto do perfil Spring `mysql`, que configura a aplicação. Variáveis de teste e alternativas de execução estão na [etapa 15](docs/15_TESTES_MYSQL_E_CI.md).
 
-Verificação do portal, em 15/10/2026: **71 testes Java e 5 testes JavaScript aprovados**, com empacotamento, OpenAPI e fluxo completo no Edge aprovados na [etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md). A última execução em MySQL real foi na etapa 17, em 14/10/2026: 73 testes incluindo quatro em MySQL com perfil `prod` e probes HTTP. O [workflow CI](.github/workflows/ci.yml) executa OpenAPI, cliente JavaScript, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado remoto deve ser consultado no GitHub Actions após cada envio.
+Os resultados da base atual, incluindo instalação V1–V6 e atualização de bancos V2/V4 com dados anteriores aos catálogos em MySQL real, estão no [registro da consolidação](docs/25_CONSOLIDACAO_DA_BASE.md). O [workflow CI](.github/workflows/ci.yml) usa JDK 25 e executa OpenAPI, cliente JavaScript, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado remoto deve ser consultado no GitHub Actions para o SHA enviado.
 
 ## Documentação atual e próximos passos
 
@@ -148,7 +177,10 @@ Verificação do portal, em 15/10/2026: **71 testes Java e 5 testes JavaScript a
 | Preparação para implantação, saúde, logs e backup/restauração | [Etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md) |
 | Portal web do voluntário, uso e verificações | [Etapa 18](docs/18_PORTAL_DO_VOLUNTARIO.md) |
 | Interface administrativa — entrega 1 do planejamento | [Entrega administrativa](docs/20_INTERFACE_ADMINISTRATIVA.md) |
+| Proteção contra formulários desatualizados | [Etapa 23](docs/23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md) |
+| Catálogos, aliases e unificação | [Etapa 24](docs/24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md) |
+| Consolidação, instalação, atualização e verificações atuais | [Etapa 25](docs/25_CONSOLIDACAO_DA_BASE.md) |
 
 As análises `ANALISE_PROJETO.md` e `07_ANALISE_ATUAL_E_PROXIMO_PASSO.md` são diagnósticos anteriores. Totais, inscrições, estados, persistência, buscas e OpenAPI já foram implementados; eles não devem ser tratados como funcionalidades pendentes.
 
-O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md); a hospedagem ainda precisa ser escolhida/configurada. Após a interface administrativa, a próxima entrega planejada é a homologação com acesso restrito, conforme o [planejamento](docs/19_PROXIMOS_PASSOS.md).
+O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md). A [etapa 21](docs/21_HOMOLOGACAO_RESTRITA.md) registra a preparação da homologação e suas pendências de validação hospedada. Interface administrativa, proteção de formulários e catálogos já foram implementados; relatórios e ampliação da área do voluntário continuam pendentes.

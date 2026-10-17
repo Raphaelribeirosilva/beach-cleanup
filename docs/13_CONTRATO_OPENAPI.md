@@ -1,6 +1,6 @@
 # Etapa 13 — Contrato OpenAPI
 
-O arquivo [openapi.json](openapi.json) descreve as 23 operações atuais em 13 caminhos: autenticação, usuários, eventos, inscrições e coletas, incluindo as três buscas paginadas. Usa [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3.html), com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões descritas por operação.
+O arquivo [openapi.json](openapi.json) descreve as 27 operações atuais em 16 caminhos: autenticação, usuários, eventos, inscrições, coletas e catálogos, incluindo as três buscas paginadas. Usa [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3.html), com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões descritas por operação.
 
 ## Como usar
 
@@ -13,7 +13,9 @@ O arquivo [openapi.json](openapi.json) descreve as 23 operações atuais em 13 c
 
 ## Regras documentadas
 
-- Login e cadastro são públicos, assim como leitura e busca de eventos. Demais operações exigem JWT; restrições de administrador e propriedade estão descritas em cada operação.
+- Login e cadastro são públicos, assim como leitura/busca de eventos e listagem dos catálogos. Demais operações exigem JWT; restrições de administrador e propriedade estão descritas em cada operação.
+- As listas de praias e materiais também são públicas. Cadastro, edição e unificação de catálogos exigem administrador. Eventos recebem `beachId`; coletas recebem `beachId` e `materialId`. Nomes antigos são aceitos somente quando já cadastrados como principais ou aliases; itens desconhecidos não são criados automaticamente.
+- PUTs de usuários, eventos, coletas e catálogos exigem a `version` obtida na leitura. Ausência/valor inválido retorna 400; versão desatualizada retorna 409. Criação dispensa versão. Unificação exige `version` da origem e `targetVersion` do destino. Não há ETag/If-Match; veja a [etapa 23](23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md).
 - Trocar a senha revoga os tokens anteriores, incluindo o usado na troca; o cliente precisa fazer novo login.
 - Voluntários consultam e alteram somente suas próprias coletas. O administrador pode transferir ou remover o proprietário. Referências opcionais aceitam `null`; os PUTs substituem os campos de entrada.
 - Novos eventos começam como `Agendado`; transições seguem a [etapa 9](09_STATUS_DOS_EVENTOS.md). Novas inscrições e vínculos de coleta exigem evento `Agendado` ou `Em andamento`.
@@ -25,11 +27,13 @@ O arquivo [openapi.json](openapi.json) descreve as 23 operações atuais em 13 c
 
 ## MySQL e dados existentes
 
+A base atual possui V1–V6. A instalação e a atualização de bancos com histórico Flyway anterior aos catálogos estão documentadas na [consolidação](25_CONSOLIDACAO_DA_BASE.md), com resultados em MySQL descartável. O restante desta seção registra o contexto histórico da entrega inicial do OpenAPI.
+
 O ambiente persistente permanece o [MySQL local validado pelo usuário](12_MYSQL_LOCAL_VALIDACAO_MANUAL.md). Nenhuma mudança de esquema é necessária nesta etapa: não há migração nova nem alteração em V1/V2, configuração do banco ou dados.
 
 O contrato não inclui senhas, chave JWT ou tokens reais. A validação manual do MySQL continua sendo o relato do usuário; o Codex não acessou esse servidor nesta etapa.
 
-## Verificação
+## Validador e resultados históricos da entrega inicial
 
 Execute da raiz do projeto:
 

@@ -1,12 +1,14 @@
 # Proteção de formulários antigos
 
-Data: 16/10/2026.
+Data: 16/10/2026. Exemplos alinhados aos catálogos em 17/10/2026; validação atual em MySQL real na [consolidação](25_CONSOLIDACAO_DA_BASE.md).
 
 ## Problema e comportamento
 
 O `@Version` já detectava alterações concorrentes durante uma transação, mas o servidor carregava a versão atual ao receber uma nova requisição. Assim, um formulário aberto antes de outra edição podia sobrescrever dados já salvos.
 
 As respostas de usuários, eventos e coletas agora incluem `version`, também nas listagens, buscas paginadas e objetos aninhados. Cada edição precisa enviar a versão do próprio registro obtida quando o formulário foi carregado:
+
+Os IDs abaixo são ilustrativos. Consulte `GET /catalog/beaches` para escolher uma praia cadastrada e use um evento existente. O PUT exige token administrativo.
 
 ```http
 GET /cleanupEvent/10
@@ -17,6 +19,7 @@ GET /cleanupEvent/10
   "id": 10,
   "title": "Mutirão",
   "location": "Praia A",
+  "beachId": 20,
   "dateTime": "2026-11-15T09:00:00",
   "status": "Agendado",
   "version": 0
@@ -31,7 +34,7 @@ Content-Type: application/json
 ```json
 {
   "title": "Mutirão revisado",
-  "location": "Praia A",
+  "beachId": 20,
   "dateTime": "2026-11-15T09:00:00",
   "status": "Agendado",
   "version": 0
@@ -48,6 +51,8 @@ Se a edição for aceita, a resposta inclui a versão resultante. O cliente deve
 | Versão ausente, nula, negativa ou inválida | HTTP 400; nenhuma alteração |
 | Versão diferente da atual | HTTP 409, `error: "Concurrent update"`; nenhuma alteração |
 | Criação por POST | Continua dispensando versão; o servidor define a versão inicial |
+| `PUT /catalog/{kind}/{id}` | `version` obrigatória junto de `name` e aliases opcionais |
+| `POST /catalog/{kind}/{id}/merge` | `targetId`, `version` da origem e `targetVersion` do destino obrigatórios |
 
 As permissões continuam sendo verificadas. Um conflito não concede acesso a registros de outra conta. A versão enviada é comparada na transação antes de copiar os campos; o `@Version` continua protegendo a janela entre essa comparação e a gravação. O valor enviado nunca é atribuído à versão da entidade gerenciada. As atualizações fazem flush antes de montar a resposta, para devolver a versão efetivamente persistida.
 
@@ -61,9 +66,9 @@ Usuários e coletas reutilizam suas colunas `row_version`. Eventos ganharam `@Ve
 
 Esta mudança exige atualizar clientes externos: PUTs antigos sem `version` passam a receber 400. O contrato [OpenAPI](openapi.json) distingue os corpos de criação e atualização, exigindo versão somente na edição. `rowVersion` e a versão de credenciais permanecem fora do JSON; o campo público chama-se `version`.
 
-O controle cobre os três PUTs de edição. Exclusões, inscrições e troca de senha mantêm seus contratos específicos. A versão de um recurso não é uma versão agregada dos recursos vinculados: alterações em coletas podem mudar o total calculado do usuário sem alterar a versão do perfil. O contrato utiliza versão no JSON e não acrescenta ETag/If-Match.
+O controle cobre os PUTs de usuários, eventos, coletas e catálogos, além da unificação. Exclusões, inscrições e troca de senha mantêm seus contratos específicos. A versão de um recurso não é uma versão agregada dos recursos vinculados: alterações em coletas podem mudar o total calculado do usuário sem alterar a versão do perfil. Renomear/unificar catálogos incrementa as versões dos eventos/coletas afetados; veja a [etapa 24](24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md). O contrato utiliza versão no JSON e não acrescenta ETag/If-Match.
 
-## Verificações
+## Verificações históricas da entrega inicial
 
 Os testes de integração novos simulam formulários carregados em requisições separadas, edição intermediária já concluída, rejeição do formulário antigo, preservação integral do registro e novo envio após recarregar. Cobrem usuários, eventos e coletas, versões ausentes/nulas/negativas/inválidas/futuras e autorização. Os testes existentes de concorrência, transferência de proprietário, totais e estados foram adaptados ao contrato.
 

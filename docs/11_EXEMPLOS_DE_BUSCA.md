@@ -25,6 +25,16 @@ Authorization: Bearer <accessToken>
 
 Com token de voluntário, o resultado inclui somente suas coletas. Com token administrativo, acrescente `volunteerId=<ID>` ou `eventId=<ID>` para filtrar os vínculos.
 
+Para filtros exatos por identidade, consulte primeiro `GET /catalog/beaches` e `GET /catalog/materials`, ambos públicos, e substitua os IDs ilustrativos:
+
+```http
+GET http://localhost:8080/cleanupEvent/search?beachId=10&page=0&size=10
+GET http://localhost:8080/trashCollection/search?beachId=10&materialId=20&page=0&size=10
+Authorization: Bearer <accessToken>
+```
+
+O token é necessário somente para a busca de coletas. Os filtros de texto continuam aceitando partes dos nomes e reconhecem aliases, caixa e acentos; `%` e `_` são literais. Filtros combinam com AND. IDs permanecem estáveis ao renomear; após unificação, recarregue o catálogo e use o destino. Veja [catálogos](24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md).
+
 ## Contas — login de administrador
 
 ```http

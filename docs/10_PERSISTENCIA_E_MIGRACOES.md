@@ -15,15 +15,26 @@ O banco deve existir antes da inicialização. O usuário precisa de permissões
 
 ## Migrações
 
-`db/migration/mysql/V1__create_schema.sql` cria contas, eventos, inscrições e coletas com IDs, unicidade de e-mail, chave composta das inscrições e chaves estrangeiras. `V2__add_query_indexes.sql` adiciona índices para consulta por usuário, evento e datas. A coluna legada do total é preservada, mas o total da API continua derivado das coletas.
+| Versão | Alteração |
+| --- | --- |
+| V1 | Contas, eventos, inscrições e coletas, unicidade de e-mail e chaves estrangeiras |
+| V2 | Índices de usuário, evento e datas |
+| V3 | `row_version` nas coletas, inicialmente zero |
+| V4 | `row_version` nos eventos, inicialmente zero |
+| V5 | Catálogos, aliases, referências e índices em eventos/coletas |
+| V6 | Migração Java: associa textos antigos a praias/materiais com IDs estáveis |
+
+Os scripts SQL ficam em `src/main/resources/db/migration/mysql`; V6 fica em `src/main/java/db/migration/mysql` e é descoberta no JAR compilado. A coluna legada do total é preservada, mas o total da API continua derivado das coletas. Usuários já possuem `row_version` em V1. O campo público `version` das edições corresponde à versão persistida; não é a versão das credenciais.
 
 Flyway aplica versões pendentes na inicialização e valida os checksums. Hibernate usa `ddl-auto=validate`, sem recriar ou atualizar o esquema por conta própria. Migração automática de banco não vazio sem histórico (`baseline-on-migrate`) e limpeza (`clean`) estão desabilitadas.
 
-Essas migrações inicializam **um banco vazio**. Para um banco persistente anterior, faça uma migração específica dos nomes antigos, dados e restrições antes de adotá-las. Não edite migrações já aplicadas; crie uma nova versão para cada alteração. Nenhum banco externo foi alterado nesta etapa.
+V1–V6 inicializam **um banco vazio** e atualizam bancos com histórico Flyway compatível, aplicando apenas versões pendentes. A atualização de bases V2 e V4 com dados é coberta pela suíte MySQL. Para banco legado sem histórico Flyway, faça uma migração específica dos nomes antigos, dados e restrições antes de adotá-las. Não edite migrações já aplicadas; crie uma nova versão para cada alteração.
+
+V6 preserva os textos originais, pesos, datas, contas, hashes, versões, inscrições e vínculos. Agrupa apenas variações de caixa, acentos e espaços; `Morro` e `Praia do Morro` continuam distintos até unificação administrativa. Campos antigos nulos/vazios continuam sem referência e exigem revisão. Um banco novo não recebe catálogos nem contas demonstrativas. Veja o [procedimento reproduzível de instalação/atualização e os resultados em MySQL real](25_CONSOLIDACAO_DA_BASE.md).
 
 O perfil MySQL não carrega contas de exemplo. Cadastre a primeira conta por `POST /users`; ela recebe `VOLUNTEER`. Para definir o primeiro administrador, um operador do banco deve promover uma conta específica após verificar sua identidade, por exemplo `UPDATE tb_user SET role = 'ADMIN' WHERE id = <ID_VERIFICADO>`. A API não permite escolher o perfil no cadastro. Não use contas/senhas de exemplo em um ambiente persistente com dados reais.
 
-## Verificação
+## Verificação histórica da etapa 10
 
 O usuário posteriormente configurou o MySQL local e confirmou cadastro, login e persistência da conta após reinício. O ambiente e o relato dessa validação manual estão no [registro do MySQL local](12_MYSQL_LOCAL_VALIDACAO_MANUAL.md).
 

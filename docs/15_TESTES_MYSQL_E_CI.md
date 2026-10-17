@@ -1,6 +1,6 @@
 # Etapa 15 — Testes em MySQL real e integração contínua
 
-Data: 14/10/2026.
+Entrega inicial: 14/10/2026. Contrato de testes atualizado em 17/10/2026; resultados atuais na [consolidação](25_CONSOLIDACAO_DA_BASE.md).
 
 ## Objetivo
 
@@ -12,14 +12,17 @@ Verificar o comportamento no banco utilizado pelo projeto e automatizar testes, 
 
 Cada teste cria um banco com nome aleatório `beachcleanup_ci_<UUID>` e remove somente esse banco ao terminar. A conexão exige variáveis específicas de teste, servidor em loopback, porta explícita e URL sem nome de banco. Não lê `DB_URL`, `DB_USER`, `DB_PASSWORD` ou `JWT_SECRET` do ambiente de uso da aplicação. A ausência de configuração falha a execução, em vez de ignorar silenciosamente os testes.
 
-Os quatro testes verificam:
+Os sete casos atuais verificam:
 
-1. Aplicação de V1/V2/V3, validação do esquema pelo Hibernate, ausência de seed, autenticação e preservação de conta, evento, inscrição, coleta e total após reinício da aplicação. Conferem também unicidade de e-mail, duplicidade de inscrição e chave estrangeira inválida.
-2. Atualização de um banco com V1/V2 e registros existentes para V3, preservando IDs, vínculos, data, peso, hash de senha e versão de credenciais; a nova versão da coleta inicia em zero.
+1. Aplicação de V1–V6, validação do esquema pelo Hibernate, ausência de contas demonstrativas, autenticação e preservação de conta, evento, inscrição, coleta e total após reinício da aplicação. Conferem também unicidade de e-mail, duplicidade de inscrição, chave estrangeira inválida e probes HTTP com o perfil `prod`.
+2. Atualização de um banco com V1/V2 e registros existentes para V6, preservando IDs, vínculos, data, peso, hash de senha e versão de credenciais; as novas versões da coleta e do evento iniciam em zero.
 3. Duas transações que carregam a mesma coleta: somente uma edição conclui, e a outra recebe conflito otimista. O peso e o total correspondem à edição vencedora.
 4. Transferência por administrador enquanto o antigo proprietário tem uma coleta carregada: atualização e exclusão desatualizadas falham, preservando a transferência; uma nova operação do antigo proprietário é negada.
+5. Backup/restauração em outro banco, comparando todas as colunas de usuários, eventos, inscrições, coletas, catálogos, aliases e histórico Flyway; login e reinício após restaurar.
+6. Atualização V2 → V6 com usuários ADMIN/VOLUNTEER, BCrypt válido, versões de credenciais, três eventos, três inscrições e cinco coletas, inclusive sem proprietário/evento e com textos incompletos.
+7. Atualização V4 → V6 com os mesmos dados e versões não zero em eventos/coletas. Os casos 6 e 7 comparam **todas as colunas antigas**, conferem login, IDs de catálogo, normalização de acentos/caixa/espaços, separação de nomes semanticamente distintos, totais e reinício sem reaplicar migrações. Esses dois casos não chamam o seed auxiliar de catálogos dos demais testes.
 
-As transações concorrentes usam `CountDownLatch` com limites de tempo. A aplicação inicia com o perfil `mysql`, driver MySQL e configurações reais de Flyway/Hibernate, incluindo `open-in-view=false`. A chave JWT utilizada é exclusiva dos testes.
+As transações concorrentes usam `CountDownLatch` com limites de tempo. A aplicação inicia com o perfil `prod`, que inclui `mysql`, driver MySQL e configurações reais de Flyway/Hibernate, incluindo `open-in-view=false`. A chave JWT utilizada é exclusiva dos testes.
 
 ## Execução local no Windows
 
@@ -49,10 +52,11 @@ Configure uma instância destinada exclusivamente a testes e uma conta com permi
 $env:MYSQL_TEST_SERVER_URL = 'jdbc:mysql://127.0.0.1:13306/?allowPublicKeyRetrieval=true&useSSL=false'
 $env:MYSQL_TEST_USER = 'root'
 $env:MYSQL_TEST_PASSWORD = 'senha-da-instancia-descartavel'
+$env:MYSQL_TEST_CLIENT_BIN = 'C:\Program Files\MySQL\MySQL Server 8.0\bin'
 ./mvnw.cmd -B -Pmysql-it verify
 ```
 
-O script de execução local é a opção que provisiona automaticamente o servidor separado. Não aponte as variáveis de teste para o serviço MySQL que contém dados reais. SSL e recuperação de chave pública nos exemplos são configurações da conexão de teste local, não uma configuração nova do perfil de produção.
+O script de execução local é a opção que provisiona automaticamente o servidor separado. Não aponte as variáveis de teste para o serviço MySQL que contém dados reais. `MYSQL_TEST_CLIENT_BIN` localiza `mysql`/`mysqldump` para o ensaio de restauração; se omitido, os clientes devem estar no PATH. SSL e recuperação de chave pública nos exemplos são configurações da conexão de teste local, não uma configuração nova do perfil de produção.
 
 `mvn test`, sem o perfil, mantém a suíte H2 existente e não exige MySQL. Para selecionar somente a nova classe em um servidor descartável já configurado:
 
@@ -66,9 +70,9 @@ mvn -B -Pmysql-it -Dtest=MySqlDatabaseIT test
 
 O pipeline valida OpenAPI e executa `sh mvnw -B -Pmysql-it verify`, incluindo testes H2, testes MySQL e empacotamento. Guarda relatórios Surefire por sete dias mesmo quando houver falha. O token possui somente `contents: read`; não há deploy, escrita no repositório, acesso ao MySQL local ou necessidade de segredos de produção.
 
-O workflow passará a existir no GitHub após o envio do commit. Um resultado local não equivale a uma execução aprovada do GitHub Actions. A política de exigir CI aprovado antes de merge depende das configurações de proteção da branch no GitHub e não é alterada por esta etapa.
+O workflow está versionado no GitHub. Um resultado local não equivale a uma execução aprovada do GitHub Actions: confira o SHA da execução após cada envio autorizado. A política de exigir CI aprovado antes de merge depende das configurações de proteção da branch no GitHub e não é alterada por esta etapa.
 
-## Verificação realizada
+## Verificação histórica da entrega inicial
 
 - A suíte com o perfil `mysql-it` executou **67 testes, zero falhas, zero erros e zero testes ignorados**, incluindo **quatro testes em MySQL Community Server 8.0.46 real** em instância temporária.
 - Workflow validado com **actionlint 1.7.12**, sem erros, com verificadores opcionais shellcheck/pyflakes desativados. O executável foi baixado da release oficial e seu SHA-256 foi conferido contra o arquivo de checksums publicado.

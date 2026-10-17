@@ -16,6 +16,8 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -119,7 +121,7 @@ class MySqlDatabaseIT {
             try (var source = DriverManager.getConnection(url, username, password);
                     var restored = DriverManager.getConnection(restoredUrl, username, password)) {
                 for (String table : List.of("tb_user", "tb_cleanup_event", "tb_event_volunteer",
-                        "tb_trash_collection", "flyway_schema_history")) {
+                        "tb_trash_collection", "tb_catalog_entry", "tb_catalog_alias", "flyway_schema_history")) {
                     assertEquals(tableRows(source, table), tableRows(restored, table), table);
                 }
             }
@@ -167,12 +169,16 @@ class MySqlDatabaseIT {
     }
 
     private static List<List<String>> tableRows(java.sql.Connection connection, String table) throws Exception {
+        return tableRows(connection, table, "*");
+    }
+
+    private static List<List<String>> tableRows(java.sql.Connection connection, String table, String columns) throws Exception {
         var rows = new java.util.ArrayList<List<String>>();
-        try (var statement = connection.createStatement(); var result = statement.executeQuery("SELECT * FROM " + table)) {
-            int columns = result.getMetaData().getColumnCount();
+        try (var statement = connection.createStatement(); var result = statement.executeQuery("SELECT " + columns + " FROM " + table)) {
+            int columnCount = result.getMetaData().getColumnCount();
             while (result.next()) {
                 var row = new java.util.ArrayList<String>();
-                for (int column = 1; column <= columns; column++) row.add(result.getString(column));
+                for (int column = 1; column <= columnCount; column++) row.add(result.getString(column));
                 rows.add(row);
             }
         }
@@ -268,6 +274,102 @@ class MySqlDatabaseIT {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {2, 4})
+    void catalogUpgradePreservesEveryLegacyColumnAndCredentialsOnMySql(int previousVersion) throws Exception {
+        Flyway.configure().dataSource(url, username, password).locations("classpath:db/migration/mysql")
+            .target(Integer.toString(previousVersion)).load().migrate();
+        String hash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("senha-legada");
+        var columns = new java.util.LinkedHashMap<String, String>();
+        var snapshots = new java.util.LinkedHashMap<String, List<List<String>>>();
+        try (var connection = DriverManager.getConnection(url, username, password);
+                var sql = connection.createStatement()) {
+            try (var insert = connection.prepareStatement("""
+                    insert into tb_user(id,name,email,password,role,credential_version,row_version,total_collected_kg)
+                    values (?, ?, ?, ?, ?, 3, 7, 99)
+                    """)) {
+                for (int id : new int[] {101, 102}) {
+                    insert.setInt(1, id);
+                    insert.setString(2, "Conta " + id);
+                    insert.setString(3, "conta" + id + "@example.com");
+                    insert.setString(4, hash);
+                    insert.setString(5, id == 101 ? "ADMIN" : "VOLUNTEER");
+                    insert.executeUpdate();
+                }
+            }
+            sql.executeUpdate("""
+                insert into tb_cleanup_event(id,title,location,date_time,status) values
+                (501,'Mutirão A','Praia do Morro','2026-10-15 08:00:00','Agendado'),
+                (502,'Mutirão B','  PRAIA   DO MORRO ','2026-10-16 08:00:00','Concluido'),
+                (503,'Mutirão C','Morro','2026-10-17 08:00:00','Pausado')
+                """);
+            sql.executeUpdate("insert into tb_event_volunteer(volunteer_id,event_id) values (101,501),(102,501),(102,502)");
+            sql.executeUpdate("""
+                insert into tb_trash_collection(id,beach,material_type,weight_kg,registration_date,volunteer_id,event_id) values
+                (601,'Praia do Morro','Plástico',2.25,'2026-10-15',101,501),
+                (602,'praia do morro',' PLASTICO ',3.5,'2026-10-16',102,502),
+                (603,'Morro','Vidro',4.75,'2026-10-17',102,null),
+                (604,null,' ',0.5,'2026-10-18',101,null),
+                (605,'','Vidro',1.25,'2026-10-19',null,null)
+                """);
+            if (previousVersion == 4) {
+                sql.executeUpdate("update tb_cleanup_event set row_version=id-500");
+                sql.executeUpdate("update tb_trash_collection set row_version=id-600");
+            }
+            // Save every original column, including legacy labels and stored totals, before upgrading.
+            for (String table : List.of("tb_user", "tb_cleanup_event", "tb_event_volunteer", "tb_trash_collection")) {
+                try (var rows = sql.executeQuery("select * from " + table + " where 1=0")) {
+                    var names = new java.util.ArrayList<String>();
+                    for (int i = 1; i <= rows.getMetaData().getColumnCount(); i++) names.add(rows.getMetaData().getColumnName(i));
+                    columns.put(table, String.join(",", names));
+                }
+                snapshots.put(table, tableRows(connection, table));
+            }
+        }
+        try (var context = start(url, false)) {
+            var flyway = context.getBean(Flyway.class);
+            flyway.validate();
+            assertEquals(List.of("1", "2", "3", "4", "5", "6"), java.util.Arrays.stream(flyway.info().applied())
+                .map(migration -> migration.getVersion().toString()).toList());
+            assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
+            var jdbc = context.getBean(JdbcTemplate.class);
+            try (var connection = DriverManager.getConnection(url, username, password)) {
+                for (String table : columns.keySet()) {
+                    assertEquals(snapshots.get(table), tableRows(connection, table, columns.get(table)), table);
+                }
+            }
+            for (long id : new long[] {101, 102}) {
+                assertEquals(id, context.getBean(AuthService.class)
+                    .login(new LoginDTO("conta" + id + "@example.com", "senha-legada")).userId());
+            }
+            assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='beaches'", Integer.class));
+            assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='materials'", Integer.class));
+            Long beach = jdbc.queryForObject("select beach_id from tb_cleanup_event where id=501", Long.class);
+            assertNotNull(beach);
+            assertEquals(beach, jdbc.queryForObject("select beach_id from tb_cleanup_event where id=502", Long.class));
+            assertEquals(beach, jdbc.queryForObject("select beach_id from tb_trash_collection where id=602", Long.class));
+            assertNotEquals(beach, jdbc.queryForObject("select beach_id from tb_cleanup_event where id=503", Long.class));
+            assertEquals(jdbc.queryForObject("select material_id from tb_trash_collection where id=601", Long.class),
+                jdbc.queryForObject("select material_id from tb_trash_collection where id=602", Long.class));
+            assertNull(jdbc.queryForObject("select beach_id from tb_trash_collection where id=604", Long.class));
+            assertNull(jdbc.queryForObject("select material_id from tb_trash_collection where id=604", Long.class));
+            assertNull(jdbc.queryForObject("select beach_id from tb_trash_collection where id=605", Long.class));
+            assertEquals(12.25, jdbc.queryForObject("select sum(weight_kg) from tb_trash_collection", Double.class));
+            var totals = context.getBean(CollectedTotalsService.class);
+            var users = context.getBean(UserRepository.class);
+            assertEquals(2.75, totals.user(users.findById(101L).orElseThrow()).getTotalCollectedKg());
+            assertEquals(8.25, totals.user(users.findById(102L).orElseThrow()).getTotalCollectedKg());
+            assertEquals(4, jdbc.queryForObject("select count(*) from tb_catalog_alias", Integer.class));
+        }
+        try (var context = start(url, false)) {
+            assertEquals(2, context.getBean(UserRepository.class).count());
+            assertEquals(5, context.getBean(TrashCollectionRepository.class).count());
+            assertEquals(4, context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_catalog_entry", Integer.class));
+            assertEquals(102L, context.getBean(AuthService.class)
+                .login(new LoginDTO("conta102@example.com", "senha-legada")).userId());
+        }
+    }
+
     @Test
     void concurrentEditsCannotBothCommitOnMySql() throws Exception {
         try (var context = start()) {
@@ -358,11 +460,15 @@ class MySqlDatabaseIT {
     }
 
     private ConfigurableApplicationContext start(String databaseUrl) {
+        return start(databaseUrl, true);
+    }
+
+    private ConfigurableApplicationContext start(String databaseUrl, boolean seedCatalogs) {
         var context = new SpringApplicationBuilder(BeachcleanupApplication.class).run(
             "--spring.profiles.active=prod", "--server.port=0", "--spring.datasource.url=" + databaseUrl,
             "--spring.datasource.username=" + username, "--spring.datasource.password=" + password,
             "--security.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--logging.level.root=WARN");
-        CatalogTestData.seed(context);
+        if (seedCatalogs) CatalogTestData.seed(context);
         return context;
     }
 

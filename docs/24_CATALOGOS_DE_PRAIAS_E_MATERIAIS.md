@@ -2,6 +2,8 @@
 
 Data: 16/10/2026.
 
+Atualização de validação em 17/10/2026: instalação V1–V6, atualização de bases V2/V4 com dados e backup/restauração conferidos em MySQL 8.0.46 real com JDK 25. Procedimento e resultados na [consolidação da base](25_CONSOLIDACAO_DA_BASE.md). A seção de verificações abaixo preserva os resultados da entrega inicial.
+
 ## Resultado
 
 Praias e materiais agora possuem IDs estáveis, nomes principais e nomes alternativos. Eventos referenciam uma praia; coletas referenciam uma praia e um material. Os formulários e os filtros do portal utilizam seletores desses catálogos.
