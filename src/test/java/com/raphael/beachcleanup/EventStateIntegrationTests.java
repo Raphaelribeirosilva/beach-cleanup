@@ -132,12 +132,12 @@ class EventStateIntegrationTests {
     }
 
     private CleanupEvent event(String state) {
-        return events.save(new CleanupEvent(null, "Original", "Praia A", LocalDateTime.parse("2026-10-15T08:00:00"), state));
+        return events.save(CatalogTestData.event(context, new CleanupEvent(null, "Original", "Praia A", LocalDateTime.parse("2026-10-15T08:00:00"), state)));
     }
 
     private String eventJson(String state) {
         return """
-            {"version":0,"title":"Novo titulo","location":"Praia B","dateTime":"2026-10-20T09:00:00","status":"%s"}
+            {"version":0,"title":"Novo titulo","location":"Praia A","dateTime":"2026-10-15T09:00:00","status":"%s"}
             """.formatted(state);
     }
 

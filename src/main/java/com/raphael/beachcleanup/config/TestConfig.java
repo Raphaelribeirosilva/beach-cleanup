@@ -77,7 +77,7 @@ public class TestConfig implements CommandLineRunner {
         
         userRepository.saveAll(Arrays.asList(v1));
         
-        TrashCollection t1 = new TrashCollection(null, "Praia do Morro", "Plástico", 15.5, LocalDate.now());
+        TrashCollection t1 = new TrashCollection(null, "Praia do Morro", "Plástico", 15.5, e1.getDateTime().toLocalDate());
                
         t1.setBeachReference(catalogEntries.findById(beach.id()).orElseThrow());
         t1.setMaterialReference(catalogEntries.findById(material.id()).orElseThrow());

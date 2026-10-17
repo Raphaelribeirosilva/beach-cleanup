@@ -71,7 +71,7 @@ class CollectionConcurrencyIntegrationTests {
             assertEquals(1, statuses.stream().filter(code -> code == 200).count());
             assertEquals(1, statuses.stream().filter(code -> code == 409).count());
         }
-        double weight = collections.findById(collectionId).orElseThrow().getWeightKg();
+        double weight = collections.findById(collectionId).orElseThrow().getWeightKg().doubleValue();
         assertTrue(weight == 3.0 || weight == 4.0);
         mvc.perform(get("/users/{id}", first.getId()).with(user("admin").roles("ADMIN")))
             .andExpect(jsonPath("$.totalCollectedKg").value(weight));
@@ -180,7 +180,7 @@ class CollectionConcurrencyIntegrationTests {
     private void assertTransferred() {
         var saved = collections.findById(collectionId).orElseThrow();
         assertEquals(second.getId(), saved.getVolunteer().getId());
-        assertEquals(4.0, saved.getWeightKg());
+        assertEquals(4.0, saved.getWeightKg().doubleValue());
     }
 
     private static void await(CountDownLatch latch) {

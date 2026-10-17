@@ -19,7 +19,7 @@ public interface TrashCollectionRepository extends JpaRepository<TrashCollection
 
     interface CollectedTotal {
         Long getUserId();
-        Double getTotalKg();
+        java.math.BigDecimal getTotalKg();
     }
 
     @Query("""
@@ -29,4 +29,16 @@ public interface TrashCollectionRepository extends JpaRepository<TrashCollection
         group by c.volunteer.id
         """)
     List<CollectedTotal> sumWeightByUserIds(@Param("userIds") Collection<Long> userIds);
+
+    interface EventCollectionLink {
+        Long getBeachId();
+        java.time.LocalDate getRegistrationDate();
+    }
+
+    // A locking read sees collections committed after an earlier REPEATABLE READ snapshot.
+    @Query(value = """
+        select beach_id as beachId, registration_date as registrationDate
+        from tb_trash_collection where event_id = :eventId for update
+        """, nativeQuery = true)
+    List<EventCollectionLink> eventLinksForUpdate(@Param("eventId") Long eventId);
 }

@@ -1,5 +1,5 @@
 /* End-to-end checks against an owned, disposable H2 application. No external packages. */
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -34,6 +34,7 @@ async function main() {
   const base = `http://127.0.0.1:${appPort}`;
   const children = [];
   let socket;
+  let closeBrowser;
   const browserErrors = [];
   let logs = '';
   function launch(command, args) {
@@ -45,8 +46,15 @@ async function main() {
     return child;
   }
   try {
+    const legacyData = path.join(profile, 'legacy-data.sql');
+    fs.writeFileSync(legacyData, `
+      insert into tb_trash_collection(id,beach,material_type,weight_kg,registration_date,row_version)
+      values (9001,null,null,null,'2020-01-01',0);
+      insert into tb_weight_conversion_audit(collection_id) values (9001);
+    `);
     launch('java', ['-jar', jar, '--spring.profiles.active=test', `--server.port=${appPort}`,
       '--server.address=127.0.0.1', '--spring.datasource.url=jdbc:h2:mem:portal-browser',
+      `--spring.sql.init.data-locations=${require('node:url').pathToFileURL(legacyData).href}`,
       '--spring.jpa.show-sql=false', '--logging.level.root=ERROR']);
     await until(async () => (await fetch(`${base}/actuator/health/readiness`)).ok, 'disposable API startup', 60000);
     async function api(route, body, token) {
@@ -83,7 +91,7 @@ async function main() {
       [`/trashCollection/search?volunteerId=${bruno.userId}`, 'GET']
     ]) assert.equal((await request(route, method, body, ana.accessToken)).status, 403, `${method} ${route} must deny volunteer`);
     for (let i = 1; i <= 7; i++) await api('/cleanupEvent', {
-      title: `Mutirão navegador ${i}`, location: 'Praia do navegador', dateTime: `2026-11-${String(i).padStart(2, '0')}T09:00:00`, status: 'Agendado'
+      title: `Mutirão navegador ${i}`, location: 'Praia do navegador', dateTime: '2026-10-15T09:00:00', status: 'Agendado'
     }, admin.accessToken);
     launch(browserPath, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
       '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank']);
@@ -116,6 +124,7 @@ async function main() {
         socket.send(JSON.stringify({ id, method, params }));
       });
     }
+    closeBrowser = () => cdp('Browser.close');
     async function evaluate(expression) {
       const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
       if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
@@ -166,6 +175,9 @@ async function main() {
     await waitFor('document.querySelectorAll(".card").length === 1 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('.card-actions button:last-child');
     await waitFor('document.querySelector("#collection-dialog").open');
+    assert.equal(await evaluate('document.querySelector("#collection-form [name=beach]").disabled'), true);
+    assert.equal(await evaluate('document.querySelector("#collection-form [name=registrationDate]").readOnly'), true);
+    assert.equal(await evaluate('document.querySelector("#collection-form [name=registrationDate]").value'), '2026-10-15');
     await fill('#collection-form [name=materialType]', 'Vidro');
     await fill('#collection-form [name=weightKg]', '2.5');
     await click('#collection-form [type=submit]');
@@ -233,7 +245,7 @@ async function main() {
     await waitFor('document.querySelector("#admin-dialog").open');
     await fill('#admin-form [name=title]', 'Mutirão administrativo');
     await fill('#admin-form [name=location]', 'Praia administrativa');
-    await fill('#admin-form [name=dateTime]', '2026-11-15T09:00:00');
+    await fill('#admin-form [name=dateTime]', '2026-10-15T09:00:00');
     assert.deepEqual(await evaluate('[...document.querySelector("#admin-form [name=status]").options].map(o => o.value)'), ['Agendado']);
     const saveAdmin = () => click('#admin-form [type=submit]');
     const savedAdmin = async () => {
@@ -288,7 +300,11 @@ async function main() {
     await fill('#admin-form [name=volunteerId]', String(ana.userId));
     await fill('#admin-form [name=eventId]', String(managedEvent.id));
     await saveAdmin();
-    await waitFor('document.querySelector("#admin-form-error").textContent.includes("maior que zero")');
+    assert.equal(await evaluate('document.querySelector("#admin-form [name=weightKg]").checkValidity()'), false);
+    await fill('#admin-form [name=weightKg]', '1.2345');
+    assert.equal(await evaluate('document.querySelector("#admin-form [name=weightKg]").checkValidity()'), false);
+    await fill('#admin-form [name=weightKg]', '100000.001');
+    assert.equal(await evaluate('document.querySelector("#admin-form [name=weightKg]").checkValidity()'), false);
     await fill('#admin-form [name=weightKg]', '4.5');
     await saveAdmin();
     await waitFor('document.querySelector("#admin-form-error").textContent.includes("não aceita") && !document.querySelector("#admin-form [type=submit]").disabled');
@@ -405,6 +421,28 @@ async function main() {
     await saveAdmin();
     await savedAdmin();
     assert.ok((await (await request('/catalog/materials')).json()).find(item => item.name === 'Vidro').aliases.includes('vidros'));
+    await click('[data-admin-view=quality]');
+    await adminReady();
+    assert.equal(await evaluate('document.querySelector("#admin-create").hidden'), true);
+    assert.equal((await (await request('/admin/data-quality')).json()).totalElements, 3);
+    await click('#admin-results button');
+    await waitFor('document.querySelector("#admin-dialog").open');
+    assert.equal(await evaluate('document.querySelector("#admin-form [name=weightKg]").value'), '');
+    await fill('#admin-form [name=beach]', 'Praia de catálogo');
+    await fill('#admin-form [name=materialType]', 'Vidro');
+    await fill('#admin-form [name=weightKg]', '2.500');
+    await saveAdmin();
+    await savedAdmin();
+    assert.equal(await evaluate('document.querySelector("#admin-results").textContent.includes("Nenhum registro para revisar")'), true);
+    const repairedLegacy = await (await request('/trashCollection/9001')).json();
+    assert.equal(repairedLegacy.id, 9001);
+    assert.equal(repairedLegacy.beachId, catalogBeach.id);
+    assert.equal(repairedLegacy.weightKg, 2.5);
+    assert.equal(repairedLegacy.volunteer, null);
+    await click('[data-admin-view=rounding]');
+    await adminReady();
+    assert.equal(await evaluate('document.querySelector("#admin-results").textContent.includes("Peso anterior: não informado")'), true);
+    assert.equal((await (await request('/admin/data-quality/rounding')).json()).content[0].roundedWeight, null);
     await click('#logout');
     await waitFor('document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").textContent === ""');
     await click('#login-open');
@@ -426,22 +464,26 @@ async function main() {
     await click('#admin-tab');
     assert.equal(await evaluate('document.querySelector("#admin-workspace").hidden'), true, 'Revealing a control must not grant administrative access');
     assert.deepEqual(browserErrors, [], 'No script exceptions or CSP violations');
-    console.log('PASS: volunteer regression flows; admin event CRUD/status, user searches, collection CRUD/transfer/unlink, all paginations, last-page deletion, validation/404/409, confirmation, totals, desktop/mobile, CSP, logout clearing, volunteer UI denial and direct API denial with real JWTs.');
+    console.log('PASS: quality/rounding review, weight limits and event beach/date controls; volunteer/admin regression flows, totals, conflicts, permissions, desktop/mobile and CSP.');
   } catch (error) {
     console.error(logs.slice(-3000));
     throw error;
   } finally {
+    // Gracefully close this CDP browser, including its renderer/GPU children, before deleting its profile.
+    if (socket?.readyState === WebSocket.OPEN && closeBrowser) await closeBrowser().catch(() => {});
     if (socket) socket.close();
     for (const child of children.reverse()) {
       if (child.exitCode !== null) continue;
-      child.kill();
+      if (process.platform === 'win32') {
+        spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+      } else child.kill();
       await Promise.race([new Promise(resolve => child.once('exit', resolve)), pause(5000)]);
     }
     // Only remove the exact temporary browser profile created by this invocation.
     const resolved = path.resolve(profile);
     assert.equal(path.dirname(resolved), temporaryRoot);
     assert.ok(path.basename(resolved).startsWith('beachcleanup-portal-'));
-    fs.rmSync(resolved, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    fs.rmSync(resolved, { recursive: true, force: true, maxRetries: 15, retryDelay: 200 });
   }
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

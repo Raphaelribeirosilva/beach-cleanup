@@ -5,6 +5,31 @@ const { createPortalApi } = require('../src/main/resources/static/portal-api.js'
 const response = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => body });
 const token = { accessToken: 'test-token', tokenType: 'Bearer', expiresIn: 1800, userId: 17, role: 'VOLUNTEER' };
 const sessionKey = 'beachcleanup.session.v1';
+test('collection forms enforce gram precision, mass limits and the Sao Paulo day boundary', () => {
+  const rules = createPortalApi(async () => response(200, {})).dataRules;
+  for (const weight of ['0.001', '100000', '1.2300', '.125']) assert.equal(rules.weightValid(weight), true, weight);
+  for (const weight of ['0', '-1', '0.0009', '100000.001', '1.2345', 'NaN', 'Infinity']) assert.equal(rules.weightValid(weight), false, weight);
+  const today = rules.today(new Date('2026-10-18T01:30:00Z'));
+  assert.equal(today, '2026-10-17');
+  assert.equal(rules.dateValid('1900-01-01', today), true);
+  assert.equal(rules.dateValid(today, today), true);
+  assert.equal(rules.dateValid('2026-10-18', today), false);
+  assert.equal(rules.dateValid('1899-12-31', today), false);
+});
+
+test('quality and rounding review use authenticated admin requests and pagination', async () => {
+  const calls = [];
+  const api = createPortalApi(async (path, options) => {
+    calls.push({ path, options });
+    return path === '/auth/login' ? response(200, { ...token, role: 'ADMIN' }) : response(200, {});
+  });
+  await api.login({});
+  await api.admin.quality({ page: 2 });
+  await api.admin.rounding({ page: 1 });
+  assert.equal(calls[1].path, '/admin/data-quality?size=6&page=2');
+  assert.equal(calls[2].path, '/admin/data-quality/rounding?size=6&page=1');
+  for (const call of calls.slice(1)) assert.equal(call.options.headers.Authorization, 'Bearer test-token');
+});
 function memoryStorage() {
   const data = new Map();
   return {
@@ -194,6 +219,7 @@ test('administrative client rejects anonymous and volunteer operations without s
   for (const logged of [false, true]) {
     if (logged) await api.login({});
     for (const operation of [() => api.admin.users({}), () => api.admin.events({}),
+      () => api.admin.quality({}), () => api.admin.rounding({}),
       () => api.admin.collections({}), () => api.admin.event(2), () => api.admin.collection(3),
       () => api.admin.saveEvent(null, {}), () => api.admin.saveEvent(2, {}), () => api.admin.deleteEvent(2),
       () => api.admin.saveCollection(null, {}), () => api.admin.saveCollection(3, {}), () => api.admin.deleteCollection(3)]) {

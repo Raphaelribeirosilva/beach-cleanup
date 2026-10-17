@@ -23,12 +23,13 @@ O banco deve existir antes da inicialização. O usuário precisa de permissões
 | V4 | `row_version` nos eventos, inicialmente zero |
 | V5 | Catálogos, aliases, referências e índices em eventos/coletas |
 | V6 | Migração Java: associa textos antigos a praias/materiais com IDs estáveis |
+| V7 | Migração Java: `weight_kg` para `DECIMAL(38,3)`, original/diferença em auditoria e incremento de versão se o peso mudar |
 
-Os scripts SQL ficam em `src/main/resources/db/migration/mysql`; V6 fica em `src/main/java/db/migration/mysql` e é descoberta no JAR compilado. A coluna legada do total é preservada, mas o total da API continua derivado das coletas. Usuários já possuem `row_version` em V1. O campo público `version` das edições corresponde à versão persistida; não é a versão das credenciais.
+Os scripts SQL ficam em `src/main/resources/db/migration/mysql`; V6/V7 ficam em `src/main/java/db/migration/mysql` e são descobertas no JAR compilado. A coluna legada do total é preservada, mas o total da API continua derivado das coletas com aritmética decimal. Usuários já possuem `row_version` em V1. O campo público `version` das edições corresponde à versão persistida; não é a versão das credenciais.
 
 Flyway aplica versões pendentes na inicialização e valida os checksums. Hibernate usa `ddl-auto=validate`, sem recriar ou atualizar o esquema por conta própria. Migração automática de banco não vazio sem histórico (`baseline-on-migrate`) e limpeza (`clean`) estão desabilitadas.
 
-V1–V6 inicializam **um banco vazio** e atualizam bancos com histórico Flyway compatível, aplicando apenas versões pendentes. A atualização de bases V2 e V4 com dados é coberta pela suíte MySQL. Para banco legado sem histórico Flyway, faça uma migração específica dos nomes antigos, dados e restrições antes de adotá-las. Não edite migrações já aplicadas; crie uma nova versão para cada alteração.
+V1–V7 inicializam **um banco vazio** e atualizam bancos com histórico Flyway compatível, aplicando apenas versões pendentes. A atualização de bases V2, V4 e V6 com dados é coberta pela suíte MySQL. Para banco legado sem histórico Flyway, faça uma migração específica dos nomes antigos, dados e restrições antes de adotá-las. Não edite migrações já aplicadas; crie uma nova versão para cada alteração. Confira o [arredondamento e a revisão da V7](26_QUALIDADE_DOS_DADOS.md), incluindo a necessidade de backup e ensaio em cópia separada.
 
 V6 preserva os textos originais, pesos, datas, contas, hashes, versões, inscrições e vínculos. Agrupa apenas variações de caixa, acentos e espaços; `Morro` e `Praia do Morro` continuam distintos até unificação administrativa. Campos antigos nulos/vazios continuam sem referência e exigem revisão. Um banco novo não recebe catálogos nem contas demonstrativas. Veja o [procedimento reproduzível de instalação/atualização e os resultados em MySQL real](25_CONSOLIDACAO_DA_BASE.md).
 

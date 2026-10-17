@@ -40,14 +40,14 @@ class BeachcleanupApplicationTests {
             assertEquals(0, account.getCredentialVersion());
 
             if (account.getEmail().equals("admin-original@example.com")) {
-                assertEquals(15.5, account.getTotalCollectedKg());
+                assertEquals(15.5, account.getTotalCollectedKg().doubleValue());
                 assertEquals(1, account.getEvents().size());
                 assertTrue(account.getEvents().iterator().next().getUsers().contains(account));
                 assertEquals(1, account.getCollection().size());
-                assertEquals(15.5, account.getCollection().getFirst().getWeightKg());
+                assertEquals(15.5, account.getCollection().getFirst().getWeightKg().doubleValue());
                 assertEquals(account, account.getCollection().getFirst().getVolunteer());
             } else {
-                assertEquals(0.0, account.getTotalCollectedKg());
+                assertEquals(0.0, account.getTotalCollectedKg().doubleValue());
                 assertTrue(account.getEvents().isEmpty());
                 assertTrue(account.getCollection().isEmpty());
             }

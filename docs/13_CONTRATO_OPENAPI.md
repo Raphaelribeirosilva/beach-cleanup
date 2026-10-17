@@ -1,6 +1,6 @@
 # Etapa 13 — Contrato OpenAPI
 
-O arquivo [openapi.json](openapi.json) descreve as 27 operações atuais em 16 caminhos: autenticação, usuários, eventos, inscrições, coletas e catálogos, incluindo as três buscas paginadas. Usa [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3.html), com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões descritas por operação.
+O arquivo [openapi.json](openapi.json) descreve as 29 operações atuais em 18 caminhos: autenticação, usuários, eventos, inscrições, coletas, catálogos e conferência de qualidade/arredondamentos, incluindo as três buscas paginadas. Usa [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3.html), com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões descritas por operação.
 
 ## Como usar
 
@@ -22,12 +22,14 @@ O arquivo [openapi.json](openapi.json) descreve as 27 operações atuais em 16 c
 - Inscrições são idempotentes. Cancelar inscrição preserva coletas e é permitido em qualquer estado do evento. Inscrição não é requisito para registrar coleta.
 - `totalCollectedKg` vem da soma das coletas existentes, inclusive nas respostas paginadas. A resposta de usuário não inclui senha, perfil ou versão interna das credenciais; o perfil aparece na resposta de login.
 - Datas de coleta são ISO (`YYYY-MM-DD`). Data/hora de evento é local, sem offset; não usa o formato OpenAPI `date-time`, que pressupõe semântica RFC 3339.
+- Pesos de entrada: 0,001 a 100.000 kg, resolução 0,001 kg; excesso de precisão retorna 400. Coletas não podem ter data futura em São Paulo e devem coincidir com praia/dia do evento vinculado. Datas históricas são permitidas a partir de 1900. Veja [qualidade dos dados](26_QUALIDADE_DOS_DADOS.md).
+- `/admin/data-quality` e `/admin/data-quality/rounding` são GETs paginados exclusivos do administrador. A auditoria histórica envia pesos/diferenças em strings decimais para preservar precisão; as respostas correntes de coleta/total continuam usando números JSON.
 - Senhas possuem limite de 72 **bytes UTF-8**, não de 72 caracteres. O limite e os retornos 400/401 estão descritos nos campos correspondentes.
 - Erros usam `StandardError`; falhas de validação por campo acrescentam `errors` com `fieldName` e `message`. JSON/tipos inválidos podem retornar 400 sem essa lista.
 
 ## MySQL e dados existentes
 
-A base atual possui V1–V6. A instalação e a atualização de bancos com histórico Flyway anterior aos catálogos estão documentadas na [consolidação](25_CONSOLIDACAO_DA_BASE.md), com resultados em MySQL descartável. O restante desta seção registra o contexto histórico da entrega inicial do OpenAPI.
+A base atual possui V1–V7. A instalação e a atualização de bancos com histórico Flyway anterior aos catálogos estão documentadas na [consolidação](25_CONSOLIDACAO_DA_BASE.md); a conversão decimal e conferência dos legados estão na [etapa 26](26_QUALIDADE_DOS_DADOS.md). O restante desta seção registra o contexto histórico da entrega inicial do OpenAPI.
 
 O ambiente persistente permanece o [MySQL local validado pelo usuário](12_MYSQL_LOCAL_VALIDACAO_MANUAL.md). Nenhuma mudança de esquema é necessária nesta etapa: não há migração nova nem alteração em V1/V2, configuração do banco ou dados.
 

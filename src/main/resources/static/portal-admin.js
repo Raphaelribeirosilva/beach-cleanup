@@ -13,6 +13,7 @@
     const state = { active: false, view: 'events', page: 0, pages: 0, generation: 0, loading: false, editing: null,
       catalogs: { beaches: [], materials: [] } };
     const isCatalog = view => ['beaches', 'materials'].includes(view);
+    const isReview = view => ['quality', 'rounding'].includes(view);
     const choices = kind => [{ id: '', name: 'Selecione' }, ...state.catalogs[kind]];
     async function refreshCatalogs() {
       const [beaches, materials] = await Promise.all([api.catalog('beaches'), api.catalog('materials')]);
@@ -46,8 +47,8 @@
     function filters() {
       const form = $('admin-filters');
       form.replaceChildren();
-      form.hidden = isCatalog(state.view);
-      if (isCatalog(state.view)) return;
+      form.hidden = isCatalog(state.view) || isReview(state.view);
+      if (form.hidden) return;
       if (state.view === 'events') {
         field(form, 'location', 'Praia', { choices: choices('beaches') });
         field(form, 'status', 'Status', { choices: ['', ...statuses] });
@@ -73,10 +74,11 @@
         if (active) button.setAttribute('aria-current', 'page');
         else button.removeAttribute('aria-current');
       });
-      $('admin-title').textContent = state.view === 'users' ? 'Consultar usuários'
+      $('admin-title').textContent = state.view === 'quality' ? 'Pendências de qualidade'
+        : state.view === 'rounding' ? 'Conversão dos pesos antigos' : state.view === 'users' ? 'Consultar usuários'
         : state.view === 'events' ? 'Gerenciar eventos' : state.view === 'beaches' ? 'Gerenciar praias'
           : state.view === 'materials' ? 'Gerenciar materiais' : 'Gerenciar coletas';
-      $('admin-create').hidden = state.view === 'users';
+      $('admin-create').hidden = state.view === 'users' || isReview(state.view);
       $('admin-create').textContent = isCatalog(state.view) ? '+ Cadastrar item'
         : state.view === 'events' ? '+ Criar evento' : '+ Registrar coleta';
       filters();
@@ -119,8 +121,8 @@
           return load();
         }
         state.pages = result.totalPages;
-        if (!result.content.length) empty('Nenhum registro encontrado. Revise os filtros ou cadastre um registro.');
-        else $('admin-results').replaceChildren(...result.content.map(record => card(record, view)));
+        if (!result.content.length) empty(isReview(view) ? 'Nenhum registro para revisar nesta lista.' : 'Nenhum registro encontrado. Revise os filtros ou cadastre um registro.');
+        else $('admin-results').replaceChildren(...result.content.map(record => isReview(view) ? reviewCard(record, view) : card(record, view)));
         $('admin-pagination').hidden = state.pages < 2;
         $('admin-page-info').textContent = `Página ${state.page + 1} de ${state.pages} · ${result.totalElements} registros`;
         $('admin-previous').disabled = state.page === 0;
@@ -150,6 +152,21 @@
       body.append(actions);
       card.append(body);
       return card;
+    }
+    function reviewCard(record, view) {
+      const result = node('article', 'card');
+      const body = node('div', 'card-body');
+      if (view === 'quality') {
+        body.append(node('h3', '', `${record.resource === 'event' ? 'Evento' : 'Coleta'} #${record.id}`),
+          node('p', '', record.message), action('Revisar registro', () => edit(record.resource === 'event' ? 'events' : 'collections', record.id)));
+      } else {
+        body.append(node('h3', '', `Coleta #${record.collectionId}`),
+          node('p', '', `Peso anterior: ${record.originalWeight ?? 'não informado'} kg`),
+          node('p', '', `Peso convertido: ${record.roundedWeight ?? 'não informado'} kg · Diferença: ${record.deltaWeight ?? 'não calculável'} kg`),
+          node('p', 'hint', 'Registro histórico da conversão. Edições posteriores não alteram esta conferência.'));
+      }
+      result.append(body);
+      return result;
     }
     function card(record, view) {
       const card = node('article', 'card');
@@ -184,6 +201,7 @@
         if (!record) { message('O item foi unificado. Recarregue a lista.', true); return; }
         state.catalogs = catalogs;
         state.editing = { view, id, version: record.version, merge, targets: isCatalog(view) ? catalogs[view] : [] };
+        const editingContext = state.editing;
         const form = $('admin-form');
         form.replaceChildren();
         $('admin-editor-title').textContent = `${merge ? 'Unificar' : id == null ? 'Criar' : 'Editar'} ${isCatalog(view) ? 'item do catálogo' : view === 'events' ? 'evento' : 'coleta'}${id == null ? '' : ` #${id}`}`;
@@ -200,17 +218,27 @@
         } else if (view === 'events') {
           field(form, 'title', 'Título', { value: record.title || '', required: true, maxlength: 255 });
           field(form, 'location', 'Praia', { value: record.beachId ?? '', required: true, choices: choices('beaches') });
-          field(form, 'dateTime', 'Data e hora', { type: 'datetime-local', value: record.dateTime || '', required: true, step: 1 });
+          field(form, 'dateTime', 'Data e hora', { type: 'datetime-local', value: record.dateTime || '', required: true, step: 1, min: '1900-01-01T00:00', max: '9999-12-31T23:59:59' });
           field(form, 'status', 'Status', { value: record.status || 'Agendado', choices: id == null ? ['Agendado'] : transitions[record.status] });
-          form.append(node('p', 'hint', 'Novos eventos começam como Agendado. As opções seguem as transições permitidas pela API.'));
+          form.append(node('p', 'hint', 'Novos eventos começam como Agendado. Datas passadas são permitidas para histórico. Praia/data não podem conflitar com coletas vinculadas.'));
         } else {
           field(form, 'beach', 'Praia', { value: record.beachId ?? '', required: true, choices: choices('beaches') });
           field(form, 'materialType', 'Material', { value: record.materialId ?? '', required: true, choices: choices('materials') });
-          field(form, 'weightKg', 'Peso (kg)', { type: 'number', value: record.weightKg ?? '', required: true, min: 0, step: 'any', inputmode: 'decimal' });
-          field(form, 'registrationDate', 'Data da coleta', { type: 'date', value: record.registrationDate || '', required: true });
+          field(form, 'weightKg', 'Peso (kg)', { type: 'number', value: record.weightKg ?? '', required: true, min: '0.001', max: '100000', step: '0.001', inputmode: 'decimal' });
+          field(form, 'registrationDate', 'Data da coleta', { type: 'date', value: record.registrationDate || '', required: true, min: '1900-01-01', max: api.dataRules.today() });
           field(form, 'volunteerId', 'ID do proprietário (opcional)', { type: 'number', value: record.volunteer?.id ?? '', min: 1, step: 1 });
-          field(form, 'eventId', 'ID do evento (opcional)', { type: 'number', value: record.event?.id ?? '', min: 1, step: 1 });
-          form.append(node('p', 'hint', 'Consulte os IDs nas abas Usuários e Eventos. Deixe vazio para remover o vínculo. Novos vínculos exigem evento Agendado ou Em andamento.'));
+          const eventInput = field(form, 'eventId', 'ID do evento (opcional)', { type: 'number', value: record.event?.id ?? '', min: 1, step: 1 });
+          eventInput.addEventListener('change', async () => {
+            const eventId = eventInput.value;
+            if (!eventId) return;
+            try {
+              const linked = await api.admin.event(Number(eventId));
+              if (!current(session) || state.editing !== editingContext || eventInput.value !== eventId || !form.isConnected) return;
+              form.elements.beach.value = linked.beachId ?? '';
+              form.elements.registrationDate.value = linked.dateTime?.slice(0, 10) || '';
+            } catch (error) { if (current(session)) message(error.message, true); }
+          });
+          form.append(node('p', 'hint', 'Peso: 0,001 a 100.000 kg, até 3 casas decimais. Data: de 1900 a hoje em São Paulo. Ao escolher um evento, confira sua praia e data. Para corrigir legado, selecione referências válidas ou remova o vínculo.'));
         }
         const error = node('p', 'error');
         error.id = 'admin-form-error';
@@ -272,6 +300,9 @@
         showError('Preencha os campos obrigatórios com texto.'); return;
       }
       if (editing.view === 'collections') {
+        if (!api.dataRules.weightValid(input.weightKg) || !api.dataRules.dateValid(input.registrationDate, api.dataRules.today())) {
+          showError('Informe peso de 0,001 a 100.000 kg com até 3 casas e data entre 1900 e hoje (São Paulo).'); return;
+        }
         input.weightKg = Number(input.weightKg);
         if (!Number.isFinite(input.weightKg) || input.weightKg <= 0) { showError('Informe um peso finito maior que zero.'); return; }
         for (const [key, target] of [['volunteerId', 'volunteer'], ['eventId', 'event']]) {
@@ -287,7 +318,16 @@
           if (isCatalog(editing.view)) {
             if (editing.merge) await api.admin.mergeCatalog(editing.view, editing.id, input);
             else await api.admin.saveCatalog(editing.view, editing.id, input);
-          } else await api.admin[editing.view === 'events' ? 'saveEvent' : 'saveCollection'](editing.id, input);
+          } else {
+            if (editing.view === 'collections' && input.event) {
+              const linked = await api.admin.event(input.event.id);
+              if (!current(session) || state.editing !== editing) return;
+              if (input.beachId !== linked.beachId || input.registrationDate !== linked.dateTime?.slice(0, 10)) {
+                showError('A coleta deve usar a mesma praia e data do evento. Revise os campos ou remova o vínculo.'); return;
+              }
+            }
+            await api.admin[editing.view === 'events' ? 'saveEvent' : 'saveCollection'](editing.id, input);
+          }
           if (!current(session)) return;
           if (state.editing === editing) $('admin-dialog').close();
           const refreshed = await load();

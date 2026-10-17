@@ -4,7 +4,7 @@ import java.time.LocalDate;
 
 import com.raphael.beachcleanup.entities.TrashCollection;
 
-public record TrashCollectionDTO(Long id, String beach, String materialType, Double weightKg,
+public record TrashCollectionDTO(Long id, String beach, String materialType, java.math.BigDecimal weightKg,
         LocalDate registrationDate, UserDTO volunteer, CleanupEventDTO event, Long version, Long beachId, Long materialId) {
 
     public TrashCollectionDTO(TrashCollection entity, UserDTO volunteer) {

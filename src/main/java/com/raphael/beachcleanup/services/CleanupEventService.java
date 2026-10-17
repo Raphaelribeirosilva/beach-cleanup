@@ -24,6 +24,9 @@ public class CleanupEventService {
     @Autowired
     private CatalogService catalogs;
 
+    @Autowired
+    private com.raphael.beachcleanup.repositories.TrashCollectionRepository collections;
+
     @Transactional(readOnly = true)
     public List<CleanupEvent> findAll() {
         return repository.findAll();
@@ -36,6 +39,7 @@ public class CleanupEventService {
     }
 
     public CleanupEvent insert(CleanupEvent obj) {
+        validateDate(obj);
         resolveCatalogs(obj);
         EventStatus status = EventStatus.parse(obj.getStatus());
         if (status != EventStatus.SCHEDULED) {
@@ -53,9 +57,20 @@ public class CleanupEventService {
     }
 
     public CleanupEvent update(Long id, CleanupEvent obj, Long version) {
+        validateDate(obj);
         resolveCatalogs(obj);
         CleanupEvent entity = states.lockedEvent(id);
         FormVersion.requireCurrent(version, entity.getRowVersion());
+        boolean changed = entity.getBeachReference() == null
+            || !entity.getBeachReference().getId().equals(obj.getBeachReference().getId())
+            || entity.getDateTime() == null || !entity.getDateTime().toLocalDate().equals(obj.getDateTime().toLocalDate());
+        // Unknown legacy fields stay pending; they must not prevent identifying the event first.
+        // Only contradicting known fields block the change. Never fill the collections implicitly.
+        if (changed && collections.eventLinksForUpdate(id).stream().anyMatch(link ->
+                (link.getBeachId() != null && !obj.getBeachReference().getId().equals(link.getBeachId()))
+                || (link.getRegistrationDate() != null && !obj.getDateTime().toLocalDate().equals(link.getRegistrationDate())))) {
+            throw new EventStateConflictException("A nova praia/data conflita com coletas vinculadas. Corrija ou desvincule essas coletas antes de alterar o evento.");
+        }
         EventStatus next = EventStatus.parse(obj.getStatus());
         if (!EventStatus.parse(entity.getStatus()).canTransitionTo(next)) {
             throw new EventStateConflictException("Transição de status não permitida para o evento.");
@@ -69,6 +84,13 @@ public class CleanupEventService {
         var beach = catalogs.resolve("beaches", obj.getBeachReference(), obj.getLocation(), "location");
         obj.setBeachReference(beach);
         obj.setLocation(beach.getName());
+    }
+
+    private void validateDate(CleanupEvent obj) {
+        if (obj.getDateTime() == null || obj.getDateTime().toLocalDate().isBefore(CollectionDataRules.FIRST_DATE)
+                || obj.getDateTime().getYear() > 9999) {
+            throw new com.raphael.beachcleanup.exceptions.FieldValidationException("dateTime", "Informe data/hora entre 01/01/1900 e 31/12/9999.");
+        }
     }
 
     private void updateData(CleanupEvent entity, CleanupEvent obj) {

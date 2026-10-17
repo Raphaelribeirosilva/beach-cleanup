@@ -32,6 +32,9 @@ public class TrashCollectionService {
     @Autowired
     private CatalogService catalogs;
 
+    @Autowired
+    private CollectionDataRules dataRules;
+
     @Transactional(readOnly = true)
     public List<TrashCollection> findAll() {
         return repository.findAll();
@@ -47,6 +50,7 @@ public class TrashCollectionService {
         resolveCatalogs(obj);
         obj.setId(null);
         resolveReferences(obj, null);
+        dataRules.validate(obj);
         return repository.save(obj);
     }
 
@@ -64,6 +68,7 @@ public class TrashCollectionService {
         access.bindCollectionOwner(obj);
         resolveCatalogs(obj);
         resolveReferences(obj, entity.getEvent() == null ? null : entity.getEvent().getId());
+        dataRules.validate(obj);
         updateData(entity, obj);
         // Flush before returning so a stale version becomes HTTP 409, also when joining a transaction.
         return repository.saveAndFlush(entity);

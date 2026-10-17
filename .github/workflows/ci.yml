@@ -40,8 +40,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Verificar OpenAPI
-        run: python tools/validate_openapi.py
+      - name: Verificar OpenAPI e conferência decimal
+        run: |
+          python tools/validate_openapi.py
+          python -m unittest discover -s tools -p 'test_*.py'
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

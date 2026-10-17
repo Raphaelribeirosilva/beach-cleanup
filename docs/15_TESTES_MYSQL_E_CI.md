@@ -12,15 +12,17 @@ Verificar o comportamento no banco utilizado pelo projeto e automatizar testes, 
 
 Cada teste cria um banco com nome aleatório `beachcleanup_ci_<UUID>` e remove somente esse banco ao terminar. A conexão exige variáveis específicas de teste, servidor em loopback, porta explícita e URL sem nome de banco. Não lê `DB_URL`, `DB_USER`, `DB_PASSWORD` ou `JWT_SECRET` do ambiente de uso da aplicação. A ausência de configuração falha a execução, em vez de ignorar silenciosamente os testes.
 
-Os sete casos atuais verificam:
+Os nove casos atuais verificam:
 
-1. Aplicação de V1–V6, validação do esquema pelo Hibernate, ausência de contas demonstrativas, autenticação e preservação de conta, evento, inscrição, coleta e total após reinício da aplicação. Conferem também unicidade de e-mail, duplicidade de inscrição, chave estrangeira inválida e probes HTTP com o perfil `prod`.
-2. Atualização de um banco com V1/V2 e registros existentes para V6, preservando IDs, vínculos, data, peso, hash de senha e versão de credenciais; as novas versões da coleta e do evento iniciam em zero.
+1. Aplicação de V1–V7, validação do esquema pelo Hibernate, ausência de contas demonstrativas, autenticação e preservação de conta, evento, inscrição, coleta e total após reinício da aplicação. Conferem também unicidade de e-mail, duplicidade de inscrição, chave estrangeira inválida e probes HTTP com o perfil `prod`.
+2. Atualização de um banco com V1/V2 e registros existentes para V7, preservando IDs, vínculos, data, peso, hash de senha e versão de credenciais; as novas versões da coleta e do evento iniciam em zero quando o peso não exige arredondamento.
 3. Duas transações que carregam a mesma coleta: somente uma edição conclui, e a outra recebe conflito otimista. O peso e o total correspondem à edição vencedora.
 4. Transferência por administrador enquanto o antigo proprietário tem uma coleta carregada: atualização e exclusão desatualizadas falham, preservando a transferência; uma nova operação do antigo proprietário é negada.
-5. Backup/restauração em outro banco, comparando todas as colunas de usuários, eventos, inscrições, coletas, catálogos, aliases e histórico Flyway; login e reinício após restaurar.
-6. Atualização V2 → V6 com usuários ADMIN/VOLUNTEER, BCrypt válido, versões de credenciais, três eventos, três inscrições e cinco coletas, inclusive sem proprietário/evento e com textos incompletos.
-7. Atualização V4 → V6 com os mesmos dados e versões não zero em eventos/coletas. Os casos 6 e 7 comparam **todas as colunas antigas**, conferem login, IDs de catálogo, normalização de acentos/caixa/espaços, separação de nomes semanticamente distintos, totais e reinício sem reaplicar migrações. Esses dois casos não chamam o seed auxiliar de catálogos dos demais testes.
+5. Backup/restauração em outro banco, comparando todas as colunas de usuários, eventos, inscrições, coletas, catálogos, aliases, auditoria V7 e histórico Flyway; login e reinício após restaurar.
+6. Atualização V2 → V7 com usuários ADMIN/VOLUNTEER, BCrypt válido, versões de credenciais, três eventos, três inscrições e cinco coletas, inclusive sem proprietário/evento e com textos incompletos.
+7. Atualização V4 → V7 com os mesmos dados e versões não zero em eventos/coletas. Os casos 6 e 7 comparam **todas as colunas antigas**, conferem login, IDs de catálogo, normalização de acentos/caixa/espaços, separação de nomes semanticamente distintos, totais e reinício sem reaplicar migrações. A comparação numérica desconsidera apenas zeros de escala adicionais da coluna decimal. Esses dois casos não chamam o seed auxiliar de catálogos dos demais testes.
+8. Conversão V6 → V7 com pesos que exigem arredondamento, nulos, negativos, pequenos demais e acima do limite novo. Confere os valores originais, convertidos, diferenças exatas, totais, versões, login e relatório de pendências. Valores fora da faixa nova permanecem para revisão.
+9. Uma transação de edição de evento abre um snapshot antes da inserção de uma coleta por outra transação. A leitura bloqueante deve enxergar a nova coleta e impedir mudar o evento para outra praia, sem deixar dados incompatíveis. Veja [qualidade dos dados](26_QUALIDADE_DOS_DADOS.md).
 
 As transações concorrentes usam `CountDownLatch` com limites de tempo. A aplicação inicia com o perfil `prod`, que inclui `mysql`, driver MySQL e configurações reais de Flyway/Hibernate, incluindo `open-in-view=false`. A chave JWT utilizada é exclusiva dos testes.
 
@@ -38,7 +40,7 @@ O caminho padrão dos binários é `C:\Program Files\MySQL\MySQL Server 8.0\bin`
 ./tools/run_mysql_tests.ps1 -MySqlBin 'C:\caminho\MySQL\bin' -MavenCommand 'C:\caminho\mvn.cmd'
 ```
 
-`-MavenArguments` aceita argumentos adicionais, como o caminho do cache Maven. O script executa `mvn -B -Pmysql-it verify` e `python tools/validate_openapi.py`. Exige JDK 25 ou superior, Python 3 e MySQL 8.0; a execução rejeita MariaDB. Na primeira execução, o Maven precisa de rede para baixar sua distribuição ou dependências ausentes.
+`-MavenArguments` aceita argumentos adicionais, como o caminho do cache Maven. O script executa `mvn -B -Pmysql-it verify`, `python tools/validate_openapi.py` e `python -m unittest discover -s tools -p 'test_*.py'` para conferir os cálculos da auditoria decimal. Exige JDK 25 ou superior, Python 3 e MySQL 8.0; a execução rejeita MariaDB. Na primeira execução, o Maven precisa de rede para baixar sua distribuição ou dependências ausentes. Os resultados atuais estão na [etapa 26](26_QUALIDADE_DOS_DADOS.md).
 
 Ao terminar, inclusive em caso de falha, o script restaura as variáveis de ambiente, encerra somente o processo MySQL que iniciou e remove o diretório temporário após conferir seu caminho absoluto e prefixo gerado. Guarda logs em `target/mysql-test-logs/`, que não é versionado. A conta/senha literal de teste pertence apenas à instância descartável.
 

@@ -213,7 +213,7 @@ class EventRegistrationIntegrationTests {
     }
 
     private CleanupEvent event() {
-        return events.save(new CleanupEvent(null, "Mutirao", "Praia A",
-            LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado"));
+        return events.save(CatalogTestData.event(context, new CleanupEvent(null, "Mutirao", "Praia A",
+            LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado")));
     }
 }

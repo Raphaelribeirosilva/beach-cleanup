@@ -4,7 +4,7 @@ API para organizar mutirões de limpeza de praias, cadastrar usuários, gerencia
 
 O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados, catálogos de praias/materiais e buscas paginadas. O portal web do voluntário permite cadastro, login, consulta de eventos, inscrições e registro/acompanhamento de coletas. A área administrativa permite gerenciar eventos, coletas e catálogos e consultar usuários. Os relatórios por evento, praia, material e período são etapas futuras.
 
-A [consolidação da versão atual](docs/25_CONSOLIDACAO_DA_BASE.md) reúne instalação, atualização de bancos anteriores aos catálogos e resultados da validação em JDK 25/MySQL real. Documentos de etapas anteriores registram resultados históricos; para o contrato atual, consulte este README, o [OpenAPI](docs/openapi.json) e as etapas [23](docs/23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md) e [24](docs/24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md).
+A [consolidação](docs/25_CONSOLIDACAO_DA_BASE.md) reúne instalação e atualização anteriores aos catálogos. A [etapa de qualidade dos dados](docs/26_QUALIDADE_DOS_DADOS.md) acrescenta pesos decimais, V7, regras de datas/praias e revisão de legados. Documentos de etapas anteriores registram resultados históricos; para o contrato atual, consulte este README e o [OpenAPI](docs/openapi.json).
 
 ## Requisitos
 
@@ -65,7 +65,7 @@ java -jar target/beachcleanup-0.0.1-SNAPSHOT.jar --spring.profiles.active=mysql
 
 O perfil MySQL usa Flyway, `ddl-auto=validate`, `open-in-view=false` e desabilita console H2 e logs SQL. Não carrega contas de exemplo. O cadastro público cria contas `VOLUNTEER`; a definição do primeiro administrador é uma operação controlada no banco, descrita na [etapa 10](docs/10_PERSISTENCIA_E_MIGRACOES.md).
 
-As migrações atuais são V1 (esquema), V2 (índices), V3 (versão das coletas), V4 (versão dos eventos), V5 (tabelas e referências dos catálogos) e V6 (associação dos textos antigos aos catálogos). V6 é uma migração Java incluída no JAR. Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica. Siga o [procedimento de instalação e atualização](docs/25_CONSOLIDACAO_DA_BASE.md) para conferir histórico, backup e dados após a atualização.
+As migrações atuais são V1 (esquema), V2 (índices), V3 (versão das coletas), V4 (versão dos eventos), V5 (tabelas e referências dos catálogos), V6 (associação dos textos antigos aos catálogos) e V7 (pesos `DECIMAL(38,3)` e auditoria dos arredondamentos). V6 e V7 são migrações Java incluídas no JAR. Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica. Siga o [procedimento de instalação e atualização](docs/25_CONSOLIDACAO_DA_BASE.md) e a [conferência da V7](docs/26_QUALIDADE_DOS_DADOS.md) para conferir histórico, backup e dados após a atualização.
 
 ## Preparação para implantação
 
@@ -114,8 +114,12 @@ O token dura 30 minutos (`expiresIn: 1800`). Use `Authorization: Bearer <accessT
 | `/catalog/beaches` e `/catalog/materials` | GET público; POST somente administrador |
 | `/catalog/{kind}/{id}` | PUT somente administrador, com `version`; `kind` aceita `beaches` ou `materials` |
 | `/catalog/{kind}/{id}/merge` | POST somente administrador; recebe `targetId`, `version` da origem e `targetVersion` do destino |
+| `/admin/data-quality` | GET somente administrador; pendências de praia/material, peso, data e compatibilidade com evento, paginadas |
+| `/admin/data-quality/rounding` | GET somente administrador; snapshot paginado dos pesos convertidos na V7, originais e diferenças exatas |
 
 Novos eventos começam como `Agendado`. Eventos `Agendado` e `Em andamento` aceitam novas inscrições e vínculos de coletas. Inscrição não é requisito para coleta, e uma coleta pode existir sem evento. Veja a matriz de transições na [etapa 9](docs/09_STATUS_DOS_EVENTOS.md).
+
+Pesos novos devem estar entre **0,001 e 100.000 kg**, com até **3 casas decimais**. O backend usa `BigDecimal` e somas decimais exatas. Entradas com precisão excedente retornam 400; somente a migração dos dados antigos usa arredondamento `HALF_UP`, registrando original e diferença. A data da coleta deve estar entre 01/01/1900 e hoje em São Paulo. Com evento, **praia e dia da coleta devem coincidir com os do evento**; mudar a praia/dia do evento conflitando com coletas retorna 409. Datas passadas de eventos são permitidas para histórico. As abas administrativas **Qualidade dos dados** e **Conversão de pesos** permitem revisar pendências e conferir arredondamentos; a [etapa 26](docs/26_QUALIDADE_DOS_DADOS.md) explica as exceções e o procedimento de revisão.
 
 As buscas usam páginas a partir de zero, tamanho padrão 20 e limite 100, com filtros e ordenação. Prefira essas rotas às listagens originais, que retornam arrays completos. Veja [exemplos de busca](docs/11_EXEMPLOS_DE_BUSCA.md).
 
@@ -145,10 +149,11 @@ PUT substitui os campos de entrada; omitir `event` remove o vínculo e administr
 ```powershell
 .\mvnw.cmd -B test
 python tools/validate_openapi.py
+python -m unittest discover -s tools -p 'test_*.py'
 node --test tools/portal-api.test.cjs
 ```
 
-A suíte padrão usa H2 e não exige MySQL. Os testes do cliente do portal usam Node.js 24 ou superior, sem pacotes npm; Node não é necessário para executar a aplicação. O contrato [OpenAPI](docs/openapi.json) pode ser importado em ferramentas de API; descreve 16 caminhos e 27 operações. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
+A suíte padrão usa H2 e não exige MySQL. Os testes do cliente do portal usam Node.js 24 ou superior, sem pacotes npm; Node não é necessário para executar a aplicação. O contrato [OpenAPI](docs/openapi.json) pode ser importado em ferramentas de API; descreve 18 caminhos e 29 operações. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
 
 Para executar a suíte completa em uma instância MySQL temporária no Windows:
 
@@ -158,7 +163,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/run_mysql_tests.ps
 
 O script exige os binários MySQL 8.0 e executa `verify` com o perfil Maven `mysql-it`, usando diretório/porta próprios e removendo a instância ao terminar. Esse perfil Maven seleciona testes; ele é distinto do perfil Spring `mysql`, que configura a aplicação. Variáveis de teste e alternativas de execução estão na [etapa 15](docs/15_TESTES_MYSQL_E_CI.md).
 
-Os resultados da base atual, incluindo instalação V1–V6 e atualização de bancos V2/V4 com dados anteriores aos catálogos em MySQL real, estão no [registro da consolidação](docs/25_CONSOLIDACAO_DA_BASE.md). O [workflow CI](.github/workflows/ci.yml) usa JDK 25 e executa OpenAPI, cliente JavaScript, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado remoto deve ser consultado no GitHub Actions para o SHA enviado.
+Os resultados da revisão de qualidade, instalação V1–V7, atualização de bancos anteriores e conversão dos pesos em MySQL real estão na [etapa 26](docs/26_QUALIDADE_DOS_DADOS.md). O [workflow CI](.github/workflows/ci.yml) usa JDK 25 e executa OpenAPI, conferência decimal em Python, cliente JavaScript, testes H2/MySQL e empacotamento em push para `main`, pull requests e acionamento manual. Os relatórios são guardados mesmo em caso de falha; o resultado remoto deve ser consultado no GitHub Actions para o SHA enviado.
 
 ## Documentação atual e próximos passos
 
@@ -180,6 +185,7 @@ Os resultados da base atual, incluindo instalação V1–V6 e atualização de b
 | Proteção contra formulários desatualizados | [Etapa 23](docs/23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md) |
 | Catálogos, aliases e unificação | [Etapa 24](docs/24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md) |
 | Consolidação, instalação, atualização e verificações atuais | [Etapa 25](docs/25_CONSOLIDACAO_DA_BASE.md) |
+| Qualidade dos dados, pesos decimais, V7 e revisão dos legados | [Etapa 26](docs/26_QUALIDADE_DOS_DADOS.md) |
 
 As análises `ANALISE_PROJETO.md` e `07_ANALISE_ATUAL_E_PROXIMO_PASSO.md` são diagnósticos anteriores. Totais, inscrições, estados, persistência, buscas e OpenAPI já foram implementados; eles não devem ser tratados como funcionalidades pendentes.
 

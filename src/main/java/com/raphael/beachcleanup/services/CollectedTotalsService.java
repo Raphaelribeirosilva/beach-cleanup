@@ -1,6 +1,7 @@
 package com.raphael.beachcleanup.services;
 
 import java.util.Collection;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,17 +46,17 @@ public class CollectedTotalsService {
             record.getVolunteer() == null ? null : userDto(record.getVolunteer(), totals))).toList();
     }
 
-    private Map<Long, Double> totals(Collection<Long> userIds) {
+    private Map<Long, BigDecimal> totals(Collection<Long> userIds) {
         var ids = userIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
             return Map.of();
         }
         return collections.sumWeightByUserIds(ids).stream().collect(Collectors.toMap(
             TrashCollectionRepository.CollectedTotal::getUserId,
-            total -> total.getTotalKg() == null ? 0.0 : total.getTotalKg()));
+            total -> total.getTotalKg() == null ? BigDecimal.ZERO.setScale(3) : total.getTotalKg()));
     }
 
-    private UserDTO userDto(User user, Map<Long, Double> totals) {
-        return new UserDTO(user, totals.getOrDefault(user.getId(), 0.0));
+    private UserDTO userDto(User user, Map<Long, BigDecimal> totals) {
+        return new UserDTO(user, totals.getOrDefault(user.getId(), BigDecimal.ZERO.setScale(3)));
     }
 }

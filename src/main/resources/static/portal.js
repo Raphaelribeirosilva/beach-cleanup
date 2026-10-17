@@ -10,7 +10,7 @@
   });
   const state = { view: 'events', page: 0, pages: 0, generation: 0, signup: false,
     profile: null, registrations: [], selectedEvent: null, loading: false };
-  const kg = value => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
+  const kg = value => value == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
   const date = value => {
     if (!value) return 'Data não informada';
     // API event times represent local wall time; date-only values must not shift to the previous day.
@@ -222,15 +222,24 @@
     $('collection-form').reset();
     catalogChoices($('collection-form').elements.beach, beaches, 'Selecione a praia');
     catalogChoices($('collection-form').elements.materialType, materials, 'Selecione o material');
-    const now = new Date();
-    $('collection-form').elements.registrationDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    $('collection-form').elements.registrationDate.value = api.dataRules.today();
     if (event) $('collection-form').elements.beach.value = event.beachId ?? '';
     syncCollectionEvent();
     errorAt('collection-error');
     $('collection-dialog').showModal();
   }
   function syncCollectionEvent() {
-    $('collection-event').textContent = state.selectedEvent ? `Evento: ${state.selectedEvent.title}` : 'Coleta independente, sem evento.';
+    const form = $('collection-form');
+    const event = state.selectedEvent;
+    form.elements.beach.disabled = Boolean(event);
+    form.elements.registrationDate.readOnly = Boolean(event);
+    form.elements.registrationDate.min = '1900-01-01';
+    form.elements.registrationDate.max = api.dataRules.today();
+    if (event) {
+      form.elements.beach.value = event.beachId ?? '';
+      form.elements.registrationDate.value = event.dateTime?.slice(0, 10) || '';
+    }
+    $('collection-event').textContent = event ? `Evento: ${event.title}. A coleta usa a praia e a data do evento; datas futuras não são permitidas.` : 'Coleta independente, sem evento.';
     $('unlink-event').hidden = !state.selectedEvent;
   }
   $('login-open').addEventListener('click', () => openAuth('login'));
@@ -285,11 +294,12 @@
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    const input = { beachId: Number(data.get('beach')), materialId: Number(data.get('materialType')),
+    const input = { beachId: Number(form.elements.beach.value), materialId: Number(data.get('materialType')),
       weightKg: Number(data.get('weightKg')), registrationDate: data.get('registrationDate') };
     if (state.selectedEvent) input.event = { id: state.selectedEvent.id };
-    if (!input.beachId || !input.materialId || !Number.isFinite(input.weightKg) || input.weightKg <= 0) {
-      errorAt('collection-error', 'Informe praia, material e um peso maior que zero.'); return;
+    if (!input.beachId || !input.materialId || !api.dataRules.weightValid(data.get('weightKg'))
+        || !api.dataRules.dateValid(input.registrationDate, api.dataRules.today())) {
+      errorAt('collection-error', 'Selecione praia/material, peso de 0,001 a 100.000 kg com até 3 casas decimais e data entre 1900 e hoje (São Paulo).'); return;
     }
     void busy(form.querySelector('[type="submit"]'), async () => {
       errorAt('collection-error');

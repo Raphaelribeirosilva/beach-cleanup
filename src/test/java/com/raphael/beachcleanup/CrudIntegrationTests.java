@@ -75,7 +75,7 @@ class CrudIntegrationTests {
         assertNotEquals("senha-inicial", storedHash);
         assertTrue(passwordEncoder.matches("senha-inicial", storedHash));
         assertFalse(passwordEncoder.matches("senha-incorreta", storedHash));
-        assertEquals(0.0, users.findById(id).orElseThrow().getTotalCollectedKg());
+        assertEquals(0.0, users.findById(id).orElseThrow().getTotalCollectedKg().doubleValue());
         mvc.perform(get("/users"))
             .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(id))
             .andExpect(jsonPath("$..password").isEmpty());
@@ -97,7 +97,7 @@ class CrudIntegrationTests {
             .andExpect(jsonPath("$..password").isEmpty());
         User saved = users.findById(id).orElseThrow();
         assertEquals(storedHash, saved.getPassword());
-        assertEquals(0.0, saved.getTotalCollectedKg());
+        assertEquals(0.0, saved.getTotalCollectedKg().doubleValue());
         deleteAndCheckMissing("/users", id);
     }
 
@@ -119,14 +119,14 @@ class CrudIntegrationTests {
         mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"version":0,"id":999999,"title":"Novo titulo","location":"Praia B",
-                 "dateTime":"2026-10-20T09:00:00","status":"Em andamento"}
+                 "dateTime":"2026-10-16T09:00:00","status":"Em andamento"}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
             .andExpect(jsonPath("$.title").value("Novo titulo"))
             .andExpect(jsonPath("$..password").isEmpty());
         CleanupEvent saved = events.findById(id).orElseThrow();
         assertEquals("Praia B", saved.getLocation());
-        assertEquals(LocalDateTime.parse("2026-10-20T09:00:00"), saved.getDateTime());
+        assertEquals(LocalDateTime.parse("2026-10-16T09:00:00"), saved.getDateTime());
         assertEquals("Em andamento", saved.getStatus());
         deleteAndCheckMissing("/cleanupEvent", id);
     }
@@ -150,11 +150,12 @@ class CrudIntegrationTests {
             .andExpect(jsonPath("$.event.title").value("Evento original"))
             .andExpect(jsonPath("$..password").isEmpty());
         long anotherUser = newUser().getId();
-        long anotherEvent = newEvent().getId();
+        long anotherEvent = events.save(CatalogTestData.event(context, new CleanupEvent(null, "Evento seguinte", "Praia B",
+            LocalDateTime.parse("2026-10-16T08:00:00"), "Agendado"))).getId();
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"version":0,"id":999999,"beach":"Praia B","materialType":"Vidro","weightKg":3.5,
-                 "registrationDate":"2026-10-20","volunteer":{"id":%d},"event":{"id":%d}}
+                 "registrationDate":"2026-10-16","volunteer":{"id":%d},"event":{"id":%d}}
                 """.formatted(anotherUser, anotherEvent)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
             .andExpect(jsonPath("$.volunteer.id").value(anotherUser))
@@ -163,11 +164,11 @@ class CrudIntegrationTests {
         var saved = collections.findById(id).orElseThrow();
         assertEquals("Praia B", saved.getBeach());
         assertEquals("Vidro", saved.getMaterialType());
-        assertEquals(3.5, saved.getWeightKg());
-        assertEquals(LocalDate.parse("2026-10-20"), saved.getRegistrationDate());
+        assertEquals(3.5, saved.getWeightKg().doubleValue());
+        assertEquals(LocalDate.parse("2026-10-16"), saved.getRegistrationDate());
         var row = jdbc.queryForMap("select weight_kg, registration_date, volunteer_id from tb_trash_collection where id = ?", id);
         assertEquals(3.5, ((Number) row.get("weight_kg")).doubleValue());
-        assertEquals(LocalDate.parse("2026-10-20"), ((java.sql.Date) row.get("registration_date")).toLocalDate());
+        assertEquals(LocalDate.parse("2026-10-16"), ((java.sql.Date) row.get("registration_date")).toLocalDate());
         assertEquals(anotherUser, ((Number) row.get("volunteer_id")).longValue());
         deleteAndCheckMissing("/trashCollection", id);
     }
@@ -223,7 +224,7 @@ class CrudIntegrationTests {
         var saved = collections.findById(id).orElseThrow();
         assertEquals(userId, saved.getVolunteer().getId());
         assertEquals(eventId, saved.getEvent().getId());
-        assertEquals(2.0, saved.getWeightKg());
+        assertEquals(2.0, saved.getWeightKg().doubleValue());
     }
 
     @Test
@@ -264,14 +265,14 @@ class CrudIntegrationTests {
         mvc.perform(put("/trashCollection/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"version":0,"beach":"Praia A","materialType":"Plastico","weightKg":1,
-                 "registrationDate":"2026-10-21","volunteer":null,"event":null}
+                 "registrationDate":"2026-10-16","volunteer":null,"event":null}
                 """)).andExpect(status().isOk());
         var saved = collections.findById(id).orElseThrow();
         assertNull(saved.getVolunteer());
         assertNull(saved.getEvent());
         create("/trashCollection", """
             {"id":%d,"beach":"Praia A","materialType":"Vidro","weightKg":1,
-             "registrationDate":"2026-10-21"}
+             "registrationDate":"2026-10-16"}
             """.formatted(id));
         assertEquals(2, collections.count());
         assertEquals("Pl\u00e1stico", collections.findById(id).orElseThrow().getMaterialType());
@@ -366,7 +367,7 @@ class CrudIntegrationTests {
         assertEquals(hash, users.findById(userId).orElseThrow().getPassword());
         assertEquals("Evento original", events.findById(eventId).orElseThrow().getTitle());
         var saved = collections.findById(collectionId).orElseThrow();
-        assertEquals(2.0, saved.getWeightKg());
+        assertEquals(2.0, saved.getWeightKg().doubleValue());
         assertEquals("Praia A", saved.getBeach());
         assertEquals(LocalDate.parse("2026-10-15"), saved.getRegistrationDate());
         assertEquals(userId, saved.getVolunteer().getId());
@@ -463,8 +464,8 @@ class CrudIntegrationTests {
     }
 
     private CleanupEvent newEvent() {
-        return events.save(new CleanupEvent(null, "Evento original", "Praia A",
-            LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado"));
+        return events.save(CatalogTestData.event(context, new CleanupEvent(null, "Evento original", "Praia A",
+            LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado")));
     }
 
     private String collectionJson(long userId, long eventId) {

@@ -1,6 +1,7 @@
 package com.raphael.beachcleanup.dto;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import com.raphael.beachcleanup.entities.User;
 
 public class UserDTO implements Serializable {
@@ -10,12 +11,12 @@ public class UserDTO implements Serializable {
     private Long version;
     private String name;
     private String email;
-    private Double totalCollectedKg;
+    private BigDecimal totalCollectedKg;
 
     public UserDTO() {
     }
 
-    public UserDTO(User entity, double totalCollectedKg) {
+    public UserDTO(User entity, BigDecimal totalCollectedKg) {
         this.id = entity.getId();
         this.version = entity.getRowVersion();
         this.name = entity.getName();
@@ -51,11 +52,11 @@ public class UserDTO implements Serializable {
         this.email = email;
     }
 
-    public Double getTotalCollectedKg() {
+    public BigDecimal getTotalCollectedKg() {
         return totalCollectedKg;
     }
 
-    public void setTotalCollectedKg(Double totalCollectedKg) {
+    public void setTotalCollectedKg(BigDecimal totalCollectedKg) {
         this.totalCollectedKg = totalCollectedKg;
     }
 }

@@ -4,6 +4,7 @@ deploy/prod.env
 deploy/backup.cnf
 deploy/staging.env
 target/
+__pycache__/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

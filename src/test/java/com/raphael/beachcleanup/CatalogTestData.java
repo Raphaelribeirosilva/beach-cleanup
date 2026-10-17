@@ -8,6 +8,14 @@ import com.raphael.beachcleanup.services.CatalogService;
 
 /** Explicit catalogs for existing domain tests; production never auto-creates unknown names. */
 final class CatalogTestData {
+    static com.raphael.beachcleanup.entities.CleanupEvent event(ApplicationContext context,
+            com.raphael.beachcleanup.entities.CleanupEvent event) {
+        var entry = context.getBean(CatalogService.class).list("beaches").stream()
+            .filter(item -> item.aliases().contains(CatalogNames.key(event.getLocation()))).findFirst().orElseThrow();
+        event.setBeachReference(context.getBean(com.raphael.beachcleanup.repositories.CatalogEntryRepository.class)
+            .findById(entry.id()).orElseThrow());
+        return event;
+    }
     static void seed(ApplicationContext context) {
         var service = context.getBean(CatalogService.class);
         for (String kind : List.of("beaches", "materials")) {

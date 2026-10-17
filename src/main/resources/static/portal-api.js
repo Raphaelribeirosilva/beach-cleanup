@@ -104,6 +104,8 @@
     }
     return {
       admin: {
+        quality: filters => adminRequest(query('/admin/data-quality', { size: 6, ...filters })),
+        rounding: filters => adminRequest(query('/admin/data-quality/rounding', { size: 6, ...filters })),
         saveCatalog: (kind, id, input) => adminRequest(`/catalog/${kind}${id == null ? '' : `/${id}`}`,
           { method: id == null ? 'POST' : 'PUT', body: input }),
         mergeCatalog: (kind, id, input) => adminRequest(`/catalog/${kind}/${id}/merge`, { method: 'POST', body: input }),
@@ -120,6 +122,15 @@
         deleteCollection: id => adminRequest(`/trashCollection/${id}`, { method: 'DELETE' })
       },
       session: currentSession,
+      dataRules: {
+        today: (instant = new Date()) => {
+          const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
+            year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instant).map(part => [part.type, part.value]));
+          return `${parts.year}-${parts.month}-${parts.day}`;
+        },
+        weightValid: value => /^(?:\d+|\d*\.\d{1,3}0*)$/.test(String(value)) && Number(value) >= 0.001 && Number(value) <= 100000,
+        dateValid: (value, today) => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= '1900-01-01' && value <= today
+      },
       catalog: kind => request(`/catalog/${kind}`),
       logout: clearSession,
       signup: input => request('/users', { method: 'POST', body: input }),

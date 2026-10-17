@@ -91,6 +91,8 @@ class MySqlDatabaseIT {
             eventId = event.getId();
             context.getBean(EventRegistrationService.class).register(userId, eventId);
             var collection = input(owner, 2.5);
+            collection.setBeach(event.getLocation());
+            collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -121,7 +123,7 @@ class MySqlDatabaseIT {
             try (var source = DriverManager.getConnection(url, username, password);
                     var restored = DriverManager.getConnection(restoredUrl, username, password)) {
                 for (String table : List.of("tb_user", "tb_cleanup_event", "tb_event_volunteer",
-                        "tb_trash_collection", "tb_catalog_entry", "tb_catalog_alias", "flyway_schema_history")) {
+                        "tb_trash_collection", "tb_catalog_entry", "tb_catalog_alias", "tb_weight_conversion_audit", "flyway_schema_history")) {
                     assertEquals(tableRows(source, table), tableRows(restored, table), table);
                 }
             }
@@ -131,9 +133,9 @@ class MySqlDatabaseIT {
                     .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
                 assertEquals(UserRole.ADMIN, owner.getRole());
                 assertEquals(7, owner.getCredentialVersion());
-                assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg());
+                assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(6, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(7, context.getBean(Flyway.class).info().applied().length);
             }
         } finally {
             Files.deleteIfExists(dump);
@@ -178,7 +180,10 @@ class MySqlDatabaseIT {
             int columnCount = result.getMetaData().getColumnCount();
             while (result.next()) {
                 var row = new java.util.ArrayList<String>();
-                for (int column = 1; column <= columnCount; column++) row.add(result.getString(column));
+                for (int column = 1; column <= columnCount; column++) {
+                    var value = result.getObject(column);
+                    row.add(value instanceof Number ? new java.math.BigDecimal(value.toString()).stripTrailingZeros().toPlainString() : result.getString(column));
+                }
                 rows.add(row);
             }
         }
@@ -213,9 +218,11 @@ class MySqlDatabaseIT {
             eventId = event.getId();
             context.getBean(EventRegistrationService.class).register(userId, eventId);
             var collection = input(owner, 2.5);
+            collection.setBeach(event.getLocation());
+            collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(6, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(7, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -223,7 +230,7 @@ class MySqlDatabaseIT {
             assertEquals(1, context.getBean(UserRepository.class).count());
             assertEquals(userId, context.getBean(AuthService.class)
                 .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
-            assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg());
+            assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
             assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
             var jdbc = context.getBean(JdbcTemplate.class);
             assertThrows(DataIntegrityViolationException.class, () -> jdbc.update("""
@@ -258,14 +265,14 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(6, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(7, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
             assertEquals(7, owner.getCredentialVersion());
             assertEquals(101L, collection.getVolunteer().getId());
             assertEquals(202L, collection.getEvent().getId());
-            assertEquals(2.5, collection.getWeightKg());
+            assertEquals(2.5, collection.getWeightKg().doubleValue());
             assertEquals(LocalDate.parse("2026-10-15"), collection.getRegistrationDate());
             assertEquals(202L, context.getBean(EventRegistrationService.class).findMyEvents(101L).getFirst().id());
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -329,7 +336,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             var flyway = context.getBean(Flyway.class);
             flyway.validate();
-            assertEquals(List.of("1", "2", "3", "4", "5", "6"), java.util.Arrays.stream(flyway.info().applied())
+            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7"), java.util.Arrays.stream(flyway.info().applied())
                 .map(migration -> migration.getVersion().toString()).toList());
             assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -357,8 +364,8 @@ class MySqlDatabaseIT {
             assertEquals(12.25, jdbc.queryForObject("select sum(weight_kg) from tb_trash_collection", Double.class));
             var totals = context.getBean(CollectedTotalsService.class);
             var users = context.getBean(UserRepository.class);
-            assertEquals(2.75, totals.user(users.findById(101L).orElseThrow()).getTotalCollectedKg());
-            assertEquals(8.25, totals.user(users.findById(102L).orElseThrow()).getTotalCollectedKg());
+            assertEquals(2.75, totals.user(users.findById(101L).orElseThrow()).getTotalCollectedKg().doubleValue());
+            assertEquals(8.25, totals.user(users.findById(102L).orElseThrow()).getTotalCollectedKg().doubleValue());
             assertEquals(4, jdbc.queryForObject("select count(*) from tb_catalog_alias", Integer.class));
         }
         try (var context = start(url, false)) {
@@ -367,6 +374,53 @@ class MySqlDatabaseIT {
             assertEquals(4, context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_catalog_entry", Integer.class));
             assertEquals(102L, context.getBean(AuthService.class)
                 .login(new LoginDTO("conta102@example.com", "senha-legada")).userId());
+        }
+    }
+
+    @Test
+    void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
+        WeightMigrationAssertions.verify(url, username, password);
+        try (var context = start(url, false)) {
+            assertEquals(7, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(101L, context.getBean(AuthService.class)
+                .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
+            var report = context.getBean(DataQualityService.class);
+            assertEquals(7, report.rounding(0, 20).totalElements());
+            assertTrue(report.issues(0, 100).content().stream().anyMatch(issue -> issue.code().equals("INVALID_WEIGHT")));
+            assertTrue(report.issues(0, 100).content().stream().anyMatch(issue -> issue.code().equals("MISSING_BEACH")));
+            assertTrue(report.issues(0, 100).content().stream().anyMatch(issue -> issue.code().equals("EVENT_DATE")));
+        }
+    }
+
+    @Test
+    void eventEditCannotMissACollectionCommittedAfterAnEarlierSnapshot() throws Exception {
+        try (var context = start()) {
+            User owner = account(context, "Ana");
+            var event = context.getBean(CleanupEventService.class).insert(new CleanupEvent(null,
+                "Mutirão", "Praia A", LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado"));
+            var snapshot = new CountDownLatch(1);
+            var inserted = new CountDownLatch(1);
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                var edit = executor.submit(() -> {
+                    assertThrows(com.raphael.beachcleanup.exceptions.EventStateConflictException.class,
+                        () -> transaction(context).execute(tx -> {
+                            context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_trash_collection", Long.class);
+                            snapshot.countDown();
+                            await(inserted);
+                            return context.getBean(CleanupEventService.class).update(event.getId(), new CleanupEvent(null,
+                                "Movido", "Praia B", event.getDateTime(), "Agendado"), 0L);
+                        }));
+                });
+                try {
+                    await(snapshot);
+                    var collection = input(owner, 2.0);
+                    collection.setEvent(event);
+                    context.getBean(TrashCollectionService.class).insert(collection);
+                } finally { inserted.countDown(); }
+                edit.get(30, TimeUnit.SECONDS);
+            }
+            assertEquals("Praia A", context.getBean(CleanupEventRepository.class).findById(event.getId()).orElseThrow().getLocation());
+            assertEquals(1, context.getBean(TrashCollectionRepository.class).count());
         }
     }
 
@@ -383,8 +437,8 @@ class MySqlDatabaseIT {
                 assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
             }
             var saved = context.getBean(TrashCollectionRepository.class).findById(id).orElseThrow();
-            assertTrue(saved.getWeightKg() == 3.0 || saved.getWeightKg() == 4.0);
-            assertEquals(saved.getWeightKg(), context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg());
+            assertTrue(saved.getWeightKg().doubleValue() == 3.0 || saved.getWeightKg().doubleValue() == 4.0);
+            assertEquals(saved.getWeightKg().doubleValue(), context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
         }
     }
 
@@ -425,7 +479,7 @@ class MySqlDatabaseIT {
                 }
                 var saved = context.getBean(TrashCollectionRepository.class).findById(id).orElseThrow();
                 assertEquals(second.getId(), saved.getVolunteer().getId());
-                assertEquals(4.0, saved.getWeightKg());
+                assertEquals(4.0, saved.getWeightKg().doubleValue());
                 authenticate(first.getId().toString(), "VOLUNTEER");
                 try {
                     assertThrows(AccessDeniedException.class, () -> context.getBean(TrashCollectionService.class).delete(id));

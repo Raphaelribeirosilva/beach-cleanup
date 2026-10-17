@@ -1,6 +1,7 @@
 package com.raphael.beachcleanup.entities;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -39,8 +40,8 @@ public class TrashCollection implements Serializable{
     @JoinColumn(name = "material_id")
     private CatalogEntry materialReference;
 	private String materialType;
-    @Column(name = "weight_kg")
-	private Double weightKg;
+    @Column(name = "weight_kg", precision = 38, scale = 3)
+	private BigDecimal weightKg;
     @Column(name = "registration_date")
 	private LocalDate registrationDate;
 	
@@ -54,7 +55,7 @@ public class TrashCollection implements Serializable{
 	
 	public TrashCollection() {}
 
-	public TrashCollection(Long id, String beach, String materialType, Double weightKg, LocalDate registrationDate) {
+	public TrashCollection(Long id, String beach, String materialType, BigDecimal weightKg, LocalDate registrationDate) {
 		super();
 		this.id = id;
 		this.beach = beach;
@@ -62,6 +63,11 @@ public class TrashCollection implements Serializable{
 		this.weightKg = weightKg;
 		this.registrationDate = registrationDate;
 	}
+
+    /** Convenience for demonstration fixtures; HTTP inputs use BigDecimal directly. */
+    public TrashCollection(Long id, String beach, String materialType, double weightKg, LocalDate registrationDate) {
+        this(id, beach, materialType, BigDecimal.valueOf(weightKg), registrationDate);
+    }
 
 	public CatalogEntry getBeachReference() { return beachReference; }
     public void setBeachReference(CatalogEntry entry) { beachReference = entry; }
@@ -97,11 +103,11 @@ public class TrashCollection implements Serializable{
 		this.materialType = materialType;
 	}
 
-	public Double getWeightKg() {
+	public BigDecimal getWeightKg() {
 		return weightKg;
 	}
 
-	public void setWeightKg(Double weightKg) {
+	public void setWeightKg(BigDecimal weightKg) {
 		this.weightKg = weightKg;
 	}
 

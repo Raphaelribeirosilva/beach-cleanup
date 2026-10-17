@@ -71,6 +71,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "A verificação Maven falhou (código $LASTEXITCODE)." }
         python tools/validate_openapi.py
         if ($LASTEXITCODE -ne 0) { throw 'A verificação OpenAPI falhou.' }
+        python -m unittest discover -s tools -p 'test_*.py'
+        if ($LASTEXITCODE -ne 0) { throw 'A conferência decimal da auditoria falhou.' }
     } finally {
         Pop-Location
     }

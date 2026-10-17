@@ -1623,6 +1623,116 @@
         },
         "description": "Somente administrador. Requer versoes atuais da origem e do destino; move nomes alternativos, eventos e coletas sem alterar pesos, contas ou inscricoes. Atualiza as versoes dos registros afetados. A origem sai da listagem; seu ID deixa de aceitar novas gravacoes (409)."
       }
+    },
+    "/admin/data-quality": {
+      "get": {
+        "tags": [
+          "Qualidade dos dados"
+        ],
+        "operationId": "listDataQualityIssues",
+        "summary": "Revisar pendências de qualidade",
+        "description": "Somente administrador. Paginação estável. A consulta não altera registros. Uma linha por pendência: um registro pode ter mais de uma. Pendências desaparecem após correção explícita. Totais incluem os registros pendentes.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de conferência.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/admin/data-quality/rounding": {
+      "get": {
+        "tags": [
+          "Qualidade dos dados"
+        ],
+        "operationId": "listWeightConversions",
+        "summary": "Conferir conversão histórica de pesos V7",
+        "description": "Somente administrador. Paginação estável. A consulta não altera registros. Snapshot imutável de todos os pesos anteriores à V7, inclusive valores nulos e sem alteração. Sem chave estrangeira para preservar a conferência após exclusões.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de conferência.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeightRoundingPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1795,8 +1905,7 @@
           },
           "totalCollectedKg": {
             "type": "number",
-            "format": "double",
-            "description": "Soma das coletas atuais do usuário, calculada no banco. Zero sem coletas; independe do filtro ou página."
+            "description": "Soma decimal exata dos pesos das coletas vinculadas, inclusive legados pendentes de revisão; zero sem coletas. Não usa o total legado armazenado."
           },
           "version": {
             "type": "integer",
@@ -1829,7 +1938,7 @@
           "dateTime": {
             "type": "string",
             "example": "2026-10-15T08:00:00",
-            "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
+            "description": "Data/hora local sem offset, entre 1900-01-01 e 9999-12-31. Datas passadas são permitidas para histórico. Alterar praia/data de evento com coletas incompatíveis retorna 409; horário do mesmo dia pode mudar.",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
           },
           "status": {
@@ -1896,7 +2005,8 @@
             "type": "string",
             "example": "2026-10-15T08:00:00",
             "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$",
+            "nullable": true
           },
           "status": {
             "type": "string",
@@ -1952,14 +2062,15 @@
           },
           "weightKg": {
             "type": "number",
-            "format": "double",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 1.7976931348623157e+308
+            "minimum": 0.001,
+            "maximum": 100000,
+            "multipleOf": 0.001,
+            "description": "Quilogramas decimais exatos: 0,001 a 100.000, até três casas decimais significativas. Precisão excedente retorna 400; novos pesos não são arredondados. Zeros adicionais à direita são aceitos."
           },
           "registrationDate": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "Data de 1900-01-01 até hoje em America/Sao_Paulo. Quando vinculada a evento, deve coincidir com a data local do evento. Sem evento, datas históricas são permitidas."
           },
           "volunteer": {
             "type": "object",
@@ -1979,7 +2090,7 @@
                 "$ref": "#/components/schemas/ResourceReference"
               }
             ],
-            "description": "Opcional. Omitir/null remove o vínculo no PUT. Novo vínculo exige evento Agendado ou Em andamento; inscrição não é requisito."
+            "description": "Opcional. Omitir/null remove o vínculo no PUT. Novo vínculo exige evento Agendado ou Em andamento; inscrição não é requisito. Praia e data da coleta devem coincidir com o evento. Novo vínculo com evento sem praia identificada retorna 400. Correções no mesmo evento encerrado são permitidas, respeitando as regras de qualidade."
           },
           "version": {
             "type": "integer",
@@ -2060,11 +2171,13 @@
           },
           "weightKg": {
             "type": "number",
-            "format": "double"
+            "description": "DECIMAL(38,3), serializado como número JSON. Pesos legados fora da faixa nova são preservados e sinalizados para revisão. V7 usa HALF_UP e registra original/diferença.",
+            "nullable": true
           },
           "registrationDate": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "nullable": true
           },
           "volunteer": {
             "type": "object",
@@ -2302,7 +2415,7 @@
           "dateTime": {
             "type": "string",
             "example": "2026-10-15T08:00:00",
-            "description": "Data e hora local ISO, sem offset ou conversão de fuso (LocalDateTime).",
+            "description": "Data/hora local sem offset, entre 1900-01-01 e 9999-12-31. Datas passadas são permitidas para histórico. Alterar praia/data de evento com coletas incompatíveis retorna 409; horário do mesmo dia pode mudar.",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}.*$"
           },
           "status": {
@@ -2363,14 +2476,15 @@
           },
           "weightKg": {
             "type": "number",
-            "format": "double",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 1.7976931348623157e+308
+            "minimum": 0.001,
+            "maximum": 100000,
+            "multipleOf": 0.001,
+            "description": "Quilogramas decimais exatos: 0,001 a 100.000, até três casas decimais significativas. Precisão excedente retorna 400; novos pesos não são arredondados. Zeros adicionais à direita são aceitos."
           },
           "registrationDate": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "Data de 1900-01-01 até hoje em America/Sao_Paulo. Quando vinculada a evento, deve coincidir com a data local do evento. Sem evento, datas históricas são permitidas."
           },
           "volunteer": {
             "type": "object",
@@ -2390,7 +2504,7 @@
                 "$ref": "#/components/schemas/ResourceReference"
               }
             ],
-            "description": "Opcional. Omitir/null remove o vínculo no PUT. Novo vínculo exige evento Agendado ou Em andamento; inscrição não é requisito."
+            "description": "Opcional. Omitir/null remove o vínculo no PUT. Novo vínculo exige evento Agendado ou Em andamento; inscrição não é requisito. Praia e data da coleta devem coincidir com o evento. Novo vínculo com evento sem praia identificada retorna 400. Correções no mesmo evento encerrado são permitidas, respeitando as regras de qualidade."
           },
           "version": {
             "type": "integer",
@@ -2548,6 +2662,147 @@
           "targetVersion": {
             "type": "integer",
             "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "DataQualityIssue": {
+        "type": "object",
+        "required": [
+          "resource",
+          "id",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string",
+            "enum": [
+              "collection",
+              "event"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "MISSING_BEACH",
+              "MISSING_MATERIAL",
+              "INVALID_WEIGHT",
+              "INVALID_DATE",
+              "EVENT_BEACH",
+              "EVENT_DATE"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "WeightRounding": {
+        "type": "object",
+        "required": [
+          "collectionId"
+        ],
+        "properties": {
+          "collectionId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "volunteerId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Proprietário no momento da migração; não é atualizado após transferências."
+          },
+          "originalWeight": {
+            "type": "string",
+            "nullable": true,
+            "description": "Representação decimal do DOUBLE original; string para não perder precisão no cliente."
+          },
+          "roundedWeight": {
+            "type": "string",
+            "nullable": true,
+            "description": "Decimal convertido exato, em texto para preservar também pesos legados maiores que a precisão numérica do navegador."
+          },
+          "deltaWeight": {
+            "type": "string",
+            "nullable": true,
+            "description": "Convertido menos original, em representação decimal exata; null se original ausente."
+          }
+        }
+      },
+      "DataQualityPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "number",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataQualityIssue"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "WeightRoundingPage": {
+        "type": "object",
+        "required": [
+          "content",
+          "number",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeightRounding"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
             "minimum": 0
           }
         }
