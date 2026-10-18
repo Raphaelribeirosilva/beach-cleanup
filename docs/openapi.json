@@ -267,7 +267,7 @@
         ],
         "operationId": "updateUser",
         "summary": "Atualizar User",
-        "description": "Administrador ou a própria conta. Atualiza nome e e-mail. Não altera senha, perfil ou total; para senha use /auth/password. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar.",
+        "description": "Administrador ou a própria conta. Atualiza nome e e-mail. Não altera senha, perfil ou total; para senha use /auth/password. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar. O portal envia version obtida ao abrir o formulário. Em HTTP 409 preserva os campos e solicita reabrir a edição para consultar os dados atuais, sem repetir a escrita automaticamente.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -755,7 +755,7 @@
         ],
         "operationId": "updateTrashCollection",
         "summary": "Atualizar TrashCollection",
-        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Substitui todos os campos de entrada. Omitir/null em event remove o vínculo; administrador também pode remover/transferir volunteer. Corrigir coleta no mesmo evento é permitido em qualquer estado; novo destino deve aceitar registros. A autorização é conferida novamente na transação. Se a versão lida pela operação mudar antes da gravação, retorna 409 (Concurrent update). Consulte os dados atuais antes de tentar novamente; o campo version no JSON protege também formulários carregados antes de outra edição. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar.",
+        "description": "Administrador ou proprietário da coleta. Voluntário recebe 403 também para ID inexistente ou coleta sem proprietário. Substitui todos os campos de entrada. Omitir/null em event remove o vínculo; administrador também pode remover/transferir volunteer. Corrigir coleta no mesmo evento é permitido em qualquer estado; novo destino deve aceitar registros. A autorização é conferida novamente na transação. Se a versão lida pela operação mudar antes da gravação, retorna 409 (Concurrent update). Consulte os dados atuais antes de tentar novamente; o campo version no JSON protege também formulários carregados antes de outra edição. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar. O portal envia version obtida ao abrir o formulário. Em HTTP 409 preserva os campos e solicita reabrir a edição para consultar os dados atuais, sem repetir a escrita automaticamente.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -1730,6 +1730,159 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/reports/impact": {
+      "get": {
+        "operationId": "impactReport",
+        "summary": "Consultar impacto agregado público",
+        "description": "Usa a data da coleta e IDs dos catálogos. Inclui coletas independentes e sem responsável. Totais deduplicam voluntários no conjunto filtrado; não se deve somar voluntários de grupos diferentes. Dados pessoais nunca são retornados. Sem correspondências retorna zeros e rows vazia. Período agrupa por dia; sem filtros abrange todas as coletas.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data inclusiva, formato YYYY-MM-DD."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data inclusiva, formato YYYY-MM-DD."
+          },
+          {
+            "name": "beachId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "materialId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "beach",
+                "material",
+                "event",
+                "period"
+              ],
+              "default": "beach"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Totais e grupos calculados na mesma transação de leitura.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro ou intervalo inválido."
+          }
+        }
+      }
+    },
+    "/reports/participation": {
+      "get": {
+        "operationId": "eventParticipationReport",
+        "summary": "Consultar inscrições por evento (ADMIN)",
+        "description": "Restrito a ADMIN. Usa a data do evento, praia e ID do evento. Não aceita filtro por material; inscrições não representam pessoas que registraram coleta. Inclui eventos sem inscritos ou sem coletas. Não retorna nomes de participantes.",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data inclusiva, formato YYYY-MM-DD."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data inclusiva, formato YYYY-MM-DD."
+          },
+          {
+            "name": "beachId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inscrições atuais por evento.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventParticipation"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro ou intervalo inválido."
+          },
+          "401": {
+            "description": "Autenticação necessária."
+          },
+          "403": {
+            "description": "Acesso exclusivo de administradores."
           }
         }
       }
@@ -2804,6 +2957,93 @@
           "totalPages": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "ImpactMetrics": {
+        "type": "object",
+        "required": [
+          "weightKg",
+          "collections",
+          "collectors"
+        ],
+        "properties": {
+          "weightKg": {
+            "type": "number",
+            "description": "Soma exata dos quilos das coletas filtradas, até três casas decimais."
+          },
+          "collections": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "collectors": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pessoas distintas com coleta registrada e responsável identificado. Não equivale a inscritos."
+          }
+        }
+      },
+      "ImpactRow": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ImpactMetrics"
+          },
+          {
+            "type": "object",
+            "required": [
+              "key",
+              "label"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "nullable": true,
+                "description": "ID do catálogo/evento ou data ISO; null para registros sem vínculo."
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ImpactReport": {
+        "type": "object",
+        "required": [
+          "totals",
+          "rows"
+        ],
+        "properties": {
+          "totals": {
+            "$ref": "#/components/schemas/ImpactMetrics"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImpactRow"
+            }
+          }
+        }
+      },
+      "EventParticipation": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "title",
+          "registeredParticipants"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "registeredParticipants": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Inscrições atuais neste evento, sem inferir presença ou coleta."
           }
         }
       }

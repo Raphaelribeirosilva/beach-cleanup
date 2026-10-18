@@ -5,6 +5,30 @@ const { createPortalApi } = require('../src/main/resources/static/portal-api.js'
 const response = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => body });
 const token = { accessToken: 'test-token', tokenType: 'Bearer', expiresIn: 1800, userId: 17, role: 'VOLUNTEER' };
 const sessionKey = 'beachcleanup.session.v1';
+
+test('impact is public; participation is admin-only and personal changes send versions with JWT', async () => {
+  const calls = [];
+  const api = createPortalApi(async (path, options) => {
+    calls.push({ path, options });
+    return response(200, path === '/auth/login' ? token : {});
+  });
+  await api.report({ from: '2026-01-01', beachId: 4, materialId: 9, groupBy: 'event' });
+  assert.equal(calls[0].path, '/reports/impact?from=2026-01-01&beachId=4&materialId=9&groupBy=event');
+  assert.equal(calls[0].options.headers.Authorization, undefined);
+  await assert.rejects(api.participation({}), { status: 403 });
+  await api.login({});
+  await assert.rejects(api.participation({}), { status: 403 });
+  await api.updateProfile({ name: 'Ana', email: 'ana@example.com', version: 3 });
+  await api.updateCollection(42, { weightKg: 1.125, version: 7 });
+  await api.deleteCollection(42);
+  await api.changePassword({ currentPassword: 'old', newPassword: 'new' });
+  assert.deepEqual(calls.slice(2).map(call => [call.path, call.options.method]), [
+    ['/users/17', 'PUT'], ['/trashCollection/42', 'PUT'], ['/trashCollection/42', 'DELETE'], ['/auth/password', 'PUT']
+  ]);
+  for (const call of calls.slice(2)) assert.equal(call.options.headers.Authorization, 'Bearer test-token');
+  assert.equal(JSON.parse(calls[2].options.body).version, 3);
+  assert.equal(JSON.parse(calls[3].options.body).version, 7);
+});
 test('collection forms enforce gram precision, mass limits and the Sao Paulo day boundary', () => {
   const rules = createPortalApi(async () => response(200, {})).dataRules;
   for (const weight of ['0.001', '100000', '1.2300', '.125']) assert.equal(rules.weightValid(weight), true, weight);

@@ -26,7 +26,7 @@
     <section class="impact" aria-label="Seu impacto" id="impact" hidden><div><span class="eyebrow">Seu impacto até aqui</span><h2>Seu cuidado faz diferença.</h2></div><div class="metric"><strong id="total-kg">—</strong><span>kg coletados por você</span></div><div class="metric"><strong id="total-events">—</strong><span>inscrições em eventos</span></div></section>
     <section id="workspace" class="workspace" aria-labelledby="workspace-title">
       <div class="section-heading"><div><p class="eyebrow">Vamos fazer parte</p><h2 id="workspace-title">Encontre sua próxima ação</h2></div><button class="button primary" id="collection-open">+ Registrar coleta</button></div>
-      <nav class="tabs" aria-label="Áreas do portal"><button class="tab active" data-view="events" aria-current="page">Explorar eventos</button><button class="tab" data-view="mine">Minhas inscrições</button><button class="tab" data-view="collections">Minhas coletas</button><button class="tab" id="admin-tab" data-view="admin" hidden>Administração</button></nav>
+      <nav class="tabs" aria-label="Áreas do portal"><button class="tab active" data-view="events" aria-current="page">Explorar eventos</button><button class="tab" data-view="mine">Minhas inscrições</button><button class="tab" data-view="collections">Minhas coletas</button><button class="tab" data-view="profile">Meu perfil</button><button class="tab" data-view="reports">Relatórios de impacto</button><button class="tab" id="admin-tab" data-view="admin" hidden>Administração</button></nav>
       <form id="filters" class="filters"><label id="location-label">Praia ou local<select id="location-filter" name="beachId"><option value="">Todas as praias</option></select></label><label id="status-label">Status<select id="status-filter" name="status"><option value="">Todos os status</option><option>Agendado</option><option>Em andamento</option><option>Pausado</option><option value="Concluido">Concluído</option><option>Cancelado</option></select></label><button class="button outline" type="submit">Buscar</button></form>
       <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
       <section id="admin-workspace" aria-label="Administração" hidden>
@@ -36,6 +36,21 @@
         <p id="admin-message" class="notice" role="status" hidden></p>
         <div id="admin-results" class="admin-results" aria-live="polite" aria-busy="false"></div>
         <div id="admin-pagination" class="pagination" hidden><button class="button outline" id="admin-previous">← Anterior</button><span id="admin-page-info"></span><button class="button outline" id="admin-next">Próxima →</button></div>
+      </section>
+      <section id="reports-workspace" hidden aria-label="Relatórios de impacto">
+        <form id="report-filters" class="admin-filters">
+          <label>De<input name="from" type="date"></label><label>Até<input name="to" type="date"></label>
+          <label>Praia<select name="beachId"></select></label><label>Material<select name="materialId"></select></label>
+          <label>Evento (ID)<input name="eventId" type="number" min="1" step="1"></label>
+          <label>Agrupar por<select name="groupBy"><option value="beach">Praia</option><option value="material">Material</option><option value="event">Evento</option><option value="period">Dia da coleta</option></select></label>
+          <button class="button primary" type="submit">Consultar impacto</button>
+        </form>
+        <p class="hint">Período inclusivo pela data da coleta. Voluntários distintos são pessoas com coleta registrada; inscrições são apresentadas separadamente para administradores.</p>
+        <div id="report-results" aria-live="polite"></div>
+      </section>
+      <section id="profile-workspace" hidden aria-label="Meu perfil">
+        <form id="profile-form"><h3>Meus dados</h3><label>Nome<input name="name" required maxlength="255" autocomplete="name"></label><label>E-mail<input name="email" type="email" required maxlength="255" autocomplete="email"></label><p class="hint">Em caso de conflito, seus campos serão preservados. Reabra Meu perfil para carregar a versão atual antes de tentar novamente.</p><button type="submit" class="button primary">Salvar perfil</button></form>
+        <form id="password-form"><h3>Trocar senha</h3><label>Senha atual<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>Nova senha<input name="newPassword" type="password" required autocomplete="new-password"></label><label>Confirmar nova senha<input name="confirmation" type="password" required autocomplete="new-password"></label><p class="hint">Após trocar a senha, entre novamente. Limite de 72 bytes em UTF-8.</p><button type="submit" class="button primary">Trocar senha</button></form>
       </section>
       <div id="results" aria-live="polite" aria-busy="false"></div>
       <div id="pagination" class="pagination" hidden><button class="button outline" id="previous">← Anterior</button><span id="page-info"></span><button class="button outline" id="next">Próxima →</button></div>

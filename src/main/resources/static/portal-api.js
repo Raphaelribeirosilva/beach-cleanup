@@ -149,6 +149,13 @@
         armExpiry();
         return result;
       },
+      report: filters => request(query('/reports/impact', filters)),
+      participation: filters => adminRequest(query('/reports/participation', filters)),
+      updateProfile: input => request(`/users/${session?.userId}`, { method: 'PUT', body: input, authenticated: true }),
+      changePassword: input => request('/auth/password', { method: 'PUT', body: input, authenticated: true }),
+      updateCollection: (id, input) => request(`/trashCollection/${id}`, { method: 'PUT', body: input, authenticated: true }),
+      collection: id => request(`/trashCollection/${id}`, { authenticated: true }),
+      deleteCollection: id => request(`/trashCollection/${id}`, { method: 'DELETE', authenticated: true }),
       profile: () => request(`/users/${session?.userId}`, { authenticated: true }),
       events: filters => request(query('/cleanupEvent/search', { size: 6, sortBy: 'dateTime', direction: 'asc', ...filters })),
       registrations: () => request('/users/me/events', { authenticated: true }),

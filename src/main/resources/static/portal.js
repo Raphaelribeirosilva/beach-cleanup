@@ -9,7 +9,7 @@
     openAuth('login');
   });
   const state = { view: 'events', page: 0, pages: 0, generation: 0, signup: false,
-    profile: null, registrations: [], selectedEvent: null, loading: false };
+    profile: null, registrations: [], selectedEvent: null, editingCollection: null, profileVersion: null, loading: false };
   const kg = value => value == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
   const date = value => {
     if (!value) return 'Data não informada';
@@ -58,7 +58,7 @@
     const signed = Boolean(api.session());
     $('account').hidden = signed;
     $('signed-account').hidden = !signed;
-    $('impact').hidden = !signed || state.view === 'admin';
+    $('impact').hidden = !signed || ['admin', 'reports'].includes(state.view);
     $('admin-tab').hidden = api.session()?.role !== 'ADMIN';
     $('account-name').textContent = state.profile?.name || 'Minha conta';
     $('total-kg').textContent = state.profile ? kg(state.profile.totalCollectedKg) : '—';
@@ -68,6 +68,12 @@
     admin.reset();
     state.generation++;
     state.profile = null;
+    state.profileVersion = null;
+    state.editingCollection = null;
+    $('profile-form').reset();
+    $('password-form').reset();
+    $('report-results').replaceChildren();
+    if ($('collection-dialog').open) $('collection-dialog').close();
     state.registrations = [];
     state.view = 'events';
     state.page = 0;
@@ -87,16 +93,20 @@
     });
     const events = state.view === 'events';
     const administrative = state.view === 'admin' && api.session()?.role === 'ADMIN';
-    document.querySelector('.hero').hidden = administrative;
-    $('impact').hidden = administrative || !api.session();
+    const reports = state.view === 'reports';
+    const profile = state.view === 'profile';
+    document.querySelector('.hero').hidden = administrative || reports || profile;
+    $('impact').hidden = administrative || reports || !api.session();
     admin.setActive(administrative);
-    $('results').hidden = administrative;
-    $('collection-open').hidden = administrative;
-    if (administrative) $('pagination').hidden = true;
+    $('reports-workspace').hidden = !reports;
+    $('profile-workspace').hidden = !profile;
+    $('results').hidden = administrative || reports || profile;
+    $('collection-open').hidden = administrative || reports || profile;
+    if (administrative || reports || profile) $('pagination').hidden = true;
     $('filters').hidden = !events;
     $('workspace-title').textContent = events ? 'Encontre sua próxima ação'
       : administrative ? 'Administração dos mutirões'
-      : state.view === 'mine' ? 'Seu lugar na próxima mudança' : 'Cada coleta conta';
+      : reports ? 'Resultados das ações de limpeza' : profile ? 'Meu perfil' : state.view === 'mine' ? 'Seu lugar na próxima mudança' : 'Cada coleta conta';
   }
   function empty(title, description) {
     const box = node('div', 'empty');
@@ -147,12 +157,33 @@
     body.append(node('h3', '', `${kg(collection.weightKg)} kg · ${collection.beach}`),
       node('p', '', date(collection.registrationDate)),
       node('p', '', collection.event ? `Mutirão: ${collection.event.title}` : 'Coleta independente'));
+    const actions = node('div', 'card-actions');
+    actions.append(action('Editar coleta', () => openCollection(collection.event, collection)),
+      action('Excluir coleta', async () => {
+        if (!window.confirm(`Excluir a coleta #${collection.id}? Esta ação não pode ser desfeita.`)) return;
+        try { await api.deleteCollection(collection.id); if (await load()) notify('Coleta excluída. Totais atualizados.'); }
+        catch (error) { notify(error.message, true); }
+      }));
+    body.append(actions);
     card.append(top, body);
     return card;
   }
   async function load() {
     const generation = ++state.generation;
     if (state.view === 'admin') { state.loading = false; return admin.load(); }
+    if (state.view === 'reports') return loadReport(generation);
+    if (state.view === 'profile') {
+      try {
+        const profile = await api.profile();
+        if (generation !== state.generation) return false;
+        state.profile = profile;
+        state.profileVersion = profile.version;
+        $('profile-form').elements.name.value = profile.name;
+        $('profile-form').elements.email.value = profile.email;
+        syncAccount();
+        return true;
+      } catch (error) { if (generation === state.generation) notify(error.message, true); return false; }
+    }
     const view = state.view;
     state.loading = true;
     $('results').setAttribute('aria-busy', 'true');
@@ -211,19 +242,39 @@
     $('auth-switch').textContent = state.signup ? 'Já tenho uma conta' : 'Ainda não tenho uma conta';
     if (!$('auth-dialog').open) $('auth-dialog').showModal();
   }
-  async function openCollection(event = null) {
+  async function openCollection(event = null, collection = null) {
     if (!api.session()) { openAuth('login'); return; }
     const session = api.session();
     let beaches, materials;
-    try { [beaches, materials] = await Promise.all([api.catalog('beaches'), api.catalog('materials')]); }
+    try {
+      [beaches, materials, collection] = await Promise.all([
+        api.catalog('beaches'), api.catalog('materials'), collection ? api.collection(collection.id) : null
+      ]);
+      if (collection) event = collection.event;
+    }
     catch (error) { notify(error.message, true); return; }
     if (api.session() !== session) return;
     state.selectedEvent = event;
+    state.editingCollection = collection;
     $('collection-form').reset();
     catalogChoices($('collection-form').elements.beach, beaches, 'Selecione a praia');
     catalogChoices($('collection-form').elements.materialType, materials, 'Selecione o material');
     $('collection-form').elements.registrationDate.value = api.dataRules.today();
     if (event) $('collection-form').elements.beach.value = event.beachId ?? '';
+    if (collection) {
+      const form = $('collection-form');
+      // Keep inactive catalog values available when editing historical records.
+      for (const [field, id, label] of [['beach', collection.beachId, collection.beach], ['materialType', collection.materialId, collection.materialType]]) {
+        const select = form.elements[field];
+        if (id && ![...select.options].some(option => option.value === String(id))) {
+          const option = node('option', '', label); option.value = id; select.append(option);
+        }
+        select.value = id ?? '';
+      }
+      form.elements.weightKg.value = collection.weightKg;
+      form.elements.registrationDate.value = collection.registrationDate;
+    }
+    $('collection-title').textContent = collection ? `Editar coleta #${collection.id}` : 'Registrar coleta';
     syncCollectionEvent();
     errorAt('collection-error');
     $('collection-dialog').showModal();
@@ -253,7 +304,7 @@
     if (button.dataset.view === 'admin' && api.session()?.role !== 'ADMIN') {
       notify('Esta área é exclusiva de administradores.', true); return;
     }
-    if (button.dataset.view !== 'events' && !api.session()) { openAuth('login'); return; }
+    if (!['events', 'reports'].includes(button.dataset.view) && !api.session()) { openAuth('login'); return; }
     state.view = button.dataset.view;
     state.page = 0;
     syncView();
@@ -304,18 +355,96 @@
     void busy(form.querySelector('[type="submit"]'), async () => {
       errorAt('collection-error');
       try {
-        await api.createCollection(input);
+        const editing = state.editingCollection;
+        if (editing) await api.updateCollection(editing.id, { ...input, version: editing.version });
+        else await api.createCollection(input);
         $('collection-dialog').close();
         form.reset();
         state.view = 'collections';
         state.page = 0;
         syncView();
         const refreshed = await load();
-        if (refreshed) notify('Coleta registrada! Seu impacto foi atualizado.');
-        else if (api.session()) notify('Coleta registrada. Não foi possível recarregar o histórico; tente novamente pelo botão abaixo.', true);
-      } catch (error) { errorAt('collection-error', error.message); }
+        if (refreshed) notify('Coleta salva! Seu impacto foi atualizado.');
+        else if (api.session()) notify('Coleta salva. Não foi possível recarregar o histórico; tente novamente pelo botão abaixo.', true);
+      } catch (error) { errorAt('collection-error', error.status === 409
+        ? 'A coleta mudou desde que foi aberta. Seus campos foram preservados. Feche e reabra a edição para conferir os dados atuais; nenhuma alteração foi sobrescrita.' : error.message); }
     });
   });
+
+  async function loadReport(generation) {
+    const form = $('report-filters');
+    const filters = Object.fromEntries(new FormData(form));
+    $('report-results').textContent = 'Carregando relatório…';
+    try {
+      const [report, beaches, materials] = await Promise.all([
+        api.report(filters), api.catalog('beaches'), api.catalog('materials')
+      ]);
+      if (generation !== state.generation) return false;
+      catalogChoices(form.elements.beachId, beaches, 'Todas as praias');
+      catalogChoices(form.elements.materialId, materials, 'Todos os materiais');
+      const box = $('report-results');
+      box.replaceChildren(node('h3', '', `${kg(report.totals.weightKg)} kg coletados`),
+        node('p', '', `${report.totals.collections} coletas · ${report.totals.collectors} voluntários distintos com coleta registrada`));
+      const table = node('table', 'report-table');
+      const caption = node('caption', '', 'Impacto por agrupamento selecionado');
+      const head = node('thead'); const heading = node('tr');
+      for (const label of ['Grupo', 'Quilos', 'Coletas', 'Voluntários com coleta']) { const th = node('th', '', label); th.scope = 'col'; heading.append(th); }
+      head.append(heading); const body = node('tbody');
+      const chart = node('div', 'report-chart');
+      chart.append(node('h3', '', 'Quilos por grupo'));
+      const max = report.rows.reduce((largest, row) => Math.max(largest, Number(row.weightKg)), 1);
+      for (const row of report.rows) {
+        const tr = node('tr');
+        for (const value of [row.label, kg(row.weightKg), row.collections, row.collectors]) tr.append(node('td', '', value));
+        body.append(tr);
+        const label = node('label', 'report-bar', `${row.label}: ${kg(row.weightKg)} kg`);
+        const meter = node('meter'); meter.min = 0; meter.max = max; meter.value = Number(row.weightKg);
+        meter.setAttribute('aria-label', `${row.label}: ${kg(row.weightKg)} kg`); label.append(meter); chart.append(label);
+      }
+      table.append(caption, head, body); box.append(table, chart);
+      if (!report.rows.length) box.append(node('p', '', 'Nenhuma coleta para os filtros selecionados.'));
+      box.append(node('p', 'hint', 'Voluntários podem aparecer em vários grupos; o total conta cada pessoa uma única vez. Coletas sem responsável entram nos quilos e coletas, sem aumentar voluntários.'));
+      if (api.session()?.role === 'ADMIN') {
+        const section = node('section'); box.append(section);
+        try {
+          const { materialId, groupBy, ...eventFilters } = filters;
+          const rows = await api.participation(eventFilters);
+          if (generation !== state.generation) return false;
+          section.append(node('h3', '', 'Inscrições por evento · acesso administrativo'),
+            node('p', 'hint', 'Usa a data do evento, praia e evento selecionados. O filtro de material não se aplica às inscrições. Não representa presença nem pessoas com coleta.'));
+          for (const row of rows) section.append(node('p', '', `#${row.eventId} ${row.title}: ${row.registeredParticipants} inscritos`));
+          if (!rows.length) section.append(node('p', '', 'Nenhum evento no período.'));
+        } catch (error) { if (generation === state.generation) section.textContent = error.message; }
+      }
+      return true;
+    } catch (error) {
+      if (generation === state.generation) $('report-results').textContent = error.message;
+      return false;
+    }
+  }
+  $('report-filters').addEventListener('submit', event => { event.preventDefault(); void load(); });
+  $('profile-form').addEventListener('submit', event => {
+    event.preventDefault(); const form = event.currentTarget;
+    const input = { name: form.elements.name.value.trim(), email: form.elements.email.value.trim(), version: state.profileVersion };
+    void busy(form.querySelector('[type="submit"]'), async () => {
+      try {
+        state.profile = await api.updateProfile(input);
+        state.profileVersion = state.profile.version; syncAccount(); notify('Perfil atualizado.');
+      } catch (error) { notify(error.status === 409 ? 'O perfil mudou ou o e-mail já está em uso. Seus campos foram preservados. Reabra Meu perfil para conferir a versão atual.' : error.message, true); }
+    });
+  });
+  $('password-form').addEventListener('submit', event => {
+    event.preventDefault(); const form = event.currentTarget;
+    const input = { currentPassword: form.elements.currentPassword.value, newPassword: form.elements.newPassword.value };
+    if (input.newPassword !== form.elements.confirmation.value) { notify('A confirmação da nova senha não confere.', true); return; }
+    if (Object.values(input).some(value => new TextEncoder().encode(value).length > 72)) { notify('Cada senha deve ter no máximo 72 bytes em UTF-8.', true); return; }
+    void busy(form.querySelector('[type="submit"]'), async () => {
+      try { await api.changePassword(input); api.logout(); resetAccount(); notify('Senha alterada. Entre novamente.'); openAuth('login'); }
+      catch (error) { notify(error.message, true); }
+      finally { form.reset(); }
+    });
+  });
+
   // Restored credentials still go through the API before private data is rendered.
   syncAccount();
   syncView();

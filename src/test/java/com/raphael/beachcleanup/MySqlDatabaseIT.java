@@ -490,6 +490,49 @@ class MySqlDatabaseIT {
         }
     }
 
+    @Test
+    void impactReportsReconcileDecimalsCatalogIdsAndRegistrationsOnMySql() throws Exception {
+        try (var context = start()) {
+            var owner = account(context, "Ana");
+            var registered = account(context, "Inscrito");
+            var event = context.getBean(CleanupEventService.class).insert(new CleanupEvent(null,
+                "Impacto", "Praia A", LocalDateTime.parse("2026-10-15T09:00:00"), "Agendado"));
+            var writer = context.getBean(TrashCollectionService.class);
+            var linked = input(owner, 1.125); linked.setEvent(event);
+            var first = writer.insert(linked);
+            writer.insert(input(owner, 2.250));
+            writer.insert(input(null, 0.001));
+            context.getBean(JdbcTemplate.class).update(
+                "insert into tb_event_volunteer(event_id, volunteer_id) values (?, ?)", event.getId(), registered.getId());
+            var report = context.getBean(ImpactReportService.class);
+            var day = LocalDate.parse("2026-10-15");
+            for (var group : List.of("beach", "material", "period", "event")) {
+                var result = report.impact(day, day, null, null, null, group);
+                assertEquals(0, result.totals().weightKg().compareTo(new java.math.BigDecimal("3.376")));
+                assertEquals(3, result.totals().collections()); assertEquals(1, result.totals().collectors());
+                assertEquals(0, result.rows().stream().map(ImpactReportService.Row::weightKg)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add).compareTo(result.totals().weightKg()));
+            }
+            var catalog = context.getBean(CatalogService.class);
+            Long beachId = catalog.list("beaches").stream().filter(item -> item.name().equals("Praia A")).findFirst().orElseThrow().id();
+            Long materialId = catalog.list("materials").stream().filter(item -> item.name().equals("Vidro")).findFirst().orElseThrow().id();
+            var selected = report.impact(day, day, beachId, materialId, event.getId(), "event");
+            assertEquals(0, selected.totals().weightKg().compareTo(new java.math.BigDecimal("1.125")));
+            assertEquals(1, report.participation(day, day, beachId, event.getId()).getFirst().registeredParticipants());
+            assertTrue(report.participation(day.plusDays(1), null, beachId, event.getId()).isEmpty());
+            authenticate(owner.getId().toString(), "VOLUNTEER");
+            try { writer.update(first.getId(), input(owner, 4.001), first.getRowVersion()); }
+            finally { SecurityContextHolder.clearContext(); }
+            assertEquals(0, report.impact(day, day, beachId, materialId, null, "beach").totals().weightKg()
+                .compareTo(new java.math.BigDecimal("6.252")));
+            authenticate(owner.getId().toString(), "VOLUNTEER");
+            try { writer.delete(first.getId()); }
+            finally { SecurityContextHolder.clearContext(); }
+            assertEquals(0, report.impact(day, day, beachId, materialId, null, "beach").totals().weightKg()
+                .compareTo(new java.math.BigDecimal("2.251")));
+        }
+    }
+
     private boolean editSnapshot(ConfigurableApplicationContext context, CountDownLatch loaded,
             long id, User owner, double weight) {
         authenticate("admin", "ADMIN");
