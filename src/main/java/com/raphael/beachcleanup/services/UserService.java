@@ -41,7 +41,11 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<User> findAll() {
-        return repository.findAll();
+        var page = repository.findAll((org.springframework.data.jpa.domain.Specification<User>) null,
+            org.springframework.data.domain.PageRequest.of(0, 100, org.springframework.data.domain.Sort.by("id")));
+        if (page.getTotalElements() > 100) throw new com.raphael.beachcleanup.exceptions.FieldValidationException("size",
+            "Esta listagem excede 100 registros. Use a rota /search com paginação.");
+        return page.getContent();
     }
 
     @Transactional(readOnly = true)

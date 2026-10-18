@@ -279,7 +279,7 @@
           }));
           form.append(node('p', 'hint', 'Após um conflito, recarregue e revise os dados antes de salvar. Alterações salvas desde a abertura do formulário impedem o envio até você recarregar e revisar.'));
         }
-        if (!$('admin-dialog').open) $('admin-dialog').showModal();
+        if (!$('admin-dialog').open) window.PortalUI.openDialog($('admin-dialog'));
       } catch (error) { if (current(session)) message(error.message, true); }
     }
     async function remove(view, record) {
@@ -302,7 +302,7 @@
       if (editing.id != null) input.version = editing.version;
       for (const key of ['title', 'location', 'beach', 'materialType']) if (key in input) input[key] = input[key].trim();
       const errorBox = $('admin-form-error');
-      const showError = text => { errorBox.textContent = text; errorBox.hidden = !text; };
+      const showError = text => window.PortalUI.errorAt(errorBox, text);
       if (isCatalog(editing.view)) {
         if (editing.merge) {
           const target = editing.targets.find(item => item.id === Number(input.targetId));
@@ -369,7 +369,7 @@
       state.page = 0;
       configure();
       message();
-      void load();
+      void load().then(loaded => { if (loaded) window.PortalUI.focus($('admin-title')); });
     }));
     $('admin-create').addEventListener('click', () => void edit(state.view));
     $('admin-filters').addEventListener('submit', event => { event.preventDefault(); state.page = 0; message(); void load(); });

@@ -1,6 +1,5 @@
 package com.raphael.beachcleanup.services;
 
-import java.util.Comparator;
 import java.util.List;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -34,9 +33,24 @@ public class EventRegistrationService {
 
     @Transactional(readOnly = true)
     public List<CleanupEventDTO> findMyEvents(Long userId) {
-        User user = users.findById(userId).orElseThrow(() -> new ResourceNotFoundException(userId));
-        return user.getEvents().stream().sorted(Comparator.comparing(CleanupEvent::getId))
-            .map(CleanupEventDTO::new).toList();
+        var page = findPage(userId, List.of(), org.springframework.data.domain.PageRequest.of(0,100,
+            org.springframework.data.domain.Sort.by("id")));
+        if (page.totalElements() > 100) throw new FieldValidationException("size",
+            "Use /users/me/events/search para consultar as inscrições com paginação.");
+        return page.content();
+    }
+
+    @Transactional(readOnly = true)
+    public com.raphael.beachcleanup.dto.RegistrationPageDTO findPage(Long userId, List<Long> eventIds,
+            org.springframework.data.domain.Pageable pageable) {
+        if (!users.existsById(userId)) throw new ResourceNotFoundException(userId);
+        if (eventIds.size() > 100 || eventIds.stream().anyMatch(id -> id == null || id <= 0))
+            throw new FieldValidationException("eventIds", "Informe até 100 IDs positivos.");
+        var page = events.registrations(userId, pageable);
+        var selected = eventIds.isEmpty() ? List.<Long>of() : events.registeredIds(userId,eventIds.stream().distinct().toList());
+        return new com.raphael.beachcleanup.dto.RegistrationPageDTO(
+            page.getContent().stream().map(CleanupEventDTO::new).toList(),page.getNumber(),page.getSize(),
+            page.getTotalElements(),page.getTotalPages(),selected);
     }
 
     public void register(Long userId, Long eventId) {

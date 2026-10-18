@@ -152,7 +152,7 @@
         ],
         "operationId": "listUsers",
         "summary": "Listar usuários",
-        "description": "Somente administrador. Lista completa em array; para paginação use /search.",
+        "description": "Somente administrador. Lista completa em array; para paginação use /search. Compatibilidade: retorna no máximo 100 itens. Se o total exceder 100, retorna 400 orientando a usar /users/search. Não trunca os resultados silenciosamente.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -175,6 +175,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           }
         }
       },
@@ -440,7 +443,7 @@
         ],
         "operationId": "listCleanupEvents",
         "summary": "Listar eventos",
-        "description": "Leitura pública. Lista completa em array; para paginação use /search.",
+        "description": "Leitura pública. Lista completa em array; para paginação use /search. Compatibilidade: retorna no máximo 100 itens. Se o total exceder 100, retorna 400 orientando a usar /cleanupEvent/search. Não trunca os resultados silenciosamente.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -457,6 +460,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           }
         },
         "security": []
@@ -690,7 +696,7 @@
         ],
         "operationId": "listTrashCollections",
         "summary": "Listar coletas",
-        "description": "Administrador vê todas; voluntário vê somente as próprias coletas. Lista completa em array; para paginação use /search.",
+        "description": "Administrador vê todas; voluntário vê somente as próprias coletas. Lista completa em array; para paginação use /search. Compatibilidade: retorna no máximo 100 itens. Se o total exceder 100, retorna 400 orientando a usar /trashCollection/search. Não trunca os resultados silenciosamente.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -713,6 +719,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           }
         }
       },
@@ -950,7 +959,7 @@
         ],
         "operationId": "listMyEvents",
         "summary": "Listar minhas inscrições",
-        "description": "Eventos da conta autenticada em ordem crescente de ID. Administrador também gerencia somente suas próprias inscrições nesta rota.",
+        "description": "Eventos da conta autenticada em ordem crescente de ID. Administrador também gerencia somente suas próprias inscrições nesta rota. Compatibilidade: retorna no máximo 100 itens. Se o total exceder 100, retorna 400 orientando a usar /users/me/events/search. Não trunca os resultados silenciosamente.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -973,6 +982,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           }
         }
       }
@@ -1825,7 +1837,7 @@
       "get": {
         "operationId": "impactReport",
         "summary": "Consultar impacto agregado público",
-        "description": "Usa a data da coleta e IDs dos catálogos. Inclui coletas independentes e sem responsável. Totais deduplicam voluntários no conjunto filtrado; não se deve somar voluntários de grupos diferentes. Dados pessoais nunca são retornados. Sem correspondências retorna zeros e rows vazia. Período agrupa por dia; sem filtros abrange todas as coletas.",
+        "description": "Usa a data da coleta e IDs dos catálogos. Inclui coletas independentes e sem responsável. Totais deduplicam voluntários no conjunto filtrado; não se deve somar voluntários de grupos diferentes. Dados pessoais nunca são retornados. Sem correspondências retorna zeros e rows vazia. Período agrupa por dia; sem filtros abrange todas as coletas. A resposta admite até 500 grupos/eventos. Se exceder esse limite, retorna 400 solicitando filtros mais específicos, sem apresentar totais parciais.",
         "security": [],
         "parameters": [
           {
@@ -1909,7 +1921,7 @@
       "get": {
         "operationId": "eventParticipationReport",
         "summary": "Consultar inscrições por evento (ADMIN)",
-        "description": "Restrito a ADMIN. Usa a data do evento, praia e ID do evento. Não aceita filtro por material; inscrições não representam pessoas que registraram coleta. Inclui eventos sem inscritos ou sem coletas. Não retorna nomes de participantes.",
+        "description": "Restrito a ADMIN. Usa a data do evento, praia e ID do evento. Não aceita filtro por material; inscrições não representam pessoas que registraram coleta. Inclui eventos sem inscritos ou sem coletas. Não retorna nomes de participantes. A resposta admite até 500 grupos/eventos. Se exceder esse limite, retorna 400 solicitando filtros mais específicos, sem apresentar totais parciais.",
         "parameters": [
           {
             "name": "from",
@@ -2355,6 +2367,76 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/events/search": {
+      "get": {
+        "tags": [
+          "Inscrições"
+        ],
+        "operationId": "searchMyRegistrations",
+        "summary": "Paginar inscrições da própria conta",
+        "description": "Não recebe ID de usuário. Retorna somente as inscrições da conta autenticada. Total global separado do conteúdo paginado. eventIds permite marcar os eventos visíveis sem baixar todas as inscrições.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "eventIds",
+            "in": "query",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1
+              }
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "200": {
+            "description": "Inscrições da própria conta, ordenadas por ID; total de todas as inscrições e correspondência dos IDs solicitados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationPage"
                 }
               }
             }
@@ -3710,6 +3792,39 @@
           },
           "totalPages": {
             "type": "integer"
+          }
+        }
+      },
+      "RegistrationPage": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CleanupEvent"
+            }
+          },
+          "number": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer"
+          },
+          "registeredEventIds": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Somente IDs solicitados em eventIds nos quais a própria conta está inscrita."
           }
         }
       }

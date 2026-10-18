@@ -55,11 +55,21 @@ jobs:
           MYSQL_TEST_USER: root
           MYSQL_TEST_PASSWORD: ci-only-password
         run: sh mvnw -B -Pmysql-it verify
+      - name: Verificar fluxos completos e acessibilidade no Chrome
+        env:
+          PORTAL_BROWSER: /usr/bin/google-chrome
+        run: node tools/verify_portal_browser.cjs
       - name: Guardar relatórios de testes
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: target/surefire-reports/
+          path: |
+            target/surefire-reports/
+            target/portal-performance-*.json
+            target/*-mobile.png
+            target/*-desktop.png
+            target/portal-browser-*.json
+            target/portal-browser-failure.log
           if-no-files-found: warn
           retention-days: 7

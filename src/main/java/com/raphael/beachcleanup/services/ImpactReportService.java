@@ -36,9 +36,10 @@ public class ImpactReportService {
         Object[] total = query("select " + metrics + source, params).getSingleResult();
         var rows = query("select " + key + ", " + label + ", " + metrics + source
             + " group by " + key + (key.equals(label) ? "" : ", " + label) + " order by " + key, params)
-            .getResultList().stream().map(row -> new Row(row[0] == null ? null : row[0].toString(),
+            .setMaxResults(501).getResultList().stream().map(row -> new Row(row[0] == null ? null : row[0].toString(),
                 row[1] == null ? (groupBy.equals("event") ? "Sem evento" : "Sem catálogo/data") : row[1].toString(),
                 decimal(row[2]), ((Number) row[3]).longValue(), ((Number) row[4]).longValue())).toList();
+        if (rows.size() > 500) throw new FieldValidationException("filters", "Mais de 500 grupos. Reduza o período ou selecione praia, material ou evento.");
         return new Report(new Metrics(decimal(total[0]), ((Number) total[1]).longValue(), ((Number) total[2]).longValue()), rows);
     }
 
@@ -47,9 +48,11 @@ public class ImpactReportService {
         validate(from, to, beachId, null, eventId);
         var params = new LinkedHashMap<String, Object>();
         String where = filters("cast(e.dateTime as LocalDate)", from, to, beachId, null, eventId, params);
-        return query("select e.id, e.title, count(distinct u.id) from CleanupEvent e left join e.beachReference b"
-            + " left join e.users u" + where + " group by e.id, e.title order by e.id", params).getResultList()
+        var rows = query("select e.id, e.title, count(distinct u.id) from CleanupEvent e left join e.beachReference b"
+            + " left join e.users u" + where + " group by e.id, e.title order by e.id", params).setMaxResults(501).getResultList()
             .stream().map(row -> new Participation((Long) row[0], (String) row[1], ((Number) row[2]).longValue())).toList();
+        if (rows.size() > 500) throw new FieldValidationException("filters", "Mais de 500 eventos. Reduza o período ou selecione praia ou evento.");
+        return rows;
     }
 
     private jakarta.persistence.TypedQuery<Object[]> query(String jpql, Map<String, Object> params) {

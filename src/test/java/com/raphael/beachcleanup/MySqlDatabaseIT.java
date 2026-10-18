@@ -80,6 +80,13 @@ class MySqlDatabaseIT {
     }
 
     @Test
+    void representativePortalVolumeHasBoundedQueryCountsOnMySql() throws Exception {
+        try (var context = start()) {
+            PortalPerformanceProbe.run(context,"mysql", "MySQL " + context.getBean(JdbcTemplate.class).queryForObject("select version()",String.class) + " loopback");
+        }
+    }
+
+    @Test
     void backupRestoresAllDataAndStartsInSeparateDatabase() throws Exception {
         long userId;
         long eventId;

@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const net = require('node:net');
 const assert = require('node:assert/strict');
+const { audit } = require('./portal-accessibility.cjs');
 
 const root = path.resolve(__dirname, '..');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -24,14 +25,18 @@ async function freePort() {
   return port;
 }
 async function main() {
-  const browserPath = process.env.PORTAL_BROWSER || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-  assert.ok(fs.existsSync(browserPath), 'Set PORTAL_BROWSER to a Chromium/Edge executable.');
+  const browserPath = process.env.PORTAL_BROWSER || [
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'
+  ].find(candidate => fs.existsSync(candidate));
+  assert.ok(browserPath && fs.existsSync(browserPath), 'Set PORTAL_BROWSER to a Chromium/Edge executable.');
   const jar = path.join(root, 'target', 'beachcleanup-0.0.1-SNAPSHOT.jar');
   assert.ok(fs.existsSync(jar), 'Run Maven package before browser verification.');
   const temporaryRoot = fs.realpathSync(os.tmpdir());
   const profile = fs.mkdtempSync(path.join(temporaryRoot, 'beachcleanup-portal-'));
   const appPort = await freePort();
   const base = `http://127.0.0.1:${appPort}`;
+  fs.rmSync(path.join(root,'target','portal-browser-failure.log'),{force:true});
   const children = [];
   let socket;
   let closeBrowser;
@@ -141,6 +146,17 @@ async function main() {
       } else element.value = value;
     })()`);
     const waitFor = expression => until(() => evaluate(expression), expression);
+    const accessibility = [];
+    const checkAccessibility = async stage => {
+      accessibility.push(await audit(evaluate,stage));
+      fs.writeFileSync(path.join(root,'target','portal-browser-accessibility.json'),JSON.stringify(accessibility,null,2));
+      assert.deepEqual(accessibility.at(-1).failures,[],`Accessibility (${stage})`);
+    };
+    async function key(key, code, modifiers = 0) {
+      const virtualKey = { Tab:9, Enter:13, Escape:27 }[key];
+      await cdp('Input.dispatchKeyEvent',{ type:'keyDown',key,code,modifiers,windowsVirtualKeyCode:virtualKey, ...(key === 'Enter' ? { text:'\r', unmodifiedText:'\r' } : {}) });
+      await cdp('Input.dispatchKeyEvent',{ type:'keyUp',key,code,modifiers,windowsVirtualKeyCode:virtualKey });
+    }
     async function reloadPage() {
       await evaluate('window.portalBeforeReload = true');
       await cdp('Page.reload');
@@ -152,6 +168,44 @@ async function main() {
     await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 960, deviceScaleFactor: 1, mobile: false });
     await cdp('Page.navigate', { url: base });
     await waitFor('document.querySelectorAll(".card").length === 6 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await checkAccessibility('public-desktop');
+    await key('Tab','Tab');
+    assert.equal(await evaluate('document.activeElement.className'),'skip','First keyboard stop is the skip link');
+    await key('Enter','Enter');
+    assert.equal(await evaluate('document.activeElement.id'),'main','Skip link focuses main content');
+    await evaluate('document.querySelector("#login-open").focus()');
+    await key('Enter','Enter');
+    await waitFor('document.querySelector("#auth-dialog").open');
+    assert.equal(await evaluate('document.activeElement.name'),'email');
+    await checkAccessibility('login-dialog');
+    for(let i=0;i<12;i++) {
+      await key('Tab','Tab');
+      assert.ok(await evaluate('document.activeElement === document.body || document.activeElement.closest("#auth-dialog") !== null'),'Tab remains within modal');
+    }
+    await key('Tab','Tab',8);
+    assert.ok(await evaluate('document.activeElement === document.body || document.activeElement.closest("#auth-dialog") !== null'),'Shift+Tab remains within modal');
+    await evaluate('document.querySelector("#auth-form [name=email]").focus()');
+    await cdp('Input.insertText',{text:'invalid-email'});
+    await key('Enter','Enter');
+    assert.ok(await evaluate('document.activeElement.name === "email" && !document.activeElement.checkValidity()'),'Native validation focuses invalid email');
+    await evaluate('document.querySelector("#auth-form [name=email]").value = ""');
+    await cdp('Input.insertText',{text:'unknown-keyboard@example.com'});
+    await key('Tab','Tab');
+    assert.equal(await evaluate('document.activeElement.name'),'password');
+    await cdp('Input.insertText',{text:'incorrect-password'});
+    await key('Enter','Enter');
+    await waitFor('!document.querySelector("#auth-error").hidden && !document.querySelector("#auth-submit").disabled');
+    assert.equal(await evaluate('document.activeElement.id'),'auth-error','Server validation moves focus to error message');
+    await checkAccessibility('login-error');
+    await key('Escape','Escape');
+    await waitFor('!document.querySelector("#auth-dialog").open');
+    assert.equal(await evaluate('document.activeElement.id'),'login-open','Escape restores the opener');
+    assert.ok(await evaluate('parseFloat(getComputedStyle(document.activeElement).outlineWidth) >= 2'),'Keyboard focus is visible');
+    for(const width of [320,768,1280]) {
+      await cdp('Emulation.setDeviceMetricsOverride',{width,height:960,deviceScaleFactor:1,mobile:width<580});
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),`No horizontal page overflow at ${width}px`);
+    }
+    await cdp('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
     await click('#next');
     await waitFor('document.querySelector("#page-info").textContent.includes("2 de 2") && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await fill('#location-filter', 'Lugar inexistente');
@@ -184,7 +238,7 @@ async function main() {
     await fill('#auth-form [name=email]', 'portal-browser@example.com');
     await fill('#auth-form [name=password]', 'portal-test-password');
     await click('#auth-submit');
-    await waitFor('document.querySelector("#auth-error").textContent.includes("Conta criada") && !document.querySelector("#auth-submit").disabled');
+    await waitFor('document.querySelector("#auth-status").textContent.includes("Conta criada") && !document.querySelector("#auth-submit").disabled');
     await fill('#auth-form [name=email]', 'portal-browser@example.com');
     await fill('#auth-form [name=password]', 'portal-test-password');
     await click('#auth-submit');
@@ -198,6 +252,10 @@ async function main() {
     await waitFor('document.querySelectorAll(".card").length === 1 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('.card-actions button:last-child');
     await waitFor('document.querySelector("#collection-dialog").open');
+    await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:844,deviceScaleFactor:1,mobile:true});
+    assert.ok(await evaluate('document.querySelector("#collection-dialog").scrollWidth <= document.querySelector("#collection-dialog").clientWidth'),'Collection form fits a 320px viewport');
+    await checkAccessibility('collection-dialog-small');
+    await cdp('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
     assert.equal(await evaluate('document.querySelector("#collection-form [name=beach]").disabled'), true);
     assert.equal(await evaluate('document.querySelector("#collection-form [name=registrationDate]").readOnly'), true);
     assert.equal(await evaluate('document.querySelector("#collection-form [name=registrationDate]").value'), '2026-10-15');
@@ -217,6 +275,21 @@ async function main() {
     await waitFor('document.querySelectorAll(".card").length === 1 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('.card-actions button:first-child');
     await waitFor('document.querySelector("#total-events").textContent === "0"');
+    const pagingSession = await evaluate('JSON.parse(sessionStorage.getItem("beachcleanup.session.v2")).session');
+    const sevenEvents = (await (await request('/cleanupEvent/search?size=100&location=Praia%20do%20navegador')).json()).content;
+    assert.equal(sevenEvents.length,7);
+    for(const event of sevenEvents) assert.equal((await request(`/users/me/events/${event.id}`,'PUT',undefined,pagingSession.accessToken)).status,204);
+    await click('[data-view=mine]');
+    await waitFor('document.querySelector("#total-events").textContent === "7" && document.querySelector("#page-info").textContent.includes("1 de 2") && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('document.querySelectorAll("#results .card").length'),6);
+    await click('#next');
+    await waitFor('document.querySelector("#page-info").textContent.includes("2 de 2") && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('document.querySelectorAll("#results .card").length'),1);
+    await click('#results .card-actions button:first-child');
+    await waitFor('document.querySelector("#total-events").textContent === "6" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('document.querySelectorAll("#results .card").length'),6,'Canceling final record returns to previous page');
+    for(const event of sevenEvents) await request(`/users/me/events/${event.id}`,'DELETE',undefined,pagingSession.accessToken);
+
     await click('[data-view=collections]');
     await waitFor('document.querySelectorAll(".card").length === 2 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'portal-desktop.png'), Buffer.from(result.data, 'base64')));
@@ -278,9 +351,11 @@ async function main() {
     await waitFor('document.querySelector("#report-results h3")?.textContent === "2,5 kg coletados"');
     assert.equal(await evaluate('document.querySelectorAll("#report-results meter").length'), 1);
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile report must not overflow the page');
+    await checkAccessibility('impact-mobile');
     await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'impact-mobile.png'), Buffer.from(result.data, 'base64')));
     await click('[data-view=profile]');
     await waitFor('document.querySelector("#profile-form [name=name]").value === "Perfil atualizado"');
+    await checkAccessibility('profile-mobile');
     await fill('#password-form [name=currentPassword]', 'portal-test-password');
     await fill('#password-form [name=newPassword]', 'portal-new-password');
     await fill('#password-form [name=confirmation]', 'does-not-match');
@@ -512,6 +587,7 @@ async function main() {
     await click('#admin-results .card-actions button:last-child');
     await waitFor('document.querySelector("#admin-page-info").textContent.includes("1 de 1") && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
     await evaluate('document.querySelector("#admin-results").scrollIntoView({block: "start"})');
+    await checkAccessibility('admin-mobile');
     await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'admin-mobile.png'), Buffer.from(result.data, 'base64')));
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Administrative mobile layout must not overflow');
     await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 960, deviceScaleFactor: 1, mobile: false });
@@ -595,8 +671,12 @@ async function main() {
     await click('#admin-tab');
     assert.equal(await evaluate('document.querySelector("#admin-workspace").hidden'), true, 'Revealing a control must not grant administrative access');
     assert.deepEqual(browserErrors, [], 'No script exceptions or CSP violations');
-    console.log('PASS: recovery/verification forms, private link fragments and password policy; silent renewal, refresh rotation/deadline, server logout and revoked JWTs; public impact dashboard and admin registrations; personal profile/password, collection edits/deletions, stale drafts, totals and permissions; admin regression, desktop/mobile and CSP.');
+    const metrics = await evaluate(`({ navigation: performance.getEntriesByType('navigation').map(entry => ({ domContentLoadedMs:entry.domContentLoadedEventEnd, loadMs:entry.loadEventEnd })),
+      resources: performance.getEntriesByType('resource').map(entry => ({ path:new URL(entry.name).pathname, durationMs:entry.duration, bytes:entry.transferSize })) })`);
+    fs.writeFileSync(path.join(root,'target','portal-browser-performance.json'),JSON.stringify(metrics,null,2));
+    console.log('PASS: recovery/verification forms, private link fragments and password policy; silent renewal, refresh rotation/deadline, server logout and revoked JWTs; public impact dashboard and admin registrations; personal profile/password, collection edits/deletions, stale drafts, totals and permissions; administrative audit, keyboard/focus, contrast, desktop/mobile and CSP.');
   } catch (error) {
+    fs.writeFileSync(path.join(root, 'target', 'portal-browser-failure.log'), logs);
     console.error(logs.slice(-3000));
     throw error;
   } finally {

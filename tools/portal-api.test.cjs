@@ -475,3 +475,21 @@ test('audit requests require admin role and preserve investigation filters', asy
   assert.equal(url.searchParams.get('page'), '1');
   assert.equal(calls[1].options.headers.Authorization, 'Bearer test-token');
 });
+
+
+test('registrations use a bounded page and selected event IDs without downloading all events', async () => {
+  const calls = [];
+  const api = createPortalApi(async (path, options) => {
+    calls.push({ path, options });
+    return response(200, path === '/auth/login' ? token : { content: [], totalElements: 500, registeredEventIds: [7] });
+  });
+  await api.login({});
+  const result = await api.registrations({ page: 2, eventIds: '7,8' });
+  const url = new URL(calls[1].path, 'http://localhost');
+  assert.equal(url.pathname, '/users/me/events/search');
+  assert.equal(url.searchParams.get('size'), '6');
+  assert.equal(url.searchParams.get('page'), '2');
+  assert.equal(url.searchParams.get('eventIds'), '7,8');
+  assert.equal(result.totalElements, 500);
+  assert.deepEqual(result.registeredEventIds, [7]);
+});

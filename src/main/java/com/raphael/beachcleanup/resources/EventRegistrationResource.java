@@ -30,6 +30,15 @@ public class EventRegistrationResource {
         return ResponseEntity.ok(service.findMyEvents(access.currentId()));
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<com.raphael.beachcleanup.dto.RegistrationPageDTO> search(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) List<Long> eventIds) {
+        return ResponseEntity.ok(service.findPage(access.currentId(), eventIds == null ? List.of() : eventIds,
+            com.raphael.beachcleanup.services.SearchPagination.of(page,size,"id","asc",java.util.Set.of("id"))));
+    }
+
     @PutMapping("/{eventId}")
     public ResponseEntity<Void> register(@PathVariable Long eventId) {
         service.register(access.currentId(), eventId);

@@ -11,7 +11,8 @@ import com.raphael.beachcleanup.entities.TrashCollection;
 public interface TrashCollectionRepository extends JpaRepository<TrashCollection, Long>,
         org.springframework.data.jpa.repository.JpaSpecificationExecutor<TrashCollection> {
     @Override
-    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"volunteer", "event"})
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {
+        "volunteer", "event", "event.beachReference", "beachReference", "materialReference"})
     org.springframework.data.domain.Page<TrashCollection> findAll(
         org.springframework.data.jpa.domain.Specification<TrashCollection> spec,
         org.springframework.data.domain.Pageable pageable);

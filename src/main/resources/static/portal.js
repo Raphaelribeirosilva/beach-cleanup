@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
+  const { node, action, busy } = window.PortalUI;
   const accountLink = new URLSearchParams(window.location.hash.slice(1));
   const initialAccountMode = accountLink.has('reset') ? 'reset' : accountLink.has('verify') ? 'verify' : null;
   let accountToken = initialAccountMode ? accountLink.get(initialAccountMode) : null;
@@ -14,7 +15,7 @@
     openAuth('login');
   });
   const state = { view: 'events', page: 0, pages: 0, generation: 0, signup: false,
-    profile: null, registrations: [], selectedEvent: null, editingCollection: null, profileVersion: null, loading: false };
+    profile: null, totalRegistrations: 0, registrations: [], selectedEvent: null, editingCollection: null, profileVersion: null, loading: false };
   const kg = value => value == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
   const date = value => {
     if (!value) return 'Data não informada';
@@ -24,13 +25,8 @@
       value.includes('T') ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(parsed);
   };
   const activeEvent = event => ['Agendado', 'Em andamento'].includes(event.status);
+  const loadReport = window.createImpactReports(api, { node, kg, catalogChoices, isCurrent: generation => generation === state.generation });
   const admin = createAdminPortal(api, { node, action, busy, kg, date });
-  function node(tag, className, content) {
-    const element = document.createElement(tag);
-    if (className) element.className = className;
-    if (content !== undefined) element.textContent = content;
-    return element;
-  }
   function catalogChoices(select, entries, title) {
     const previous = select.value;
     const placeholder = node('option', '', title);
@@ -47,18 +43,7 @@
     $('notice').className = error ? 'notice error' : 'notice';
     $('notice').hidden = !message;
   }
-  function errorAt(id, message = '') {
-    $(id).textContent = message;
-    $(id).hidden = !message;
-  }
-  async function busy(button, operation) {
-    if (button.disabled) return;
-    button.disabled = true;
-    const previous = button.textContent;
-    button.textContent = 'Aguarde…';
-    try { await operation(); }
-    finally { button.disabled = false; if (button.textContent === 'Aguarde…') button.textContent = previous; }
-  }
+  function errorAt(id, message = '') { window.PortalUI.errorAt($(id), message); }
   function syncAccount() {
     const signed = Boolean(api.session());
     $('account').hidden = signed;
@@ -67,7 +52,7 @@
     $('admin-tab').hidden = api.session()?.role !== 'ADMIN';
     $('account-name').textContent = state.profile?.name || 'Minha conta';
     $('total-kg').textContent = state.profile ? kg(state.profile.totalCollectedKg) : '—';
-    $('total-events').textContent = state.registrations.length;
+    $('total-events').textContent = state.totalRegistrations;
   }
   function resetAccount() {
     admin.reset();
@@ -80,6 +65,7 @@
     $('report-results').replaceChildren();
     if ($('collection-dialog').open) $('collection-dialog').close();
     state.registrations = [];
+    state.totalRegistrations = 0;
     state.view = 'events';
     state.page = 0;
     $('results').replaceChildren();
@@ -118,18 +104,13 @@
     box.append(node('strong', '', title), node('span', '', description));
     $('results').replaceChildren(box);
   }
-  function action(label, handler, primary = false) {
-    const button = node('button', `button ${primary ? 'primary' : 'outline'}`, label);
-    button.type = 'button';
-    button.addEventListener('click', () => void busy(button, handler));
-    return button;
-  }
   async function registrationAction(event, registered) {
     if (!api.session()) { openAuth('login'); return; }
     try {
       if (registered) await api.cancel(event.id);
       else await api.register(event.id);
       const refreshed = await load();
+      if (refreshed) window.PortalUI.focus($('results'));
       if (refreshed) notify(registered ? 'Inscrição cancelada.' : 'Inscrição confirmada. Nos vemos na praia!');
       else if (api.session()) notify('Inscrição atualizada. Não foi possível recarregar os dados; tente novamente pelo botão abaixo.', true);
     } catch (error) {
@@ -166,7 +147,7 @@
     actions.append(action('Editar coleta', () => openCollection(collection.event, collection)),
       action('Excluir coleta', async () => {
         if (!window.confirm(`Excluir a coleta #${collection.id}? Esta ação não pode ser desfeita.`)) return;
-        try { await api.deleteCollection(collection.id, collection.version); if (await load()) notify('Coleta excluída. Totais atualizados.'); }
+        try { await api.deleteCollection(collection.id, collection.version); if (await load()) { window.PortalUI.focus($('results')); notify('Coleta excluída. Totais atualizados.'); } }
         catch (error) { notify(error.message, true); }
       }));
     body.append(actions);
@@ -178,6 +159,8 @@
     if (state.view === 'admin') { state.loading = false; return admin.load(); }
     if (state.view === 'reports') return loadReport(generation);
     if (state.view === 'profile') {
+      $('profile-workspace').setAttribute('aria-busy', 'true');
+      $('profile-form').querySelector('[type=submit]').disabled = true;
       try {
         const profile = await api.profile();
         if (generation !== state.generation) return false;
@@ -190,6 +173,7 @@
         syncAccount();
         return true;
       } catch (error) { if (generation === state.generation) notify(error.message, true); return false; }
+      finally { if (generation === state.generation) { $('profile-workspace').setAttribute('aria-busy', 'false'); $('profile-form').querySelector('[type=submit]').disabled = false; } }
     }
     const view = state.view;
     state.loading = true;
@@ -201,23 +185,29 @@
       const resultPromise = view === 'events' ? api.events({ page: state.page,
         beachId: $('location-filter').value, status: $('status-filter').value })
         : view === 'collections' ? api.collections({ page: state.page }) : Promise.resolve(null);
-      const [result, profile, registrations, beaches] = await Promise.all([
-        resultPromise, signed ? api.profile() : null, signed ? api.registrations() : [], api.catalog('beaches')
+      const [result, profile, beaches] = await Promise.all([
+        resultPromise, signed ? api.profile() : null, api.catalog('beaches')
       ]);
+      const registrationPage = signed ? await api.registrations({ page: view === 'mine' ? state.page : 0, size: view === 'mine' ? 6 : 1,
+        eventIds: view === 'events' ? result.content.map(event => event.id).join(',') : undefined })
+        : { content: [], totalElements: 0, registeredEventIds: [] };
+      const registrations = registrationPage.content;
       if (generation !== state.generation) return false;
       catalogChoices($('location-filter'), beaches, 'Todas as praias');
       state.profile = profile;
-      state.registrations = registrations;
+      state.registrations = view === 'events' ? registrationPage.registeredEventIds.map(id => ({ id })) : registrations;
+      state.totalRegistrations = registrationPage.totalElements;
       syncAccount();
       const records = view === 'mine' ? registrations : result.content;
+      if (!records.length && state.page > 0) { state.page--; return load(); }
       if (!records.length) empty(view === 'mine' ? 'Sua próxima ação está por vir.'
         : view === 'collections' ? 'Sua primeira coleta começa aqui.' : 'Nenhum evento encontrado.',
         view === 'mine' ? 'Explore os eventos e escolha um mutirão para participar.'
           : view === 'collections' ? 'Registre o que você retirou da praia para acompanhar seu impacto.'
           : 'Tente outro local ou status. Novos mutirões aparecerão por aqui.');
       else $('results').replaceChildren(...records.map(view === 'collections' ? collectionCard : eventCard));
-      state.pages = result?.totalPages || 0;
-      $('pagination').hidden = view === 'mine' || state.pages < 2;
+      state.pages = (view === 'mine' ? registrationPage.totalPages : result?.totalPages) || 0;
+      $('pagination').hidden = state.pages < 2;
       $('page-info').textContent = `Página ${state.page + 1} de ${state.pages}`;
       $('previous').disabled = state.page === 0;
       $('next').disabled = state.page + 1 >= state.pages;
@@ -239,6 +229,7 @@
     state.signup = mode === 'signup';
     $('auth-form').reset();
     errorAt('auth-error');
+    errorAt('auth-status');
     $('name-label').hidden = !state.signup;
     $('auth-form').elements.name.required = state.signup;
     $('auth-form').elements.password.minLength = state.signup ? 15 : 1;
@@ -249,7 +240,7 @@
       : 'Entre para participar dos eventos e acompanhar suas coletas.';
     $('auth-submit').textContent = state.signup ? 'Criar minha conta' : 'Entrar';
     $('auth-switch').textContent = state.signup ? 'Já tenho uma conta' : 'Ainda não tenho uma conta';
-    if (!$('auth-dialog').open) $('auth-dialog').showModal();
+    if (!$('auth-dialog').open) window.PortalUI.openDialog($('auth-dialog'));
   }
   async function openCollection(event = null, collection = null) {
     if (!api.session()) { openAuth('login'); return; }
@@ -286,7 +277,7 @@
     $('collection-title').textContent = collection ? `Editar coleta #${collection.id}` : 'Registrar coleta';
     syncCollectionEvent();
     errorAt('collection-error');
-    $('collection-dialog').showModal();
+    window.PortalUI.openDialog($('collection-dialog'));
   }
   function syncCollectionEvent() {
     const form = $('collection-form');
@@ -328,9 +319,10 @@
     state.page = 0;
     syncView();
     notify('');
-    void load();
+    const requested = state.view;
+    void load().then(loaded => { if (loaded && requested === state.view) window.PortalUI.focus($('workspace-title')); });
   }));
-  $('filters').addEventListener('submit', event => { event.preventDefault(); state.page = 0; notify(''); void load(); });
+  $('filters').addEventListener('submit', event => { event.preventDefault(); state.page = 0; notify(''); void load().then(() => window.PortalUI.focus($('results'))); });
   $('previous').addEventListener('click', () => { if (!state.loading && state.page > 0) { state.page--; void load(); } });
   $('next').addEventListener('click', () => { if (!state.loading && state.page + 1 < state.pages) { state.page++; void load(); } });
   $('auth-form').addEventListener('submit', event => {
@@ -349,7 +341,7 @@
           await api.signup({ ...input, name: form.elements.name.value.trim() });
           created = true;
           openAuth('login');
-          errorAt('auth-error', 'Conta criada. Confira seu e-mail e confirme o endereço antes de entrar. Se necessário, use Reenviar confirmação.');
+          errorAt('auth-status', 'Conta criada. Confira seu e-mail e confirme o endereço antes de entrar. Se necessário, use Reenviar confirmação.');
           return;
         }
         await api.login(input);
@@ -393,57 +385,6 @@
     });
   });
 
-  async function loadReport(generation) {
-    const form = $('report-filters');
-    const filters = Object.fromEntries(new FormData(form));
-    $('report-results').textContent = 'Carregando relatório…';
-    try {
-      const [report, beaches, materials] = await Promise.all([
-        api.report(filters), api.catalog('beaches'), api.catalog('materials')
-      ]);
-      if (generation !== state.generation) return false;
-      catalogChoices(form.elements.beachId, beaches, 'Todas as praias');
-      catalogChoices(form.elements.materialId, materials, 'Todos os materiais');
-      const box = $('report-results');
-      box.replaceChildren(node('h3', '', `${kg(report.totals.weightKg)} kg coletados`),
-        node('p', '', `${report.totals.collections} coletas · ${report.totals.collectors} voluntários distintos com coleta registrada`));
-      const table = node('table', 'report-table');
-      const caption = node('caption', '', 'Impacto por agrupamento selecionado');
-      const head = node('thead'); const heading = node('tr');
-      for (const label of ['Grupo', 'Quilos', 'Coletas', 'Voluntários com coleta']) { const th = node('th', '', label); th.scope = 'col'; heading.append(th); }
-      head.append(heading); const body = node('tbody');
-      const chart = node('div', 'report-chart');
-      chart.append(node('h3', '', 'Quilos por grupo'));
-      const max = report.rows.reduce((largest, row) => Math.max(largest, Number(row.weightKg)), 1);
-      for (const row of report.rows) {
-        const tr = node('tr');
-        for (const value of [row.label, kg(row.weightKg), row.collections, row.collectors]) tr.append(node('td', '', value));
-        body.append(tr);
-        const label = node('label', 'report-bar', `${row.label}: ${kg(row.weightKg)} kg`);
-        const meter = node('meter'); meter.min = 0; meter.max = max; meter.value = Number(row.weightKg);
-        meter.setAttribute('aria-label', `${row.label}: ${kg(row.weightKg)} kg`); label.append(meter); chart.append(label);
-      }
-      table.append(caption, head, body); box.append(table, chart);
-      if (!report.rows.length) box.append(node('p', '', 'Nenhuma coleta para os filtros selecionados.'));
-      box.append(node('p', 'hint', 'Voluntários podem aparecer em vários grupos; o total conta cada pessoa uma única vez. Coletas sem responsável entram nos quilos e coletas, sem aumentar voluntários.'));
-      if (api.session()?.role === 'ADMIN') {
-        const section = node('section'); box.append(section);
-        try {
-          const { materialId, groupBy, ...eventFilters } = filters;
-          const rows = await api.participation(eventFilters);
-          if (generation !== state.generation) return false;
-          section.append(node('h3', '', 'Inscrições por evento · acesso administrativo'),
-            node('p', 'hint', 'Usa a data do evento, praia e evento selecionados. O filtro de material não se aplica às inscrições. Não representa presença nem pessoas com coleta.'));
-          for (const row of rows) section.append(node('p', '', `#${row.eventId} ${row.title}: ${row.registeredParticipants} inscritos`));
-          if (!rows.length) section.append(node('p', '', 'Nenhum evento no período.'));
-        } catch (error) { if (generation === state.generation) section.textContent = error.message; }
-      }
-      return true;
-    } catch (error) {
-      if (generation === state.generation) $('report-results').textContent = error.message;
-      return false;
-    }
-  }
   $('report-filters').addEventListener('submit', event => { event.preventDefault(); void load(); });
   $('profile-form').addEventListener('submit', event => {
     event.preventDefault(); const form = event.currentTarget;
@@ -489,7 +430,7 @@
     $('account-help-description').textContent = reset ? 'Use pelo menos 15 caracteres, até 72 bytes UTF-8. A redefinição encerra todas as sessões da conta.'
       : verify ? 'Clique para confirmar que este endereço de e-mail é seu.' : 'Informe seu e-mail. Se o endereço estiver apto, enviaremos as instruções. Confira também o spam.';
     $('account-help-submit').textContent = reset ? 'Redefinir senha' : verify ? 'Confirmar e-mail' : 'Enviar instruções';
-    if (!$('account-help-dialog').open) $('account-help-dialog').showModal();
+    if (!$('account-help-dialog').open) window.PortalUI.openDialog($('account-help-dialog'));
   }
   $('recovery-open').addEventListener('click', () => openAccountHelp('recovery'));
   $('verification-open').addEventListener('click', () => openAccountHelp('verification'));

@@ -1,0 +1,57 @@
+#profile-workspace  {
+  max-width: 42rem;
+  
+}
+
+#profile-workspace form  {
+  display: grid;
+  gap: 1rem;
+  margin-block: 2rem;
+  
+}
+
+#reports-workspace  {
+  overflow-x: auto;
+  
+}
+
+.report-table  {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 1.5rem;
+  
+}
+
+.report-table th, .report-table td  {
+  text-align: left;
+  padding: .7rem;
+  border-bottom: 1px solid #80b4a3;
+  
+}
+
+.report-table caption  {
+  text-align: left;
+  font-weight: bold;
+  
+}
+
+.report-chart  {
+  display: grid;
+  gap: .6rem;
+  margin-block: 2rem;
+  
+}
+
+.report-bar  {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 2fr;
+  align-items: center;
+  gap: 1rem;
+  
+}
+
+.report-bar meter  {
+  width: 100%;
+  height: 1.4rem;
+  
+}

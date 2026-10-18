@@ -209,7 +209,7 @@
       deleteCollection: (id, version) => request(query(`/trashCollection/${id}`, { version }), { method: 'DELETE', authenticated: true }),
       profile: () => request(`/users/${session?.userId}`, { authenticated: true }),
       events: filters => request(query('/cleanupEvent/search', { size: 6, sortBy: 'dateTime', direction: 'asc', ...filters })),
-      registrations: () => request('/users/me/events', { authenticated: true }),
+      registrations: filters => request(query('/users/me/events/search', { size: 6, ...filters }), { authenticated: true }),
       register: id => request(`/users/me/events/${id}`, { method: 'PUT', authenticated: true }),
       cancel: id => request(`/users/me/events/${id}`, { method: 'DELETE', authenticated: true }),
       collections: filters => request(query('/trashCollection/search', {

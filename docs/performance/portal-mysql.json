@@ -1,0 +1,34 @@
+{
+  "database": "MySQL 8.0.46 loopback",
+  "volume": {
+    "registrations": 500,
+    "users": 200,
+    "collections": 10000,
+    "events": 500,
+    "referencedCatalogEntries": 30
+  },
+  "events20": {
+    "sqlStatements": 2,
+    "p95Ms": 8.8147,
+    "samples": 9,
+    "medianMs": 6.3458
+  },
+  "collections20": {
+    "sqlStatements": 3,
+    "p95Ms": 21.3532,
+    "samples": 9,
+    "medianMs": 17.7705
+  },
+  "impact": {
+    "sqlStatements": 2,
+    "p95Ms": 48.6015,
+    "samples": 9,
+    "medianMs": 45.8434
+  },
+  "registrations20": {
+    "sqlStatements": 4,
+    "p95Ms": 14.0296,
+    "samples": 9,
+    "medianMs": 10.9607
+  }
+}

@@ -13,10 +13,10 @@ public class VolunteerPortalSecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain volunteerPortalSecurity(HttpSecurity http) throws Exception {
-        return http.securityMatcher("/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js")
+        return http.securityMatcher("/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js", "/portal-ui.js", "/portal-reports.js", "/portal-admin.css", "/portal-account.css")
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.GET, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js").permitAll()
-                .requestMatchers(HttpMethod.HEAD, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js").permitAll()
+                .requestMatchers(HttpMethod.GET, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js", "/portal-ui.js", "/portal-reports.js", "/portal-admin.css", "/portal-account.css").permitAll()
+                .requestMatchers(HttpMethod.HEAD, "/", "/index.html", "/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js", "/portal-ui.js", "/portal-reports.js", "/portal-admin.css", "/portal-account.css").permitAll()
                 .anyRequest().denyAll())
             .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(
                 "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "

@@ -57,6 +57,32 @@ class EventRegistrationIntegrationTests {
     }
 
     @Test
+    void pagedRegistrationsKeepGlobalCountsAndMembershipPrivate() throws Exception {
+        User ana = account("ana", false), bruno = account("bruno", false);
+        String token = login(ana);
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        for (int i=0;i<8;i++) ids.add(event().getId());
+        for (int i=0;i<7;i++) registrations.register(ana.getId(), ids.get(i));
+        registrations.register(bruno.getId(), ids.getLast());
+        mvc.perform(get("/users/me/events/search").header("Authorization",token).param("size","3").param("page","1")
+            .param("eventIds",ids.getFirst()+","+ids.getLast()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(3))
+            .andExpect(jsonPath("$.number").value(1)).andExpect(jsonPath("$.totalElements").value(7))
+            .andExpect(jsonPath("$.totalPages").value(3)).andExpect(jsonPath("$.registeredEventIds.length()").value(1))
+            .andExpect(jsonPath("$.registeredEventIds[0]").value(ids.getFirst().intValue()));
+        mvc.perform(get("/users/me/events/search").header("Authorization",login(bruno)))
+            .andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(get("/users/me/events/search")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/users/me/events/search").header("Authorization",token).param("size","101"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(get("/users/me/events/search").header("Authorization",token).param("eventIds","0"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(get("/users/me/events/search").header("Authorization",token).param("eventIds",
+            java.util.stream.IntStream.rangeClosed(1,101).mapToObj(Integer::toString).collect(java.util.stream.Collectors.joining(","))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void registrationAndCancellationAreIdempotentAndListOnlyCurrentEvents() throws Exception {
         User ana = account("ana", false);
         String token = login(ana);

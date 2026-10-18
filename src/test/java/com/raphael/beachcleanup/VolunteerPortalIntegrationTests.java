@@ -31,7 +31,7 @@ class VolunteerPortalIntegrationTests {
             .andExpect(content().string(containsString("lang=\"pt-BR\"")))
             .andExpect(content().string(containsString("id=\"collection-form\"")))
             .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self'")));
-        for (String asset : new String[] {"/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js"}) {
+        for (String asset : new String[] {"/portal.css", "/portal.js", "/portal-api.js", "/portal-admin.js", "/portal-ui.js", "/portal-reports.js", "/portal-admin.css", "/portal-account.css"}) {
             mvc.perform(get(asset)).andExpect(status().isOk())
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"));
         }

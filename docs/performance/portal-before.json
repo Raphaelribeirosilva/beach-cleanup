@@ -1,0 +1,34 @@
+{
+  "database": "H2 in-memory (not production MySQL latency)",
+  "volume": {
+    "users": 200,
+    "registrations": 500,
+    "events": 500,
+    "collections": 10000,
+    "referencedCatalogEntries": 30
+  },
+  "events20": {
+    "p95Ms": 32.9511,
+    "sqlStatements": 22,
+    "medianMs": 23.3836,
+    "samples": 9
+  },
+  "collections20": {
+    "p95Ms": 30.7836,
+    "sqlStatements": 33,
+    "medianMs": 23.6205,
+    "samples": 9
+  },
+  "impact": {
+    "p95Ms": 30.8489,
+    "sqlStatements": 2,
+    "medianMs": 19.7502,
+    "samples": 9
+  },
+  "registrationsLegacy": {
+    "p95Ms": 36.5741,
+    "sqlStatements": 2,
+    "medianMs": 19.6992,
+    "samples": 9
+  }
+}
