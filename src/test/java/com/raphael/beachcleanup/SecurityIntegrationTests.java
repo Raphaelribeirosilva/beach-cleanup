@@ -52,13 +52,13 @@ class SecurityIntegrationTests {
     @Test
     void registrationAndLoginIssueUsableTokenWithoutAllowingRoleEscalation() throws Exception {
         var registration = mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content("""
-            {"version":0,"name":"Ana","email":"ANA@EXAMPLE.COM","password":"senha-segura","role":"ADMIN"}
+            {"version":0,"name":"Ana","email":"ANA@EXAMPLE.COM","password":"senha-segura-forte","role":"ADMIN"}
             """)).andExpect(status().isCreated()).andExpect(jsonPath("$.email").value("ana@example.com"))
             .andExpect(jsonPath("$..password").isEmpty()).andReturn();
         long id = mapper.readTree(registration.getResponse().getContentAsString()).get("id").asLong();
         assertEquals(UserRole.VOLUNTEER, users.findById(id).orElseThrow().getRole());
         var login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
-            {"email":"ANA@EXAMPLE.COM","password":"senha-segura"}
+            {"email":"ANA@EXAMPLE.COM","password":"senha-segura-forte"}
             """)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(jsonPath("$.tokenType").value("Bearer")).andExpect(jsonPath("$.expiresIn").value(1800))
             .andExpect(jsonPath("$.userId").value(id)).andExpect(jsonPath("$.volunteerId").doesNotExist())
@@ -130,8 +130,10 @@ class SecurityIntegrationTests {
             .andExpect(status().isForbidden());
         mvc.perform(put("/users/" + first.getId()).header("Authorization", "Bearer " + token)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"version\":0,\"name\":\"Nome novo\",\"email\":\"new@example.com\",\"role\":\"ADMIN\"}"))
+            .content("{\"version\":0,\"name\":\"Nome novo\",\"email\":\"new@example.com\",\"currentPassword\":\"senha-segura-forte\",\"role\":\"ADMIN\"}"))
             .andExpect(status().isOk());
+        mvc.perform(get("/users/" + first.getId()).header("Authorization", "Bearer " + token)).andExpect(status().isUnauthorized());
+        token = login("new@example.com");
         assertEquals(UserRole.VOLUNTEER, users.findById(first.getId()).orElseThrow().getRole());
         assertEquals("second@example.com", users.findById(second.getId()).orElseThrow().getEmail());
         mvc.perform(get("/users/" + first.getId()).header("Authorization", "Bearer " + token))
@@ -233,7 +235,7 @@ class SecurityIntegrationTests {
         User first = account("ana@example.com", false);
         User second = account("bia@example.com", false);
         mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"version\":0,\"name\":\"Outra Ana\",\"email\":\"ANA@EXAMPLE.COM\",\"password\":\"senha-segura\"}"))
+            .content("{\"version\":0,\"name\":\"Outra Ana\",\"email\":\"ANA@EXAMPLE.COM\",\"password\":\"senha-segura-forte\"}"))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("Email conflict"));
         String token = login("bia@example.com");
         mvc.perform(put("/users/" + second.getId()).header("Authorization", "Bearer " + token)
@@ -245,7 +247,7 @@ class SecurityIntegrationTests {
     }
 
     private User account(String email, boolean admin) {
-        User account = userService.insert(new User(null, "Voluntario", email, "senha-segura", 0.0));
+        User account = userService.insert(new User(null, "Voluntario", email, "senha-segura-forte", 0.0));
         if (admin) {
             account.setRole(UserRole.ADMIN);
             account = users.save(account);
@@ -255,7 +257,7 @@ class SecurityIntegrationTests {
 
     private String login(String email) throws Exception {
         var result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"email\":\"" + email + "\",\"password\":\"senha-segura\"}"))
+            .content("{\"email\":\"" + email + "\",\"password\":\"senha-segura-forte\"}"))
             .andExpect(status().isOk()).andReturn();
         return mapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
     }

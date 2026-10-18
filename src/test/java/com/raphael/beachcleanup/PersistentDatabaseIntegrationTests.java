@@ -53,7 +53,7 @@ class PersistentDatabaseIntegrationTests {
         }
         try (var context = start(url)) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
-            assertEquals(8, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
             assertEquals(0L, jdbc.queryForObject(
                 "select row_version from tb_trash_collection where id=303", Long.class));
             assertEquals(0L, jdbc.queryForObject(
@@ -86,7 +86,9 @@ class PersistentDatabaseIntegrationTests {
             var users = context.getBean(UserRepository.class);
             assertEquals(0, users.count());
             User user = context.getBean(UserService.class).insert(
-                new User(null, "Ana", "ana@example.com", "senha-segura", 0.0));
+                new User(null, "Ana", "ana@example.com", "senha-segura-forte", 0.0));
+            user.setEmailVerified(true);
+            users.saveAndFlush(user);
             userId = user.getId();
             CleanupEvent event = context.getBean(CleanupEventService.class).insert(new CleanupEvent(null,
                 "Mutirao", "Praia A", LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado"));
@@ -96,7 +98,7 @@ class PersistentDatabaseIntegrationTests {
             collection.setVolunteer(user);
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(8, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
             assertThrows(FlywayException.class, () -> context.getBean(Flyway.class).clean());
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
@@ -109,8 +111,8 @@ class PersistentDatabaseIntegrationTests {
                 .user(users.findById(userId).orElseThrow()).getTotalCollectedKg().doubleValue());
             assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
             assertEquals(userId, context.getBean(AuthService.class)
-                .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
-            assertEquals(8, context.getBean(Flyway.class).info().applied().length);
+                .login(new LoginDTO("ana@example.com", "senha-segura-forte")).userId());
+            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
             assertThrows(DataIntegrityViolationException.class, () -> jdbc.update("""
                 insert into tb_user(name,email,password,role,credential_version)

@@ -58,7 +58,7 @@ class RefreshSessionIntegrationTests {
     @BeforeEach void setup() {
         collections.deleteAll(); userRepository.deleteAll(); events.deleteAll();
         clock.value.set(Instant.now().truncatedTo(ChronoUnit.SECONDS));
-        ownerId = users.insert(new User(null, "Ana", "ana@example.com", "senha-inicial", 0.0)).getId();
+        ownerId = users.insert(new User(null, "Ana", "ana@example.com", "senha-inicial-forte", 0.0)).getId();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
@@ -110,10 +110,10 @@ class RefreshSessionIntegrationTests {
 
     @Test void passwordChangeRevokesAllRefreshFamiliesAndOtherUsersRemainValid() throws Exception {
         var first = login(); var other = login(); var rotated = refresh(first, 200);
-        users.insert(new User(null, "Bia", "bia@example.com", "senha-inicial", 0.0));
-        var bia = context.getBean(AuthService.class).login(new LoginDTO("bia@example.com", "senha-inicial"));
+        users.insert(new User(null, "Bia", "bia@example.com", "senha-inicial-forte", 0.0));
+        var bia = context.getBean(AuthService.class).login(new LoginDTO("bia@example.com", "senha-inicial-forte"));
         mvc.perform(put("/auth/password").header("Authorization", "Bearer " + rotated.accessToken())
-            .contentType(MediaType.APPLICATION_JSON).content("{\"currentPassword\":\"senha-inicial\",\"newPassword\":\"senha-nova\"}"))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"currentPassword\":\"senha-inicial-forte\",\"newPassword\":\"senha-nova-forte\"}"))
             .andExpect(status().isNoContent());
         for (var token : List.of(first, other, rotated)) { access(token, 401); refresh(token, 401); }
         assertDoesNotThrow(() -> decoder.decode(bia.accessToken()));
@@ -179,7 +179,7 @@ class RefreshSessionIntegrationTests {
 
     private TokenDTO login() throws Exception {
         var response = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"email\":\"ana@example.com\",\"password\":\"senha-inicial\"}"))
+            .content("{\"email\":\"ana@example.com\",\"password\":\"senha-inicial-forte\"}"))
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(header().doesNotExist("Set-Cookie")).andReturn().getResponse();
         return mapper.readValue(response.getContentAsString(), TokenDTO.class);

@@ -41,7 +41,7 @@ class StaleFormIntegrationTests {
         collections.deleteAll();
         users.deleteAll();
         events.deleteAll();
-        var owner = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura", 0.0));
+        var owner = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura-forte", 0.0));
         userId = owner.getId();
         eventId = events.saveAndFlush(new CleanupEvent(null, "Mutirao", "Praia A",
             LocalDateTime.parse("2026-10-15T08:00:00"), "Agendado")).getId();

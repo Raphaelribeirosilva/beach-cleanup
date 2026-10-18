@@ -69,11 +69,11 @@ class CrudIntegrationTests {
     @Test
     void userCrudUpdatesNameAndEmailAndPreservesManagedFields() throws Exception {
         long id = create("/users", """
-            {"name":"Ana","email":"ana@example.com","password":"senha-inicial"}
+            {"name":"Ana","email":"ana@example.com","password":"senha-inicial-forte"}
             """);
         String storedHash = users.findById(id).orElseThrow().getPassword();
-        assertNotEquals("senha-inicial", storedHash);
-        assertTrue(passwordEncoder.matches("senha-inicial", storedHash));
+        assertNotEquals("senha-inicial-forte", storedHash);
+        assertTrue(passwordEncoder.matches("senha-inicial-forte", storedHash));
         assertFalse(passwordEncoder.matches("senha-incorreta", storedHash));
         assertEquals(0.0, users.findById(id).orElseThrow().getTotalCollectedKg().doubleValue());
         mvc.perform(get("/users"))
@@ -89,7 +89,7 @@ class CrudIntegrationTests {
         mvc.perform(put("/users/{id}", id).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"version":0,"id":999999,"name":"Ana Silva","email":"ana.silva@example.com",
-                 "password":"outra-senha","totalCollectedKg":500}
+                 "password":"outra-senha-forte","totalCollectedKg":500}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
             .andExpect(jsonPath("$.name").value("Ana Silva"))
@@ -281,16 +281,16 @@ class CrudIntegrationTests {
     @Test
     void samePasswordProducesDifferentHashesAndBothMatch() throws Exception {
         long first = create("/users", """
-            {"name":"Ana","email":"ana@example.com","password":"mesma-senha"}
+            {"name":"Ana","email":"ana@example.com","password":"mesma-senha-forte"}
             """);
         long second = create("/users", """
-            {"name":"Bia","email":"bia@example.com","password":"mesma-senha"}
+            {"name":"Bia","email":"bia@example.com","password":"mesma-senha-forte"}
             """);
         String firstHash = users.findById(first).orElseThrow().getPassword();
         String secondHash = users.findById(second).orElseThrow().getPassword();
         assertNotEquals(firstHash, secondHash);
-        assertTrue(passwordEncoder.matches("mesma-senha", firstHash));
-        assertTrue(passwordEncoder.matches("mesma-senha", secondHash));
+        assertTrue(passwordEncoder.matches("mesma-senha-forte", firstHash));
+        assertTrue(passwordEncoder.matches("mesma-senha-forte", secondHash));
     }
 
     @Test
@@ -460,7 +460,7 @@ class CrudIntegrationTests {
     private User newUser() {
         String email = users.count() == 0 ? "original@example.com" : "original" + users.count() + "@example.com";
         return userService.insert(new User(null, "Voluntario original", email,
-            "senha-inicial", 0.0));
+            "senha-inicial-forte", 0.0));
     }
 
     private CleanupEvent newEvent() {

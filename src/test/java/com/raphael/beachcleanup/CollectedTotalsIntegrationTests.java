@@ -144,7 +144,7 @@ class CollectedTotalsIntegrationTests {
     }
 
     private User account(String name) {
-        return userService.insert(new User(null, name, name + "@example.com", "senha-inicial", 0.0));
+        return userService.insert(new User(null, name, name + "@example.com", "senha-inicial-forte", 0.0));
     }
 
     private long create(long owner, double weight, double total) throws Exception {

@@ -39,25 +39,32 @@ public class AuthService {
     private final AuthSessionRepository sessions;
     private final RefreshTokenRepository refreshTokens;
     private final Clock clock;
+    private final com.raphael.beachcleanup.config.AccountPolicy policy;
+    private final com.raphael.beachcleanup.security.AbuseLimiter limiter;
+    private final com.raphael.beachcleanup.security.PasswordPolicy passwordPolicy;
 
     public AuthService(UserRepository users, PasswordEncoder passwords, JwtEncoder encoder,
-            AuthSessionRepository sessions, RefreshTokenRepository refreshTokens, Clock clock) {
+            AuthSessionRepository sessions, RefreshTokenRepository refreshTokens, Clock clock,
+            com.raphael.beachcleanup.config.AccountPolicy policy,
+            com.raphael.beachcleanup.security.AbuseLimiter limiter, com.raphael.beachcleanup.security.PasswordPolicy passwordPolicy) {
         this.users = users;
         this.passwords = passwords;
         this.encoder = encoder;
         this.sessions = sessions; this.refreshTokens = refreshTokens; this.clock = clock;
+        this.policy = policy; this.limiter = limiter; this.passwordPolicy = passwordPolicy;
         this.dummyHash = passwords.encode(UUID.randomUUID().toString());
     }
 
     @Transactional
     public TokenDTO login(LoginDTO input) {
+        limiter.require("login-email", UserService.normalizeEmail(input.email()), 10, 900);
         var foundAccount = users.findIdByEmail(UserService.normalizeEmail(input.email()));
         // Serialize credential checks with password changes and refresh operations.
         var account = foundAccount.flatMap(users::findByIdForAuthentication).orElse(null);
         String hash = account == null ? dummyHash : account.getPassword();
         boolean matches = input.password().getBytes(StandardCharsets.UTF_8).length <= 72
             && passwords.matches(input.password(), hash);
-        if (!matches || account == null) {
+        if (!matches || account == null || policy.verifiedRequired && !account.isEmailVerified()) {
             throw new BadCredentialsException("Credenciais inválidas");
         }
         Instant now = clock.instant();
@@ -93,6 +100,7 @@ public class AuthService {
         var token = refreshTokens.findLocked(hash).orElseThrow(AuthService::invalidRefresh);
         Instant now = clock.instant();
         if (token.isConsumed() || !session.active(now) || session.getCredentialVersion() != user.getCredentialVersion()
+                || policy.verifiedRequired && !user.isEmailVerified()
                 || Duration.between(now, session.getExpiresAt()).getSeconds() < 1) {
             session.revoke(now);
             throw invalidRefresh();
@@ -131,6 +139,7 @@ public class AuthService {
             throw new BadCredentialsException("Credenciais inválidas");
         }
         String newPassword = input.newPassword();
+        passwordPolicy.validate(newPassword, "newPassword");
         if (newPassword == null || newPassword.isBlank()) {
             throw new FieldValidationException("newPassword", "A nova senha é obrigatória");
         }

@@ -128,7 +128,7 @@ class ImpactReportIntegrationTests {
         assertTrue(collections.existsById(first.getId()));
     }
 
-    private User account(String name) { return userService.insert(new User(null, name, name + "@example.com", "senha-inicial", 0.0)); }
+    private User account(String name) { return userService.insert(new User(null, name, name + "@example.com", "senha-inicial-forte", 0.0)); }
     private CatalogEntry entry(String kind, String name) {
         var id = catalogService.list(kind).stream().filter(item -> item.name().equals(name)).findFirst().orElseThrow().id();
         return catalogs.findById(id).orElseThrow();

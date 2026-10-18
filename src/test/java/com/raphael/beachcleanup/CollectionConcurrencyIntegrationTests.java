@@ -54,8 +54,8 @@ class CollectionConcurrencyIntegrationTests {
         collections.deleteAll();
         users.deleteAll();
         events.deleteAll();
-        first = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura", 0.0));
-        second = userService.insert(new User(null, "Bruno", "bruno@example.com", "senha-segura", 0.0));
+        first = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura-forte", 0.0));
+        second = userService.insert(new User(null, "Bruno", "bruno@example.com", "senha-segura-forte", 0.0));
         TrashCollection collection = input(first, 2.0);
         collectionId = collections.saveAndFlush(collection).getId();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();

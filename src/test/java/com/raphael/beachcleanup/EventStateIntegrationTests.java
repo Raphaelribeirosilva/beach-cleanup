@@ -85,7 +85,7 @@ class EventStateIntegrationTests {
 
     @Test
     void pausedAndTerminalEventsRejectNewRegistrationsAndCollections() throws Exception {
-        User volunteer = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura", 0.0));
+        User volunteer = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura-forte", 0.0));
         for (String state : new String[] {"Pausado", "Concluido", "Cancelado"}) {
             long id = event(state).getId();
             mvc.perform(put("/users/me/events/{id}", id)
@@ -103,7 +103,7 @@ class EventStateIntegrationTests {
 
     @Test
     void closingPreservesRecordsAllowsCorrectionsAndPreventsNewLinks() throws Exception {
-        User volunteer = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura", 0.0));
+        User volunteer = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura-forte", 0.0));
         long id = event("Em andamento").getId();
         mvc.perform(put("/users/me/events/{id}", id).with(user(volunteer.getId().toString()).roles("VOLUNTEER")))
             .andExpect(status().isNoContent());

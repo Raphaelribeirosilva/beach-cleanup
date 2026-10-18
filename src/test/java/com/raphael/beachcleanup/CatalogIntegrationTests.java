@@ -48,7 +48,7 @@ class CatalogIntegrationTests {
         aliases.deleteAll();
         jdbc.update("update tb_catalog_entry set merged_into_id=null");
         entries.deleteAll();
-        owner = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura", 0.0)).getId();
+        owner = userService.insert(new User(null, "Ana", "ana@example.com", "senha-segura-forte", 0.0)).getId();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
             .defaultRequest(get("/").with(user("admin").roles("ADMIN"))).build();
     }

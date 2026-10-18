@@ -52,7 +52,7 @@ class DataQualityIntegrationTests {
         beach = beaches.stream().filter(item -> item.name().equals("Praia A")).findFirst().orElseThrow().id();
         otherBeach = beaches.stream().filter(item -> item.name().equals("Praia B")).findFirst().orElseThrow().id();
         material = catalogs.list("materials").getFirst().id();
-        owner = userService.insert(new User(null, "Ana", "quality@example.com", "senha-segura", 0.0)).getId();
+        owner = userService.insert(new User(null, "Ana", "quality@example.com", "senha-segura-forte", 0.0)).getId();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
             .defaultRequest(get("/").with(user("admin").roles("ADMIN"))).build();
     }
@@ -83,7 +83,7 @@ class DataQualityIntegrationTests {
             .content(body("0.125", rules.today(), beach, null, 0L))).andExpect(status().isOk());
         assertEquals(new BigDecimal("0.325"), totals.user(users.findById(owner).orElseThrow()).getTotalCollectedKg());
         var payload = mapper.readTree(body("0.2", rules.today(), beach, null, 0L));
-        var other = userService.insert(new User(null, "Bruno", "bruno-quality@example.com", "senha", 0.0));
+        var other = userService.insert(new User(null, "Bruno", "bruno-quality@example.com", "senha-segura-forte", 0.0));
         ((tools.jackson.databind.node.ObjectNode) payload).set("volunteer", mapper.createObjectNode().put("id", other.getId()));
         mvc.perform(put("/trashCollection/{id}", second).contentType(MediaType.APPLICATION_JSON)
             .content(payload.toString())).andExpect(status().isOk());

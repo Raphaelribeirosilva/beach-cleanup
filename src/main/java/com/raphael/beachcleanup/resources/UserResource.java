@@ -55,7 +55,7 @@ public class UserResource {
     public ResponseEntity<UserDTO> insert(@Valid @RequestBody UserInsertDTO dto) {
       
         User entity = new User(null, dto.getName(), dto.getEmail(), dto.getPassword(), 0.0);
-        entity = service.insert(entity);
+        entity = service.register(entity);
         URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
             .buildAndExpand(entity.getId()).toUri();
         return ResponseEntity.created(uri).body(totals.user(entity));
@@ -71,7 +71,7 @@ public class UserResource {
 	@PutMapping(value = "/{id}")
     @PreAuthorize("@accessPolicy.canAccessUser(#id)")
 	public ResponseEntity<UserDTO> update(@PathVariable Long id, @Valid @RequestBody UserUpdateDTO dto){
-		User obj = service.update(id, dto.toEntity(), dto.version());
+		User obj = service.update(id, dto.toEntity(), dto.version(), dto.currentPassword());
 		return ResponseEntity.ok().body(totals.user(obj));
 	}
 }

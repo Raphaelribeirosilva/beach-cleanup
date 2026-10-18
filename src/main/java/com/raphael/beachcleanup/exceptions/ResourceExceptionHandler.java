@@ -16,6 +16,11 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 @ControllerAdvice
 public class ResourceExceptionHandler extends ResponseEntityExceptionHandler {
+    @ExceptionHandler(TooManyAttemptsException.class)
+    public ResponseEntity<StandardError> tooManyAttempts(TooManyAttemptsException e, HttpServletRequest request) {
+        return ResponseEntity.status(429).header("Retry-After", Long.toString(e.retryAfter)).header("Cache-Control", "no-store")
+            .body(new StandardError(Instant.now(), 429, "Too Many Requests", e.getMessage(), request.getRequestURI()));
+    }
 
     @ExceptionHandler(CatalogConflictException.class)
     public ResponseEntity<StandardError> catalogConflict(CatalogConflictException e, HttpServletRequest request) {

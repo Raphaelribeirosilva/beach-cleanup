@@ -98,7 +98,7 @@ Registre data, commit/JAR, URL, executor e resultado de cada item, sem dados pes
 | Backup | Dump e checksum conferidos, cópia protegida fora da VM e restauração no banco separado aprovada. |
 | Retorno | JAR anterior preservado, procedimento de rollback conferido com o esquema atual. |
 
-Mantenha a restrição de rede durante toda a homologação. Os fluxos de recuperação de senha, verificação de e-mail e proteção contra abuso continuam previstos para outra entrega antes da abertura pública.
+Mantenha a restrição de rede durante toda a homologação. Os fluxos de recuperação, confirmação de e-mail e limites foram implementados na [etapa 30](30_RECUPERACAO_DE_CONTA_E_PROTECAO_CONTRA_ABUSO.md). A validação de entrega em uma caixa postal pelo provedor real continua pendente e deve ser concluída antes da abertura pública.
 
 ## Verificações locais
 

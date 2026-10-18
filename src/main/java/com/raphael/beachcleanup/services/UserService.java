@@ -18,6 +18,18 @@ import com.raphael.beachcleanup.repositories.UserRepository;
 @Service
 @Transactional
 public class UserService {
+    @Autowired private com.raphael.beachcleanup.security.PasswordPolicy passwordPolicy;
+    @Autowired private org.springframework.context.ApplicationEventPublisher events;
+    @Autowired private com.raphael.beachcleanup.repositories.AuthSessionRepository sessions;
+    @Autowired private java.time.Clock clock;
+    @Autowired private com.raphael.beachcleanup.security.AccessPolicy access;
+    @Autowired private com.raphael.beachcleanup.security.AbuseLimiter limiter;
+
+    public User register(User user) {
+        var saved = insert(user);
+        events.publishEvent(new AccountMailRequest(saved.getEmail(), AccountActionService.VERIFY));
+        return saved;
+    }
 
     @Autowired
     private UserRepository repository;
@@ -45,6 +57,7 @@ public class UserService {
         obj.setRole(UserRole.VOLUNTEER);
         obj.setCredentialVersion(0);
         String password = obj.getPassword();
+        passwordPolicy.validate(password, "password");
         if (password == null || password.isBlank()) {
             throw new FieldValidationException("password", "A senha é obrigatória");
         }
@@ -53,6 +66,7 @@ public class UserService {
                 "A senha deve ter no máximo 72 bytes em UTF-8");
         }
         obj.setPassword(passwordEncoder.encode(password));
+        obj.setEmailVerified(false);
         obj.setId(null);
         obj.setTotalCollectedKg(0.0);
         obj.getEvents().clear();
@@ -66,15 +80,36 @@ public class UserService {
     }
 
     public User update(Long id, User obj, Long version) {
-        User entity = findById(id);
+        return update(id, obj, version, null);
+    }
+
+    public User update(Long id, User obj, Long version, String currentPassword) {
+        if (!access.isAdmin() && currentPassword != null && !currentPassword.isEmpty())
+            limiter.require("email-change", id.toString(), 5, 900);
+        User entity = repository.findByIdForAuthentication(id).orElseThrow(() -> new ResourceNotFoundException(id));
         FormVersion.requireCurrent(version, entity.getRowVersion());
         String email = normalizeEmail(obj.getEmail());
         if (repository.existsByEmailAndIdNot(email, id)) {
             throw new EmailConflictException();
         }
         obj.setEmail(email);
+        boolean emailChanged = !entity.getEmail().equals(email);
+        if (emailChanged) {
+            if (!access.isAdmin()) {
+                if (currentPassword == null || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                        || !passwordEncoder.matches(currentPassword, entity.getPassword()))
+                    throw new FieldValidationException("currentPassword", "Confira sua senha atual para alterar o e-mail.");
+            }
+            entity.setEmailVerified(false);
+            entity.setCredentialVersion(Math.incrementExact(entity.getCredentialVersion()));
+        }
         updateData(entity, obj);
-        return repository.saveAndFlush(entity);
+        var saved = repository.saveAndFlush(entity);
+        if (emailChanged) {
+            sessions.revokeByUser(entity.getId(), clock.instant());
+            events.publishEvent(new AccountMailRequest(email, AccountActionService.VERIFY));
+        }
+        return saved;
     }
 
     private void updateData(User entity, User obj) {

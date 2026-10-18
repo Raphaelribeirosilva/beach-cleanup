@@ -6,6 +6,23 @@ const response = (status, body) => ({ status, ok: status >= 200 && status < 300,
 const token = { accessToken: 'test-token', tokenType: 'Bearer', expiresIn: 1800, userId: 17, role: 'VOLUNTEER', refreshToken: 'r'.repeat(43), refreshExpiresIn: 604800 };
 const sessionKey = 'beachcleanup.session.v2';
 
+test('recovery and confirmation use public JSON without persisting action tokens', async () => {
+  const calls = [], storage = memoryStorage();
+  const api = createPortalApi(async (path, options) => { calls.push({ path, options }); return response(200, { message: 'Resposta genérica' }); }, undefined, { storage });
+  await api.requestRecovery('ana@example.com');
+  await api.requestVerification('ana@example.com');
+  await api.resetPassword({ token: 'x'.repeat(43), newPassword: 'Uma praia mais limpa!' });
+  await api.verifyEmail('y'.repeat(43));
+  assert.deepEqual(calls.map(call => call.path), ['/auth/recovery', '/auth/verification', '/auth/reset-password', '/auth/verify-email']);
+  for (const call of calls) {
+    assert.equal(call.options.method, 'POST'); assert.equal(call.options.credentials, 'omit');
+    assert.equal(call.options.headers.Authorization, undefined); assert.equal(call.options.headers['Content-Type'], 'application/json');
+  }
+  assert.deepEqual(JSON.parse(calls[0].options.body), { email: 'ana@example.com' });
+  assert.deepEqual(JSON.parse(calls[3].options.body), { token: 'y'.repeat(43) });
+  assert.equal(storage.getItem(sessionKey), null);
+});
+
 test('concurrent private requests share one refresh, rotate storage and retain the original session deadline', async () => {
   const storage = memoryStorage();
   let time = 100000, resolveRefresh;

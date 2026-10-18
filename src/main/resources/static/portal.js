@@ -2,6 +2,11 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
+  const accountLink = new URLSearchParams(window.location.hash.slice(1));
+  const initialAccountMode = accountLink.has('reset') ? 'reset' : accountLink.has('verify') ? 'verify' : null;
+  let accountToken = initialAccountMode ? accountLink.get(initialAccountMode) : null;
+  let accountMode = null;
+  if (initialAccountMode) window.history.replaceState(null, '', window.location.pathname + window.location.search);
   const api = createPortalApi(window.fetch.bind(window), () => {
     resetAccount();
     if ($('collection-dialog').open) $('collection-dialog').close();
@@ -180,6 +185,8 @@
         state.profileVersion = profile.version;
         $('profile-form').elements.name.value = profile.name;
         $('profile-form').elements.email.value = profile.email;
+        $('profile-verification').textContent = profile.emailVerified ? 'E-mail confirmado.' : 'E-mail ainda não confirmado.';
+        $('profile-resend').hidden = profile.emailVerified;
         syncAccount();
         return true;
       } catch (error) { if (generation === state.generation) notify(error.message, true); return false; }
@@ -234,6 +241,8 @@
     errorAt('auth-error');
     $('name-label').hidden = !state.signup;
     $('auth-form').elements.name.required = state.signup;
+    $('auth-form').elements.password.minLength = state.signup ? 15 : 1;
+    $('password-help').textContent = state.signup ? 'Use pelo menos 15 caracteres, até 72 bytes UTF-8 e evite senhas comuns. Você precisará confirmar o e-mail.' : 'Confira a senha e confirme seu e-mail para entrar. A sessão pode ser renovada por até sete dias.';
     $('auth-form').elements.password.autocomplete = state.signup ? 'new-password' : 'current-password';
     $('auth-title').textContent = state.signup ? 'Comece a fazer a diferença.' : 'Que bom ter você aqui.';
     $('auth-description').textContent = state.signup ? 'Crie sua conta para cuidar das praias com a gente.'
@@ -339,6 +348,9 @@
         if (signup) {
           await api.signup({ ...input, name: form.elements.name.value.trim() });
           created = true;
+          openAuth('login');
+          errorAt('auth-error', 'Conta criada. Confira seu e-mail e confirme o endereço antes de entrar. Se necessário, use Reenviar confirmação.');
+          return;
         }
         await api.login(input);
         form.reset();
@@ -435,12 +447,17 @@
   $('report-filters').addEventListener('submit', event => { event.preventDefault(); void load(); });
   $('profile-form').addEventListener('submit', event => {
     event.preventDefault(); const form = event.currentTarget;
-    const input = { name: form.elements.name.value.trim(), email: form.elements.email.value.trim(), version: state.profileVersion };
+    const previousEmail = state.profile?.email;
+    const input = { name: form.elements.name.value.trim(), email: form.elements.email.value.trim(), version: state.profileVersion, currentPassword: form.elements.currentPassword.value };
     void busy(form.querySelector('[type="submit"]'), async () => {
       try {
         state.profile = await api.updateProfile(input);
-        state.profileVersion = state.profile.version; syncAccount(); notify('Perfil atualizado.');
+        state.profileVersion = state.profile.version;
+        if (state.profile.email !== previousEmail) {
+          await api.logout(); resetAccount(); notify('Perfil atualizado. Confirme o novo e-mail antes de entrar novamente.'); openAuth('login');
+        } else { syncAccount(); notify('Perfil atualizado.'); }
       } catch (error) { notify(error.status === 409 ? 'O perfil mudou ou o e-mail já está em uso. Seus campos foram preservados. Reabra Meu perfil para conferir a versão atual.' : error.message, true); }
+      finally { form.elements.currentPassword.value = ''; }
     });
   });
   $('password-form').addEventListener('submit', event => {
@@ -455,9 +472,64 @@
     });
   });
 
+
+  function openAccountHelp(mode) {
+    accountMode = mode;
+    const reset = mode === 'reset', verify = mode === 'verify';
+    const request = !reset && !verify;
+    if (request) accountToken = null;
+    if ($('auth-dialog').open) $('auth-dialog').close();
+    $('account-help-form').reset(); errorAt('account-help-error');
+    $('help-email-label').hidden = !request;
+    $('help-password-label').hidden = !reset; $('help-confirmation-label').hidden = !reset;
+    $('account-help-form').elements.email.required = request;
+    $('account-help-form').elements.newPassword.required = reset;
+    $('account-help-form').elements.confirmation.required = reset;
+    $('account-help-title').textContent = reset ? 'Escolher nova senha' : verify ? 'Confirmar seu e-mail' : mode === 'verification' ? 'Reenviar confirmação' : 'Recuperar acesso';
+    $('account-help-description').textContent = reset ? 'Use pelo menos 15 caracteres, até 72 bytes UTF-8. A redefinição encerra todas as sessões da conta.'
+      : verify ? 'Clique para confirmar que este endereço de e-mail é seu.' : 'Informe seu e-mail. Se o endereço estiver apto, enviaremos as instruções. Confira também o spam.';
+    $('account-help-submit').textContent = reset ? 'Redefinir senha' : verify ? 'Confirmar e-mail' : 'Enviar instruções';
+    if (!$('account-help-dialog').open) $('account-help-dialog').showModal();
+  }
+  $('recovery-open').addEventListener('click', () => openAccountHelp('recovery'));
+  $('verification-open').addEventListener('click', () => openAccountHelp('verification'));
+  $('profile-resend').addEventListener('click', () => { openAccountHelp('verification'); $('account-help-form').elements.email.value = state.profile?.email || ''; });
+  $('account-help-dialog').addEventListener('close', () => { accountToken = null; $('account-help-form').reset(); });
+  window.addEventListener('hashchange', () => {
+    const link = new URLSearchParams(window.location.hash.slice(1));
+    const mode = link.has('reset') ? 'reset' : link.has('verify') ? 'verify' : null;
+    if (!mode) return;
+    accountToken = link.get(mode);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    openAccountHelp(mode);
+  });
+  $('account-help-form').addEventListener('submit', event => {
+    event.preventDefault(); const form = event.currentTarget;
+    const mode = accountMode, token = accountToken;
+    const email = form.elements.email.value.trim(), newPassword = form.elements.newPassword.value;
+    if (mode === 'reset' && (newPassword !== form.elements.confirmation.value || new TextEncoder().encode(newPassword).length > 72)) {
+      errorAt('account-help-error', 'Confira a confirmação e o limite de 72 bytes da nova senha.'); return;
+    }
+    void busy($('account-help-submit'), async () => {
+      errorAt('account-help-error');
+      try {
+        if (mode === 'recovery' || mode === 'verification') {
+          const result = mode === 'recovery' ? await api.requestRecovery(email) : await api.requestVerification(email);
+          $('account-help-dialog').close(); notify(result.message);
+        } else {
+          if (mode === 'verify') await api.verifyEmail(token);
+          else { await api.resetPassword({ token, newPassword }); await api.logout(); resetAccount(); }
+          $('account-help-dialog').close(); notify(mode === 'verify' ? 'E-mail confirmado. Entre na sua conta.' : 'Senha redefinida. Todas as sessões foram encerradas. Entre com a nova senha.'); openAuth('login');
+        }
+      } catch (error) { errorAt('account-help-error', error.message); }
+      finally { form.elements.newPassword.value = ''; form.elements.confirmation.value = ''; }
+    });
+  });
+
   // Restored credentials still go through the API before private data is rendered.
   syncAccount();
   syncView();
   window.addEventListener('focus', () => { api.session(); });
   void load();
+  if (initialAccountMode) openAccountHelp(initialAccountMode);
 })();

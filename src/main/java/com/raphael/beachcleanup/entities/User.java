@@ -37,6 +37,11 @@ public class User implements Serializable{
 	private String name;
 	@Column(nullable = false, unique = true)
 	private String email;
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("false")
+    private boolean emailVerified;
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean value) { emailVerified = value; }
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
 	private UserRole role = UserRole.VOLUNTEER;

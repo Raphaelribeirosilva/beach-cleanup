@@ -54,23 +54,23 @@ class PasswordChangeIntegrationTests {
 
     @Test
     void changingPasswordRevokesAllPreviousTokensAndPreservesOtherAccountsAndProfile() throws Exception {
-        User account = account("ana@example.com", "senha-inicial");
-        User other = account("bia@example.com", "outra-senha");
+        User account = account("ana@example.com", "senha-inicial-forte");
+        User other = account("bia@example.com", "outra-senha-forte");
         String oldHash = account.getPassword();
         String otherHash = other.getPassword();
-        String first = login("ana@example.com", "senha-inicial");
-        String second = login("ana@example.com", "senha-inicial");
-        String otherToken = login("bia@example.com", "outra-senha");
+        String first = login("ana@example.com", "senha-inicial-forte");
+        String second = login("ana@example.com", "senha-inicial-forte");
+        String otherToken = login("bia@example.com", "outra-senha-forte");
         mvc.perform(put("/auth/password").header("Authorization", "Bearer " + first)
             .contentType(MediaType.APPLICATION_JSON).content("""
-                {"currentPassword":"senha-inicial","newPassword":"senha-nova",
+                {"currentPassword":"senha-inicial-forte","newPassword":"senha-nova-forte",
                  "userId":%d,"role":"ADMIN","credentialVersion":999}
                 """.formatted(other.getId())))
             .andExpect(status().isNoContent()).andExpect(content().string(""));
         var saved = users.findById(account.getId()).orElseThrow();
         assertNotEquals(oldHash, saved.getPassword());
-        assertTrue(passwords.matches("senha-nova", saved.getPassword()));
-        assertFalse(passwords.matches("senha-inicial", saved.getPassword()));
+        assertTrue(passwords.matches("senha-nova-forte", saved.getPassword()));
+        assertFalse(passwords.matches("senha-inicial-forte", saved.getPassword()));
         assertEquals(1, saved.getCredentialVersion());
         assertEquals(account.getName(), saved.getName());
         assertEquals(account.getEmail(), saved.getEmail());
@@ -80,14 +80,14 @@ class PasswordChangeIntegrationTests {
         for (String token : new String[] {first, second}) {
             mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.status").value(401));
-            change(token, "senha-nova", "senha-terceira", 401);
+            change(token, "senha-nova-forte", "senha-terceira-forte", 401);
         }
         mvc.perform(get("/users/" + other.getId()).header("Authorization", "Bearer " + otherToken))
             .andExpect(status().isOk());
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"email\":\"ana@example.com\",\"password\":\"senha-inicial\"}"))
+            .content("{\"email\":\"ana@example.com\",\"password\":\"senha-inicial-forte\"}"))
             .andExpect(status().isUnauthorized());
-        String fresh = login("ana@example.com", "senha-nova");
+        String fresh = login("ana@example.com", "senha-nova-forte");
         assertEquals(1L, JwtConfig.credentialVersion(decoder.decode(fresh)));
         mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + fresh))
             .andExpect(status().isOk()).andExpect(jsonPath("$..credentialVersion").isEmpty())
@@ -96,24 +96,24 @@ class PasswordChangeIntegrationTests {
 
     @Test
     void invalidChangesDoNotUpdateHashOrRevokeValidTokens() throws Exception {
-        User account = account("ana@example.com", "senha-inicial");
+        User account = account("ana@example.com", "senha-inicial-forte");
         String original = account.getPassword();
-        String token = login("ana@example.com", "senha-inicial");
+        String token = login("ana@example.com", "senha-inicial-forte");
         for (String body : new String[] {"{}", "{\"currentPassword\":\" \"}",
-                "{\"currentPassword\":\"senha-inicial\",\"newPassword\":\" \"}"}) {
+                "{\"currentPassword\":\"senha-inicial-forte\",\"newPassword\":\" \"}"}) {
             mvc.perform(put("/auth/password").header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isArray());
         }
-        change(token, "senha-incorreta", "senha-nova", 401);
-        change(token, "a".repeat(73), "senha-nova", 401);
-        for (String invalid : new String[] {"a".repeat(73), "a".repeat(71) + "é", "senha-inicial"}) {
+        change(token, "senha-incorreta", "senha-nova-forte", 401);
+        change(token, "a".repeat(73), "senha-nova-forte", 401);
+        for (String invalid : new String[] {"a".repeat(73), "a".repeat(71) + "é", "senha-inicial-forte"}) {
             var result = mvc.perform(put("/auth/password").header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON).content(body("senha-inicial", invalid)))
+                .contentType(MediaType.APPLICATION_JSON).content(body("senha-inicial-forte", invalid)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].fieldName").value("newPassword"))
                 .andExpect(jsonPath("$.path").value("/auth/password")).andReturn();
             assertFalse(result.getResponse().getContentAsString().contains(invalid));
-            assertFalse(result.getResponse().getContentAsString().contains("senha-inicial"));
+            assertFalse(result.getResponse().getContentAsString().contains("senha-inicial-forte"));
         }
         var saved = users.findById(account.getId()).orElseThrow();
         assertEquals(original, saved.getPassword());
@@ -130,8 +130,8 @@ class PasswordChangeIntegrationTests {
         String token = login("ana@example.com", initial);
         change(token, initial, next, 204);
         String second = login("ana@example.com", next);
-        change(second, next, "senha-terceira", 204);
-        String third = login("ana@example.com", "senha-terceira");
+        change(second, next, "senha-terceira-forte", 204);
+        String third = login("ana@example.com", "senha-terceira-forte");
         for (String old : new String[] {token, second}) {
             mvc.perform(get("/users/" + account.getId()).header("Authorization", "Bearer " + old))
                 .andExpect(status().isUnauthorized());
@@ -143,39 +143,39 @@ class PasswordChangeIntegrationTests {
 
     @Test
     void passwordChangeRequiresAuthenticationAndCredentialVersionClaim() throws Exception {
-        User account = account("ana@example.com", "senha-inicial");
+        User account = account("ana@example.com", "senha-inicial-forte");
         mvc.perform(put("/auth/password").contentType(MediaType.APPLICATION_JSON)
-            .content(body("senha-inicial", "senha-nova")))
+            .content(body("senha-inicial-forte", "senha-nova-forte")))
             .andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"));
         Instant now = Instant.now();
         var claims = JwtClaimsSet.builder().issuer(JwtConfig.ISSUER).audience(List.of(JwtConfig.AUDIENCE))
             .subject(account.getId().toString()).issuedAt(now).expiresAt(now.plusSeconds(900));
         String missing = encode(claims.build());
-        change(missing, "senha-inicial", "senha-nova", 401);
+        change(missing, "senha-inicial-forte", "senha-nova-forte", 401);
         String mismatch = encode(claims.claim(JwtConfig.CREDENTIAL_VERSION_CLAIM, 99).build());
-        change(mismatch, "senha-inicial", "senha-nova", 401);
+        change(mismatch, "senha-inicial-forte", "senha-nova-forte", 401);
         String invalidType = encode(claims.claim(JwtConfig.CREDENTIAL_VERSION_CLAIM, "invalido").build());
-        change(invalidType, "senha-inicial", "senha-nova", 401);
+        change(invalidType, "senha-inicial-forte", "senha-nova-forte", 401);
         assertEquals(account.getPassword(), users.findById(account.getId()).orElseThrow().getPassword());
     }
 
     @Test
     void administratorsChangeOnlyTheirOwnPasswordAndPasswordDtosNeverSerializeSecrets() throws Exception {
-        User admin = account("admin@example.com", "senha-inicial");
+        User admin = account("admin@example.com", "senha-inicial-forte");
         admin.setRole(UserRole.ADMIN);
         users.save(admin);
-        User other = account("bia@example.com", "outra-senha");
-        String token = login("admin@example.com", "senha-inicial");
-        change(token, "outra-senha", "senha-nova", 401);
-        change(token, "senha-inicial", "senha-nova", 204);
+        User other = account("bia@example.com", "outra-senha-forte");
+        String token = login("admin@example.com", "senha-inicial-forte");
+        change(token, "outra-senha-forte", "senha-nova-forte", 401);
+        change(token, "senha-inicial-forte", "senha-nova-forte", 204);
         assertEquals(UserRole.ADMIN, users.findById(admin.getId()).orElseThrow().getRole());
         assertEquals(other.getPassword(), users.findById(other.getId()).orElseThrow().getPassword());
-        var input = mapper.readValue(body("senha-inicial", "senha-nova"), ChangePasswordDTO.class);
-        assertEquals("senha-inicial", input.currentPassword());
-        assertEquals("senha-nova", input.newPassword());
+        var input = mapper.readValue(body("senha-inicial-forte", "senha-nova-forte"), ChangePasswordDTO.class);
+        assertEquals("senha-inicial-forte", input.currentPassword());
+        assertEquals("senha-nova-forte", input.newPassword());
         String json = mapper.writeValueAsString(input);
-        assertFalse(json.contains("senha-inicial"));
-        assertFalse(json.contains("senha-nova"));
+        assertFalse(json.contains("senha-inicial-forte"));
+        assertFalse(json.contains("senha-nova-forte"));
         String entityJson = mapper.writeValueAsString(admin);
         assertFalse(entityJson.contains("credentialVersion"));
         assertFalse(entityJson.contains("rowVersion"));
@@ -183,20 +183,20 @@ class PasswordChangeIntegrationTests {
 
     @Test
     void concurrentChangesCannotOverwriteEachOther() throws Exception {
-        User account = account("ana@example.com", "senha-inicial");
-        String token = login("ana@example.com", "senha-inicial");
+        User account = account("ana@example.com", "senha-inicial-forte");
+        String token = login("ana@example.com", "senha-inicial-forte");
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
             var first = executor.submit(() -> {
                 start.await();
                 return mvc.perform(put("/auth/password").header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON).content(body("senha-inicial", "senha-primeira")))
+                    .contentType(MediaType.APPLICATION_JSON).content(body("senha-inicial-forte", "senha-primeira-forte")))
                     .andReturn().getResponse().getStatus();
             });
             var second = executor.submit(() -> {
                 start.await();
                 return mvc.perform(put("/auth/password").header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON).content(body("senha-inicial", "senha-segunda")))
+                    .contentType(MediaType.APPLICATION_JSON).content(body("senha-inicial-forte", "senha-segunda-forte")))
                     .andReturn().getResponse().getStatus();
             });
             start.countDown();
@@ -206,8 +206,8 @@ class PasswordChangeIntegrationTests {
         }
         var saved = users.findById(account.getId()).orElseThrow();
         assertEquals(1, saved.getCredentialVersion());
-        assertNotEquals(passwords.matches("senha-primeira", saved.getPassword()),
-            passwords.matches("senha-segunda", saved.getPassword()));
+        assertNotEquals(passwords.matches("senha-primeira-forte", saved.getPassword()),
+            passwords.matches("senha-segunda-forte", saved.getPassword()));
     }
 
     private User account(String email, String password) {

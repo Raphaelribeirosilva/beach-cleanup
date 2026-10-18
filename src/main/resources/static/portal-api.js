@@ -183,6 +183,10 @@
       catalog: kind => request(`/catalog/${kind}`),
       logout,
       renew,
+      requestRecovery: email => request('/auth/recovery', { method: 'POST', body: { email } }),
+      requestVerification: email => request('/auth/verification', { method: 'POST', body: { email } }),
+      resetPassword: input => request('/auth/reset-password', { method: 'POST', body: input }),
+      verifyEmail: token => request('/auth/verify-email', { method: 'POST', body: { token } }),
       signup: input => request('/users', { method: 'POST', body: input }),
       async login(input) {
         const generation = ++loginGeneration;

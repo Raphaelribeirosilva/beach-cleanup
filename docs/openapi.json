@@ -41,7 +41,7 @@
         ],
         "operationId": "login",
         "summary": "Autenticar usuário",
-        "description": "Normaliza e-mail removendo espaços nas extremidades e convertendo para minúsculas. A resposta tem Cache-Control: no-store. Cria uma família de sessão com prazo máximo de sete dias. Retorna access token e refresh token; nenhum cookie é emitido. Access tokens incluem sid e são conferidos contra a sessão persistida. Tokens antigos sem sid exigem novo login após esta atualização.",
+        "description": "Normaliza e-mail removendo espaços nas extremidades e convertendo para minúsculas. A resposta tem Cache-Control: no-store. Cria uma família de sessão com prazo máximo de sete dias. Retorna access token e refresh token; nenhum cookie é emitido. Access tokens incluem sid e são conferidos contra a sessão persistida. Tokens antigos sem sid exigem novo login após esta atualização. Para acesso público exige e-mail confirmado. Credenciais inválidas ou e-mail não confirmado recebem a mesma resposta 401. Limites: 10 tentativas por endereço e 30 por IP a cada 15 minutos, contando também logins válidos.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -72,6 +72,24 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "429": {
+            "description": "Muitas tentativas. O limite não depende da existência do endereço.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Segundos até a liberação."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -166,7 +184,7 @@
         ],
         "operationId": "createUser",
         "summary": "Criar User",
-        "description": "Cadastro público cria VOLUNTEER; não permite escolher perfil. E-mail é normalizado e deve ser único.",
+        "description": "Cadastro público cria VOLUNTEER; não permite escolher perfil. E-mail é normalizado e deve ser único. Cria conta com e-mail não confirmado e agenda mensagem de confirmação. Limite de 10 cadastros por IP/hora. Não cria sessão automaticamente.",
         "responses": {
           "201": {
             "description": "Operação concluída.",
@@ -198,6 +216,24 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "429": {
+            "description": "Muitas tentativas. O limite não depende da existência do endereço.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Segundos até a liberação."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -267,7 +303,7 @@
         ],
         "operationId": "updateUser",
         "summary": "Atualizar User",
-        "description": "Administrador ou a própria conta. Atualiza nome e e-mail. Não altera senha, perfil ou total; para senha use /auth/password. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar. O portal envia version obtida ao abrir o formulário. Em HTTP 409 preserva os campos e solicita reabrir a edição para consultar os dados atuais, sem repetir a escrita automaticamente.",
+        "description": "Administrador ou a própria conta. Atualiza nome e e-mail. Não altera senha, perfil ou total; para senha use /auth/password. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar. O portal envia version obtida ao abrir o formulário. Em HTTP 409 preserva os campos e solicita reabrir a edição para consultar os dados atuais, sem repetir a escrita automaticamente. Alterar e-mail exige currentPassword do voluntário, remove a confirmação, revoga as sessões e agenda confirmação do novo endereço. Há até 5 tentativas por conta a cada 15 minutos. Administradores mantêm sua permissão de manutenção.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -299,6 +335,24 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "429": {
+            "description": "Muitas tentativas. O limite não depende da existência do endereço.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Segundos até a liberação."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1970,6 +2024,208 @@
           }
         }
       }
+    },
+    "/auth/recovery": {
+      "post": {
+        "operationId": "requestPasswordRecovery",
+        "summary": "Solicitar recuperação de senha",
+        "security": [],
+        "description": "Resposta 202 idêntica para endereço cadastrado, desconhecido, não confirmado, limitado por destinatário ou envio indisponível. A busca da conta e o envio são assíncronos após a confirmação da transação. Até 3 mensagens por endereço/finalidade por hora, com supressão silenciosa. O limite por IP é compartilhado entre os dois pedidos: 20 por hora. Recuperação envia mensagem somente para e-mail previamente confirmado. Confirmação não é reenviada para endereço já confirmado.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountEmailInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Pedido aceito, sem garantir entrega de mensagem. Cache-Control: no-store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountNotice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "E-mail ausente ou malformado."
+          },
+          "415": {
+            "description": "Envie application/json."
+          },
+          "429": {
+            "description": "Muitas tentativas. O limite não depende da existência do endereço.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Segundos até a liberação."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verification": {
+      "post": {
+        "operationId": "requestEmailVerification",
+        "summary": "Solicitar confirmação do e-mail",
+        "security": [],
+        "description": "Resposta 202 idêntica para endereço cadastrado, desconhecido, não confirmado, limitado por destinatário ou envio indisponível. A busca da conta e o envio são assíncronos após a confirmação da transação. Até 3 mensagens por endereço/finalidade por hora, com supressão silenciosa. O limite por IP é compartilhado entre os dois pedidos: 20 por hora. Recuperação envia mensagem somente para e-mail previamente confirmado. Confirmação não é reenviada para endereço já confirmado.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountEmailInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Pedido aceito, sem garantir entrega de mensagem. Cache-Control: no-store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountNotice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "E-mail ausente ou malformado."
+          },
+          "415": {
+            "description": "Envie application/json."
+          },
+          "429": {
+            "description": "Muitas tentativas. O limite não depende da existência do endereço.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Segundos até a liberação."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "operationId": "resetPassword",
+        "summary": "Redefinir senha com token temporário",
+        "security": [],
+        "description": "Token opaco de uso único, armazenado por hash, válido por 15 minutos. Vinculado ao e-mail confirmado e à geração de credenciais. Sucesso altera a senha, invalida links anteriores e encerra todas as sessões e access tokens da conta. Não faz login automático. A notificação de alteração é enviada sem incluir a senha. São permitidas até 20 tentativas de consumo por IP em 15 minutos, compartilhadas entre as duas operações.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Operação concluída, sem corpo. Cache-Control: no-store."
+          },
+          "400": {
+            "description": "Link inválido, expirado, já utilizado ou de finalidade incorreta; senha inválida no caso de redefinição."
+          },
+          "415": {
+            "description": "Envie application/json."
+          },
+          "429": {
+            "description": "Muitas tentativas. O limite não depende da existência do endereço.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Segundos até a liberação."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify-email": {
+      "post": {
+        "operationId": "verifyEmail",
+        "summary": "Confirmar endereço de e-mail",
+        "security": [],
+        "description": "Token de uso único e finalidade específica, válido por 24 horas. Vinculado ao e-mail atual e à geração de credenciais. Não cria sessão. O portal exige confirmação explícita por POST; abrir o link não consome o token. São permitidas até 20 tentativas de consumo por IP em 15 minutos, compartilhadas entre as duas operações.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountTokenInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Operação concluída, sem corpo. Cache-Control: no-store."
+          },
+          "400": {
+            "description": "Link inválido, expirado, já utilizado ou de finalidade incorreta; senha inválida no caso de redefinição."
+          },
+          "415": {
+            "description": "Envie application/json."
+          },
+          "429": {
+            "description": "Muitas tentativas. O limite não depende da existência do endereço.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Segundos até a liberação."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2018,9 +2274,9 @@
           },
           "newPassword": {
             "type": "string",
-            "minLength": 1,
+            "minLength": 15,
             "writeOnly": true,
-            "description": "Obrigatória, não pode conter somente espaços. Máximo de 72 bytes em UTF-8; o limite é em bytes, não caracteres. Deve ser diferente da senha atual."
+            "description": "Mesma política do cadastro: mínimo de 15 caracteres Unicode, máximo de 72 bytes UTF-8 e bloqueio básico de senhas comuns."
           }
         }
       },
@@ -2101,9 +2357,9 @@
           },
           "password": {
             "type": "string",
-            "minLength": 1,
+            "minLength": 15,
             "writeOnly": true,
-            "description": "Obrigatória, não pode conter somente espaços. Máximo de 72 bytes em UTF-8; o limite é em bytes, não caracteres."
+            "description": "Pelo menos 15 pontos de código Unicode e até 72 bytes UTF-8. Senhas comuns e um único caractere repetido são recusados. Senhas legadas continuam aceitas no login; a política vale para cadastro, troca e redefinição."
           }
         }
       },
@@ -2132,6 +2388,11 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "currentPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "description": "Exigida para o voluntário alterar seu e-mail. Não é exigida para editar somente o nome. Administradores mantêm a permissão de manutenção das contas."
           }
         }
       },
@@ -2165,6 +2426,11 @@
             "format": "int64",
             "minimum": 0,
             "description": "Versão do registro carregado. Obrigatória no PUT; versão desatualizada retorna 409. Não representa a versão das credenciais nem de recursos vinculados."
+          },
+          "emailVerified": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Confirmação do endereço atual. Cadastro e alteração de e-mail não podem definir este campo."
           }
         }
       },
@@ -3157,6 +3423,63 @@
             "type": "string",
             "writeOnly": true,
             "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        }
+      },
+      "AccountEmailInput": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255
+          }
+        }
+      },
+      "AccountTokenInput": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "writeOnly": true,
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        }
+      },
+      "PasswordResetInput": {
+        "type": "object",
+        "required": [
+          "token",
+          "newPassword"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "writeOnly": true,
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "newPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 15,
+            "description": "Política de senha igual à do cadastro. A confirmação é feita na interface."
+          }
+        }
+      },
+      "AccountNotice": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
           }
         }
       }

@@ -197,7 +197,7 @@ class EventRegistrationIntegrationTests {
     }
 
     private User account(String name, boolean admin) {
-        User user = userService.insert(new User(null, name, name + "@example.com", "senha-segura", 0.0));
+        User user = userService.insert(new User(null, name, name + "@example.com", "senha-segura-forte", 0.0));
         if (admin) {
             user.setRole(UserRole.ADMIN);
             user = users.save(user);
@@ -207,7 +207,7 @@ class EventRegistrationIntegrationTests {
 
     private String login(User user) throws Exception {
         var result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"email\":\"" + user.getEmail() + "\",\"password\":\"senha-segura\"}"))
+            .content("{\"email\":\"" + user.getEmail() + "\",\"password\":\"senha-segura-forte\"}"))
             .andExpect(status().isOk()).andReturn();
         return "Bearer " + mapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
     }

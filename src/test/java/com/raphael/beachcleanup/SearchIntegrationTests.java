@@ -125,7 +125,7 @@ class SearchIntegrationTests {
     }
 
     private User account(String name, String email) {
-        return userService.insert(new User(null, name, email, "senha-segura", 0.0));
+        return userService.insert(new User(null, name, email, "senha-segura-forte", 0.0));
     }
 
     private CleanupEvent event(String location, String state, String date) {

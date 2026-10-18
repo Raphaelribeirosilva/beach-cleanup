@@ -130,12 +130,12 @@ class MySqlDatabaseIT {
             try (var context = start(restoredUrl)) {
                 var owner = context.getBean(UserRepository.class).findById(userId).orElseThrow();
                 assertEquals(userId, context.getBean(AuthService.class)
-                    .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
+                    .login(new LoginDTO("ana@example.com", "senha-segura-forte")).userId());
                 assertEquals(UserRole.ADMIN, owner.getRole());
                 assertEquals(7, owner.getCredentialVersion());
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(8, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(9, context.getBean(Flyway.class).info().applied().length);
             }
         } finally {
             Files.deleteIfExists(dump);
@@ -222,14 +222,14 @@ class MySqlDatabaseIT {
             collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(8, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
             User owner = context.getBean(UserRepository.class).findById(userId).orElseThrow();
             assertEquals(1, context.getBean(UserRepository.class).count());
             assertEquals(userId, context.getBean(AuthService.class)
-                .login(new LoginDTO("ana@example.com", "senha-segura")).userId());
+                .login(new LoginDTO("ana@example.com", "senha-segura-forte")).userId());
             assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
             assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -265,7 +265,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(8, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -336,7 +336,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             var flyway = context.getBean(Flyway.class);
             flyway.validate();
-            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8"), java.util.Arrays.stream(flyway.info().applied())
+            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9"), java.util.Arrays.stream(flyway.info().applied())
                 .map(migration -> migration.getVersion().toString()).toList());
             assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -381,7 +381,7 @@ class MySqlDatabaseIT {
     void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
         WeightMigrationAssertions.verify(url, username, password);
         try (var context = start(url, false)) {
-            assertEquals(8, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
             assertEquals(101L, context.getBean(AuthService.class)
                 .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
             var report = context.getBean(DataQualityService.class);
@@ -538,7 +538,7 @@ class MySqlDatabaseIT {
         com.raphael.beachcleanup.dto.TokenDTO token;
         try (var context = start()) {
             account(context, "Ana");
-            token = context.getBean(AuthService.class).login(new LoginDTO("ana@example.com", "senha-segura"));
+            token = context.getBean(AuthService.class).login(new LoginDTO("ana@example.com", "senha-segura-forte"));
             var jdbc = context.getBean(JdbcTemplate.class);
             String stored = jdbc.queryForObject("select token_hash from tb_refresh_token", String.class);
             assertEquals(64, stored.length()); assertNotEquals(token.refreshToken(), stored);
@@ -550,7 +550,7 @@ class MySqlDatabaseIT {
             var rotated = auth.refresh(token.refreshToken());
             assertNotEquals(token.refreshToken(), rotated.refreshToken());
             assertTrue(rotated.refreshExpiresIn() <= token.refreshExpiresIn());
-            var independent = auth.login(new LoginDTO("ana@example.com", "senha-segura"));
+            var independent = auth.login(new LoginDTO("ana@example.com", "senha-segura-forte"));
             var start = new CountDownLatch(1);
             try (var executor = Executors.newFixedThreadPool(2)) {
                 java.util.concurrent.Callable<com.raphael.beachcleanup.dto.TokenDTO> renew = () -> {
@@ -579,22 +579,75 @@ class MySqlDatabaseIT {
             var owner = account(context, "Ana");
             var auth = context.getBean(AuthService.class);
             var decoder = context.getBean(org.springframework.security.oauth2.jwt.JwtDecoder.class);
-            var expired = auth.login(new LoginDTO("ana@example.com", "senha-segura"));
+            var expired = auth.login(new LoginDTO("ana@example.com", "senha-segura-forte"));
             context.getBean(JdbcTemplate.class).update("update tb_auth_session set expires_at = '2020-01-01 00:00:00'");
             assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> auth.refresh(expired.refreshToken()));
             assertThrows(org.springframework.security.oauth2.jwt.JwtException.class, () -> decoder.decode(expired.accessToken()));
-            var current = auth.login(new LoginDTO("ana@example.com", "senha-segura"));
-            var other = auth.login(new LoginDTO("ana@example.com", "senha-segura"));
-            auth.changePassword(decoder.decode(current.accessToken()), new com.raphael.beachcleanup.dto.ChangePasswordDTO("senha-segura", "senha-nova"));
+            var current = auth.login(new LoginDTO("ana@example.com", "senha-segura-forte"));
+            var other = auth.login(new LoginDTO("ana@example.com", "senha-segura-forte"));
+            auth.changePassword(decoder.decode(current.accessToken()), new com.raphael.beachcleanup.dto.ChangePasswordDTO("senha-segura-forte", "senha-nova-forte"));
             for (var token : List.of(current, other)) {
                 assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> auth.refresh(token.refreshToken()));
                 assertThrows(org.springframework.security.oauth2.jwt.JwtException.class, () -> decoder.decode(token.accessToken()));
             }
-            assertDoesNotThrow(() -> auth.login(new LoginDTO("ana@example.com", "senha-nova")));
+            assertDoesNotThrow(() -> auth.login(new LoginDTO("ana@example.com", "senha-nova-forte")));
             context.getBean(UserRepository.class).deleteById(owner.getId());
             assertEquals(0, context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_refresh_token", Integer.class));
             assertEquals(0, context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_auth_session", Integer.class));
         }
+    }
+
+    @Test
+    void recoveryTokensAndRateLimitsAreAtomicAndPersistentOnMySql() throws Exception {
+        int allowed;
+        try (var context = start(url, true, true)) {
+            var owner = account(context, "Ana");
+            var actions = context.getBean(AccountActionService.class);
+            var verification = actions.prepareMail(new AccountMailRequest(owner.getEmail(), AccountActionService.VERIFY));
+            var verifyToken = accountLinkToken(verification.text());
+            actions.verify(verifyToken);
+            assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> actions.verify(verifyToken));
+            var auth = context.getBean(AuthService.class);
+            var session = auth.login(new LoginDTO(owner.getEmail(), "senha-segura-forte"));
+            var expired = actions.prepareMail(new AccountMailRequest(owner.getEmail(), AccountActionService.RESET));
+            context.getBean(JdbcTemplate.class).update("update tb_account_action_token set expires_at = '2020-01-01 00:00:00' where purpose = 'RESET_PASSWORD'");
+            assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> actions.reset(accountLinkToken(expired.text()), "Outra senha muito forte!"));
+            var reset = accountLinkToken(actions.prepareMail(new AccountMailRequest(owner.getEmail(), AccountActionService.RESET)).text());
+            var start = new CountDownLatch(1);
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                java.util.concurrent.Callable<Boolean> operation = () -> {
+                    await(start);
+                    try { actions.reset(reset, "Outra senha muito forte!"); return true; }
+                    catch (com.raphael.beachcleanup.exceptions.FieldValidationException expected) { return false; }
+                };
+                var a = executor.submit(operation); var b = executor.submit(operation); start.countDown();
+                assertEquals(1, List.of(a.get(30, TimeUnit.SECONDS), b.get(30, TimeUnit.SECONDS)).stream().filter(Boolean::booleanValue).count());
+            }
+            assertThrows(org.springframework.security.oauth2.jwt.JwtException.class,
+                () -> context.getBean(org.springframework.security.oauth2.jwt.JwtDecoder.class).decode(session.accessToken()));
+            assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> auth.refresh(session.refreshToken()));
+            var limiter = context.getBean(com.raphael.beachcleanup.security.AbuseLimiter.class);
+            var barrier = new CountDownLatch(1);
+            try (var executor = Executors.newFixedThreadPool(8)) {
+                var results = new java.util.ArrayList<java.util.concurrent.Future<Long>>();
+                for (int i = 0; i < 8; i++) results.add(executor.submit(() -> { await(barrier); return limiter.consume("test-race", "identity", 3, 900); }));
+                barrier.countDown(); allowed = 0;
+                for (var future : results) if (future.get(30, TimeUnit.SECONDS) == 0) allowed++;
+                assertTrue(allowed > 0 && allowed <= 3);
+            }
+        }
+        try (var context = start(url, true, true)) {
+            assertTrue(context.getBean(UserRepository.class).findByEmail("ana@example.com").orElseThrow().isEmailVerified());
+            context.getBean(AuthService.class).login(new LoginDTO("ana@example.com", "Outra senha muito forte!"));
+            var limiter = context.getBean(com.raphael.beachcleanup.security.AbuseLimiter.class);
+            for (int i = allowed; i < 3; i++) assertEquals(0, limiter.consume("test-race", "identity", 3, 900));
+            assertTrue(limiter.consume("test-race", "identity", 3, 900) > 0);
+        }
+    }
+
+    private String accountLinkToken(String text) {
+        var matcher = java.util.regex.Pattern.compile("#(?:reset|verify)=([A-Za-z0-9_-]{43})").matcher(text);
+        assertTrue(matcher.find()); return matcher.group(1);
     }
 
     private boolean editSnapshot(ConfigurableApplicationContext context, CountDownLatch loaded,
@@ -625,8 +678,12 @@ class MySqlDatabaseIT {
     }
 
     private ConfigurableApplicationContext start(String databaseUrl, boolean seedCatalogs) {
+        return start(databaseUrl, seedCatalogs, false);
+    }
+
+    private ConfigurableApplicationContext start(String databaseUrl, boolean seedCatalogs, boolean abuseEnabled) {
         var context = new SpringApplicationBuilder(BeachcleanupApplication.class).run(
-            "--spring.profiles.active=prod", "--server.port=0", "--spring.datasource.url=" + databaseUrl,
+            "--spring.profiles.active=prod", "--security.accounts.require-verified-email=false", "--security.abuse.enabled=" + abuseEnabled, "--server.port=0", "--spring.datasource.url=" + databaseUrl,
             "--spring.datasource.username=" + username, "--spring.datasource.password=" + password,
             "--security.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--logging.level.root=WARN");
         if (seedCatalogs) CatalogTestData.seed(context);
@@ -662,7 +719,7 @@ class MySqlDatabaseIT {
 
     private static User account(ConfigurableApplicationContext context, String name) {
         return context.getBean(UserService.class).insert(
-            new User(null, name, name.toLowerCase(java.util.Locale.ROOT) + "@example.com", "senha-segura", 0.0));
+            new User(null, name, name.toLowerCase(java.util.Locale.ROOT) + "@example.com", "senha-segura-forte", 0.0));
     }
 
     private static TrashCollection input(User owner, double weight) {

@@ -11,6 +11,8 @@ public class UserDTO implements Serializable {
     private Long version;
     private String name;
     private String email;
+    private boolean emailVerified;
+    public boolean isEmailVerified() { return emailVerified; }
     private BigDecimal totalCollectedKg;
 
     public UserDTO() {
@@ -21,6 +23,7 @@ public class UserDTO implements Serializable {
         this.version = entity.getRowVersion();
         this.name = entity.getName();
         this.email = entity.getEmail();
+        this.emailVerified = entity.isEmailVerified();
         this.totalCollectedKg = totalCollectedKg;
     }
     

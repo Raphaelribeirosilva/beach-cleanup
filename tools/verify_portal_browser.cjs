@@ -166,8 +166,25 @@ async function main() {
     assert.equal(await evaluate('document.querySelector("#report-results").textContent.includes("acesso administrativo")'), false);
     await click('[data-view=events]');
     await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await click('#login-open');
+    await click('#recovery-open');
+    await waitFor('document.querySelector("#account-help-dialog").open');
+    await fill('#account-help-form [name=email]', 'not-registered@example.com');
+    await click('#account-help-submit');
+    await waitFor('!document.querySelector("#account-help-dialog").open && document.querySelector("#notice").textContent.includes("Se o endereço estiver apto")');
+    await cdp('Page.navigate', { url: `${base}/#verify=${'x'.repeat(43)}` });
+    await waitFor('document.querySelector("#account-help-dialog")?.open && location.hash === ""');
+    assert.equal(await evaluate('document.querySelector("#account-help-error").hidden'), true, 'Opening a verification link must not consume it');
+    await click('#account-help-submit');
+    await waitFor('!document.querySelector("#account-help-error").hidden');
+    assert.ok(await evaluate('document.querySelector("#account-help-error").textContent.includes("Link inválido")'));
+    await click('[data-close=account-help-dialog]');
     await click('#signup-open');
     await fill('#auth-form [name=name]', 'Voluntário navegador');
+    await fill('#auth-form [name=email]', 'portal-browser@example.com');
+    await fill('#auth-form [name=password]', 'portal-test-password');
+    await click('#auth-submit');
+    await waitFor('document.querySelector("#auth-error").textContent.includes("Conta criada") && !document.querySelector("#auth-submit").disabled');
     await fill('#auth-form [name=email]', 'portal-browser@example.com');
     await fill('#auth-form [name=password]', 'portal-test-password');
     await click('#auth-submit');
@@ -245,7 +262,12 @@ async function main() {
     await waitFor('document.querySelector("#profile-form [name=name]").value === "Nome externo"');
     await fill('#profile-form [name=name]', 'Perfil atualizado');
     await fill('#profile-form [name=email]', 'portal-updated@example.com');
+    await fill('#profile-form [name=currentPassword]', 'portal-test-password');
     await click('#profile-form [type=submit]');
+    await waitFor('document.querySelector("#auth-dialog").open && document.querySelector("#signed-account").hidden');
+    await fill('#auth-form [name=email]', 'portal-updated@example.com');
+    await fill('#auth-form [name=password]', 'portal-test-password');
+    await click('#auth-submit');
     await waitFor('document.querySelector("#account-name").textContent === "Perfil atualizado"');
     await click('[data-view=reports]');
     await waitFor('document.querySelector("#report-results table") !== null');
@@ -562,7 +584,7 @@ async function main() {
     await click('#admin-tab');
     assert.equal(await evaluate('document.querySelector("#admin-workspace").hidden'), true, 'Revealing a control must not grant administrative access');
     assert.deepEqual(browserErrors, [], 'No script exceptions or CSP violations');
-    console.log('PASS: silent renewal, refresh rotation/deadline, server logout and revoked JWTs; public impact dashboard and admin registrations; personal profile/password, collection edits/deletions, stale drafts, totals and permissions; admin regression, desktop/mobile and CSP.');
+    console.log('PASS: recovery/verification forms, private link fragments and password policy; silent renewal, refresh rotation/deadline, server logout and revoked JWTs; public impact dashboard and admin registrations; personal profile/password, collection edits/deletions, stale drafts, totals and permissions; admin regression, desktop/mobile and CSP.');
   } catch (error) {
     console.error(logs.slice(-3000));
     throw error;
