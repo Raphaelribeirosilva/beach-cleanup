@@ -18,6 +18,8 @@ import com.raphael.beachcleanup.repositories.UserRepository;
 @Service
 @Transactional
 public class UserService {
+    @Autowired private AuditService audit;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     @Autowired private com.raphael.beachcleanup.security.PasswordPolicy passwordPolicy;
     @Autowired private org.springframework.context.ApplicationEventPublisher events;
     @Autowired private com.raphael.beachcleanup.repositories.AuthSessionRepository sessions;
@@ -73,8 +75,16 @@ public class UserService {
         return repository.save(obj);
     }
 
-    public void delete(Long id) {
-        User entity = findById(id);
+    public void delete(Long id) { delete(id, null); }
+
+    public void delete(Long id, Long version) {
+        User entity = repository.findByIdForAuthentication(id).orElseThrow(() -> new ResourceNotFoundException(id));
+        entityManager.refresh(entity);
+        FormVersion.requireCurrent(version, entity.getRowVersion());
+        audit.requireNoHistory("USER", id);
+        if (!entity.getEvents().isEmpty() || !entity.getCollection().isEmpty())
+            throw new com.raphael.beachcleanup.exceptions.EventStateConflictException("Usuários com inscrições ou coletas devem ser preservados.");
+        audit.record("USER", id, "DELETE", null, null, null, null, null, null, null);
         repository.delete(entity);
         repository.flush();
     }

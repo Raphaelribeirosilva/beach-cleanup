@@ -48,3 +48,6 @@ O verificador usa somente a biblioteca padrão do Python. Confere a leitura do J
 Resultado em 11/10/2026: **13 caminhos e 23 operações, estrutura e cobertura aprovadas**. A revisão dos DTOs, services e segurança fundamenta os campos e regras descritos. Este verificador não substitui validação integral pelo esquema oficial OpenAPI, nem testes HTTP: não compara automaticamente todas as restrições e regras de negócio. Nenhum teste foi executado no MySQL do usuário. A suíte Maven não foi executada nesta etapa, que altera somente documentação e sua ferramenta de verificação.
 
 Ao mudar rotas ou DTOs, atualize o contrato junto da implementação. O documento `07_ANALISE_ATUAL_E_PROXIMO_PASSO.md` é um diagnóstico anterior: totais, inscrições, estados, persistência e buscas já foram implementados nas etapas 7 a 11; o contrato OpenAPI completa o item de documentação da API daquela sequência.
+
+
+A consulta administrativa de auditoria e a versão obrigatória nas exclusões estão documentadas em [Auditoria e preservação do histórico](31_AUDITORIA_E_PRESERVACAO_DO_HISTORICO.md).

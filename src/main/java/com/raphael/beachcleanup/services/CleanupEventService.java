@@ -15,6 +15,7 @@ import com.raphael.beachcleanup.repositories.CleanupEventRepository;
 @Service
 @Transactional
 public class CleanupEventService {
+    @Autowired private AuditService audit;
 
     @Autowired
     private CleanupEventRepository repository;
@@ -50,8 +51,17 @@ public class CleanupEventService {
         return repository.save(obj);
     }
 
-    public void delete(Long id) {
-        CleanupEvent entity = findById(id);
+    public void delete(Long id) { delete(id, null); }
+
+    public void delete(Long id, Long version) {
+        CleanupEvent entity = states.lockedEvent(id);
+        FormVersion.requireCurrent(version, entity.getRowVersion());
+        audit.requireNoHistory("EVENT", id);
+        if (EventStatus.parse(entity.getStatus()) != EventStatus.SCHEDULED)
+            throw new EventStateConflictException("Preserve o histórico deste evento. Use o estado Cancelado quando aplicável.");
+        if (!entity.getUsers().isEmpty() || !collections.eventLinksForUpdate(id).isEmpty())
+            throw new EventStateConflictException("Eventos com inscrições ou coletas devem ser preservados.");
+        audit.record("EVENT", id, "DELETE", null, null, null, null, null, null, null);
         repository.delete(entity);
         repository.flush();
     }
@@ -76,6 +86,8 @@ public class CleanupEventService {
             throw new EventStateConflictException("Transição de status não permitida para o evento.");
         }
         obj.setStatus(next.value());
+        if (!entity.getStatus().equals(next.value()))
+            audit.record("EVENT", id, "STATE_CHANGE", null, null, null, null, null, entity.getStatus(), next.value());
         updateData(entity, obj);
         return repository.saveAndFlush(entity);
     }

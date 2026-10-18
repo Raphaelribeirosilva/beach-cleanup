@@ -52,8 +52,8 @@ public class CleanupEventResource {
 	
 	@DeleteMapping(value = "/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<Void> delete(@PathVariable Long id){
-		service.delete(id);
+	public ResponseEntity<Void> delete(@PathVariable Long id, @org.springframework.web.bind.annotation.RequestParam(required = false) Long version){
+		service.delete(id, version);
 		return ResponseEntity.noContent().build();
 	}
 	

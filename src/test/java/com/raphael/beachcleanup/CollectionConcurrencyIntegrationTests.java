@@ -107,7 +107,7 @@ class CollectionConcurrencyIntegrationTests {
             .with(user(second.getId().toString()).roles("VOLUNTEER"))
             .contentType(MediaType.APPLICATION_JSON).content(json(second, 5.0, 1)))
             .andExpect(status().isOk());
-        mvc.perform(delete("/trashCollection/{id}", collectionId)
+        mvc.perform(delete("/trashCollection/{id}", collectionId).param("version", collections.findById(collectionId).map(v -> v.getRowVersion().toString()).orElse("0"))
             .with(user(second.getId().toString()).roles("VOLUNTEER")))
             .andExpect(status().isNoContent());
     }
@@ -142,7 +142,7 @@ class CollectionConcurrencyIntegrationTests {
                 loaded.countDown();
                 await(transferred);
                 try {
-                    var request = delete ? delete("/trashCollection/{id}", collectionId)
+                    var request = delete ? delete("/trashCollection/{id}", collectionId).param("version", collections.findById(collectionId).map(v -> v.getRowVersion().toString()).orElse("0"))
                         : put("/trashCollection/{id}", collectionId).contentType(MediaType.APPLICATION_JSON)
                             .content(json(first, 9.0));
                     var response = mvc.perform(request.with(user(first.getId().toString()).roles("VOLUNTEER")))
@@ -168,7 +168,7 @@ class CollectionConcurrencyIntegrationTests {
             .andExpect(jsonPath("$.totalCollectedKg").value(0.0));
         mvc.perform(get("/users/{id}", second.getId()).with(user("admin").roles("ADMIN")))
             .andExpect(jsonPath("$.totalCollectedKg").value(4.0));
-        mvc.perform(delete("/trashCollection/{id}", collectionId)
+        mvc.perform(delete("/trashCollection/{id}", collectionId).param("version", collections.findById(collectionId).map(v -> v.getRowVersion().toString()).orElse("0"))
             .with(user(first.getId().toString()).roles("VOLUNTEER"))).andExpect(status().isForbidden());
     }
 

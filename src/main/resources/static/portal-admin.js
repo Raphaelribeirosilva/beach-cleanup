@@ -8,6 +8,9 @@
     Concluido: ['Concluido'], Cancelado: ['Cancelado']
   };
   const statuses = Object.keys(transitions);
+  const auditResources = { COLLECTION: 'Coleta', EVENT: 'Evento', USER: 'Usuário', BEACH: 'Praia', MATERIAL: 'Material' };
+  const auditActions = { CREATE: 'Criação', TRANSFER: 'Transferência', STATE_CHANGE: 'Alteração de estado', MERGE: 'Unificação',
+    REGISTER: 'Inscrição', UNREGISTER: 'Cancelamento de inscrição', DELETE: 'Exclusão' };
   window.createAdminPortal = (api, { node, action, busy, kg, date }) => {
     const $ = id => document.getElementById(id);
     const state = { active: false, view: 'events', page: 0, pages: 0, generation: 0, loading: false, editing: null,
@@ -49,7 +52,14 @@
       form.replaceChildren();
       form.hidden = isCatalog(state.view) || isReview(state.view);
       if (form.hidden) return;
-      if (state.view === 'events') {
+      if (state.view === 'audit') {
+        field(form, 'resource', 'Recurso', { choices: ['', ...Object.entries(auditResources).map(([id, name]) => ({ id, name }))] });
+        field(form, 'resourceId', 'ID do recurso', { type: 'number', min: 1 });
+        field(form, 'actorId', 'ID do autor', { type: 'number', min: 1 });
+        field(form, 'action', 'Ação', { choices: ['', ...Object.entries(auditActions).map(([id, name]) => ({ id, name }))] });
+        field(form, 'from', 'Desde (UTC)', { type: 'datetime-local' });
+        field(form, 'to', 'Até (UTC)', { type: 'datetime-local' });
+      } else if (state.view === 'events') {
         field(form, 'location', 'Praia', { choices: choices('beaches') });
         field(form, 'status', 'Status', { choices: ['', ...statuses] });
       } else if (state.view === 'users') {
@@ -74,11 +84,11 @@
         if (active) button.setAttribute('aria-current', 'page');
         else button.removeAttribute('aria-current');
       });
-      $('admin-title').textContent = state.view === 'quality' ? 'Pendências de qualidade'
+      $('admin-title').textContent = state.view === 'audit' ? 'Histórico de alterações' : state.view === 'quality' ? 'Pendências de qualidade'
         : state.view === 'rounding' ? 'Conversão dos pesos antigos' : state.view === 'users' ? 'Consultar usuários'
         : state.view === 'events' ? 'Gerenciar eventos' : state.view === 'beaches' ? 'Gerenciar praias'
           : state.view === 'materials' ? 'Gerenciar materiais' : 'Gerenciar coletas';
-      $('admin-create').hidden = state.view === 'users' || isReview(state.view);
+      $('admin-create').hidden = state.view === 'audit' || state.view === 'users' || isReview(state.view);
       $('admin-create').textContent = isCatalog(state.view) ? '+ Cadastrar item'
         : state.view === 'events' ? '+ Criar evento' : '+ Registrar coleta';
       filters();
@@ -113,6 +123,7 @@
         for (const [name, target] of [['location', 'beachId'], ['beach', 'beachId'], ['materialType', 'materialId']]) {
           if (name in values) { values[target] = values[name]; delete values[name]; }
         }
+        if (view === 'audit') for (const key of ['from', 'to']) if (values[key]) values[key] += ':00Z';
         const result = await api.admin[view]({ ...values, page: state.page });
         if (!current(session) || generation !== state.generation) return false;
         // A deletion can remove the last record of the current page.
@@ -122,7 +133,7 @@
         }
         state.pages = result.totalPages;
         if (!result.content.length) empty(isReview(view) ? 'Nenhum registro para revisar nesta lista.' : 'Nenhum registro encontrado. Revise os filtros ou cadastre um registro.');
-        else $('admin-results').replaceChildren(...result.content.map(record => isReview(view) ? reviewCard(record, view) : card(record, view)));
+        else $('admin-results').replaceChildren(...result.content.map(record => view === 'audit' ? auditCard(record) : isReview(view) ? reviewCard(record, view) : card(record, view)));
         $('admin-pagination').hidden = state.pages < 2;
         $('admin-page-info').textContent = `Página ${state.page + 1} de ${state.pages} · ${result.totalElements} registros`;
         $('admin-previous').disabled = state.page === 0;
@@ -140,6 +151,21 @@
           $('admin-results').setAttribute('aria-busy', 'false');
         }
       }
+    }
+    function auditCard(record) {
+      const card = node('article', 'card');
+      const body = node('div', 'card-body');
+      body.append(node('h3', '', `${auditActions[record.action] ?? record.action} · ${auditResources[record.resource] ?? record.resource} #${record.resourceId}`),
+        node('p', '', `${new Date(record.occurredAt).toLocaleString('pt-BR')} · Autor: ${record.actorId ?? 'sistema'} (${({ ADMIN: 'administrador', VOLUNTEER: 'voluntário', SYSTEM: 'sistema' })[record.actorRole] ?? record.actorRole})`));
+      for (const [label, before, after] of [
+        ['Usuário', record.previousUserId, record.nextUserId],
+        ['Evento', record.previousEventId, record.nextEventId],
+        ['Estado', record.previousState, record.nextState]]) {
+        if (before != null || after != null) body.append(node('p', '', `${label}: ${before ?? 'sem vínculo'} → ${after ?? 'sem vínculo'}`));
+      }
+      if (record.targetId != null) body.append(node('p', '', `Destino da unificação: #${record.targetId}`));
+      card.append(body);
+      return card;
     }
     function catalogCard(record, view) {
       const card = node('article', 'card');
@@ -260,7 +286,7 @@
       if (!authorized() || !window.confirm(`Excluir ${view === 'events' ? 'evento' : 'coleta'} #${record.id}? Esta ação não pode ser desfeita.`)) return;
       const session = api.session();
       try {
-        await api.admin[view === 'events' ? 'deleteEvent' : 'deleteCollection'](record.id);
+        await api.admin[view === 'events' ? 'deleteEvent' : 'deleteCollection'](record.id, record.version);
         if (!current(session)) return;
         const refreshed = await load();
         if (current(session)) message(refreshed ? 'Registro excluído.' : 'Registro excluído, mas a lista não foi atualizada. Tente recarregar.', !refreshed);

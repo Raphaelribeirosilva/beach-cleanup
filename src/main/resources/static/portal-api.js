@@ -153,6 +153,7 @@
     }
     return {
       admin: {
+        audit: filters => adminRequest(query('/admin/audit', { size: 20, ...filters })),
         quality: filters => adminRequest(query('/admin/data-quality', { size: 6, ...filters })),
         rounding: filters => adminRequest(query('/admin/data-quality/rounding', { size: 6, ...filters })),
         saveCatalog: (kind, id, input) => adminRequest(`/catalog/${kind}${id == null ? '' : `/${id}`}`,
@@ -165,10 +166,10 @@
         collection: id => adminRequest(`/trashCollection/${id}`),
         saveEvent: (id, input) => adminRequest(id == null ? '/cleanupEvent' : `/cleanupEvent/${id}`,
           { method: id == null ? 'POST' : 'PUT', body: input }),
-        deleteEvent: id => adminRequest(`/cleanupEvent/${id}`, { method: 'DELETE' }),
+        deleteEvent: (id, version) => adminRequest(query(`/cleanupEvent/${id}`, { version }), { method: 'DELETE' }),
         saveCollection: (id, input) => adminRequest(id == null ? '/trashCollection' : `/trashCollection/${id}`,
           { method: id == null ? 'POST' : 'PUT', body: input }),
-        deleteCollection: id => adminRequest(`/trashCollection/${id}`, { method: 'DELETE' })
+        deleteCollection: (id, version) => adminRequest(query(`/trashCollection/${id}`, { version }), { method: 'DELETE' })
       },
       session: currentSession,
       dataRules: {
@@ -205,7 +206,7 @@
       changePassword: input => request('/auth/password', { method: 'PUT', body: input, authenticated: true }),
       updateCollection: (id, input) => request(`/trashCollection/${id}`, { method: 'PUT', body: input, authenticated: true }),
       collection: id => request(`/trashCollection/${id}`, { authenticated: true }),
-      deleteCollection: id => request(`/trashCollection/${id}`, { method: 'DELETE', authenticated: true }),
+      deleteCollection: (id, version) => request(query(`/trashCollection/${id}`, { version }), { method: 'DELETE', authenticated: true }),
       profile: () => request(`/users/${session?.userId}`, { authenticated: true }),
       events: filters => request(query('/cleanupEvent/search', { size: 6, sortBy: 'dateTime', direction: 'asc', ...filters })),
       registrations: () => request('/users/me/events', { authenticated: true }),

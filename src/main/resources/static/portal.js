@@ -166,7 +166,7 @@
     actions.append(action('Editar coleta', () => openCollection(collection.event, collection)),
       action('Excluir coleta', async () => {
         if (!window.confirm(`Excluir a coleta #${collection.id}? Esta ação não pode ser desfeita.`)) return;
-        try { await api.deleteCollection(collection.id); if (await load()) notify('Coleta excluída. Totais atualizados.'); }
+        try { await api.deleteCollection(collection.id, collection.version); if (await load()) notify('Coleta excluída. Totais atualizados.'); }
         catch (error) { notify(error.message, true); }
       }));
     body.append(actions);

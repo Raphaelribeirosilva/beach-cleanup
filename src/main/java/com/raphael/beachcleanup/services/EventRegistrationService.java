@@ -19,6 +19,7 @@ import com.raphael.beachcleanup.repositories.UserRepository;
 @Service
 @Transactional
 public class EventRegistrationService {
+    @org.springframework.beans.factory.annotation.Autowired private AuditService audit;
     private final UserRepository users;
     private final CleanupEventRepository events;
     private final EventStateService states;
@@ -47,6 +48,7 @@ public class EventRegistrationService {
             states.requireNewRecordsAllowed(event);
             user.getEvents().add(event);
             event.getUsers().add(user);
+            audit.record("EVENT", eventId, "REGISTER", null, userId, null, eventId, null, null, null);
         }
         users.flush();
     }
@@ -57,6 +59,7 @@ public class EventRegistrationService {
         CleanupEvent event = event(eventId);
         if (user.getEvents().remove(event)) {
             event.getUsers().remove(user);
+            audit.record("EVENT", eventId, "UNREGISTER", userId, null, eventId, null, null, null, null);
         }
         users.flush();
     }

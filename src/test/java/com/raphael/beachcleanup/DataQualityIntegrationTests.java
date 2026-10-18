@@ -89,7 +89,7 @@ class DataQualityIntegrationTests {
             .content(payload.toString())).andExpect(status().isOk());
         assertEquals(new BigDecimal("0.125"), totals.user(users.findById(owner).orElseThrow()).getTotalCollectedKg());
         assertEquals(new BigDecimal("0.200"), totals.user(other).getTotalCollectedKg());
-        mvc.perform(delete("/trashCollection/{id}", first)).andExpect(status().isNoContent());
+        mvc.perform(delete("/trashCollection/{id}", first).param("version", collections.findById(first).map(v -> v.getRowVersion().toString()).orElse("0"))).andExpect(status().isNoContent());
         assertEquals(new BigDecimal("0.000"), totals.user(users.findById(owner).orElseThrow()).getTotalCollectedKg());
     }
 

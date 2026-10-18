@@ -16,6 +16,7 @@ import com.raphael.beachcleanup.security.AccessPolicy;
 @Service
 @Transactional
 public class TrashCollectionService {
+    @Autowired private AuditService audit;
 
     @Autowired
     private TrashCollectionRepository repository;
@@ -51,12 +52,18 @@ public class TrashCollectionService {
         obj.setId(null);
         resolveReferences(obj, null);
         dataRules.validate(obj);
-        return repository.save(obj);
+        var saved = repository.saveAndFlush(obj);
+        audit.record("COLLECTION", saved.getId(), "CREATE", null, owner(saved), null, event(saved), null, null, null);
+        return saved;
     }
 
-    public void delete(Long id) {
+    public void delete(Long id) { delete(id, null); }
+
+    public void delete(Long id, Long version) {
         TrashCollection entity = findById(id);
         access.requireCollectionAccess(entity);
+        FormVersion.requireCurrent(version, entity.getRowVersion());
+        audit.record("COLLECTION", id, "DELETE", owner(entity), null, event(entity), null, null, null, null);
         repository.delete(entity);
         repository.flush();
     }
@@ -69,10 +76,16 @@ public class TrashCollectionService {
         resolveCatalogs(obj);
         resolveReferences(obj, entity.getEvent() == null ? null : entity.getEvent().getId());
         dataRules.validate(obj);
+        Long oldUser = owner(entity), oldEvent = event(entity);
         updateData(entity, obj);
+        if (!java.util.Objects.equals(oldUser, owner(entity)) || !java.util.Objects.equals(oldEvent, event(entity)))
+            audit.record("COLLECTION", id, "TRANSFER", oldUser, owner(entity), oldEvent, event(entity), null, null, null);
         // Flush before returning so a stale version becomes HTTP 409, also when joining a transaction.
         return repository.saveAndFlush(entity);
     }
+
+    private Long owner(TrashCollection c) { return c.getVolunteer() == null ? null : c.getVolunteer().getId(); }
+    private Long event(TrashCollection c) { return c.getEvent() == null ? null : c.getEvent().getId(); }
 
     private void resolveCatalogs(TrashCollection obj) {
         var beach = catalogs.resolve("beaches", obj.getBeachReference(), obj.getBeach(), "beach");

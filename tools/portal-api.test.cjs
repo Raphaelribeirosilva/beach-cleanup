@@ -146,10 +146,10 @@ test('impact is public; participation is admin-only and personal changes send ve
   await assert.rejects(api.participation({}), { status: 403 });
   await api.updateProfile({ name: 'Ana', email: 'ana@example.com', version: 3 });
   await api.updateCollection(42, { weightKg: 1.125, version: 7 });
-  await api.deleteCollection(42);
+  await api.deleteCollection(42, 3);
   await api.changePassword({ currentPassword: 'old', newPassword: 'new' });
   assert.deepEqual(calls.slice(2).map(call => [call.path, call.options.method]), [
-    ['/users/17', 'PUT'], ['/trashCollection/42', 'PUT'], ['/trashCollection/42', 'DELETE'], ['/auth/password', 'PUT']
+    ['/users/17', 'PUT'], ['/trashCollection/42', 'PUT'], ['/trashCollection/42?version=3', 'DELETE'], ['/auth/password', 'PUT']
   ]);
   for (const call of calls.slice(2)) assert.equal(call.options.headers.Authorization, 'Bearer test-token');
   assert.equal(JSON.parse(calls[2].options.body).version, 3);
@@ -426,11 +426,11 @@ test('administrators query all collections with pagination and filters, and send
   await api.admin.saveEvent(9, { ...event, status: 'Em andamento' });
   await api.admin.saveCollection(null, collection);
   await api.admin.saveCollection(10, { ...collection, volunteer: null });
-  await api.admin.deleteEvent(9);
-  await api.admin.deleteCollection(10);
+  await api.admin.deleteEvent(9, 2);
+  await api.admin.deleteCollection(10, 4);
   assert.deepEqual(calls.slice(4).map(call => [call.path, call.options.method]), [
     ['/cleanupEvent', 'POST'], ['/cleanupEvent/9', 'PUT'], ['/trashCollection', 'POST'],
-    ['/trashCollection/10', 'PUT'], ['/cleanupEvent/9', 'DELETE'], ['/trashCollection/10', 'DELETE']
+    ['/trashCollection/10', 'PUT'], ['/cleanupEvent/9?version=2', 'DELETE'], ['/trashCollection/10?version=4', 'DELETE']
   ]);
   assert.deepEqual(JSON.parse(calls[6].options.body), collection);
   assert.equal(JSON.parse(calls[7].options.body).volunteer, null);
@@ -454,4 +454,24 @@ test('administrative requests preserve conflict details, expire sessions and dis
   await api.logout();
   complete(response(200, { content: [{ email: 'private@example.com' }] }));
   await assert.rejects(pending, /sessão mudou/);
+});
+
+
+test('audit requests require admin role and preserve investigation filters', async () => {
+  const calls = [];
+  const api = createPortalApi(async (path, options) => {
+    calls.push({ path, options });
+    return response(200, path === '/auth/login' ? { ...token, role: 'ADMIN' } : {});
+  });
+  await assert.rejects(api.admin.audit({}), error => error.status === 403);
+  assert.equal(calls.length, 0);
+  await api.login({});
+  await api.admin.audit({ resource: 'COLLECTION', resourceId: 42, actorId: 7, action: 'TRANSFER', from: '2026-10-01T00:00:00Z', page: 1 });
+  const url = new URL(calls[1].path, 'http://localhost');
+  assert.equal(url.pathname, '/admin/audit');
+  assert.equal(url.searchParams.get('resourceId'), '42');
+  assert.equal(url.searchParams.get('actorId'), '7');
+  assert.equal(url.searchParams.get('from'), '2026-10-01T00:00:00Z');
+  assert.equal(url.searchParams.get('page'), '1');
+  assert.equal(calls[1].options.headers.Authorization, 'Bearer test-token');
 });

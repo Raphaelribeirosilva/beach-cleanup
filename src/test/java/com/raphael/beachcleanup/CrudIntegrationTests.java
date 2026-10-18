@@ -128,7 +128,7 @@ class CrudIntegrationTests {
         assertEquals("Praia B", saved.getLocation());
         assertEquals(LocalDateTime.parse("2026-10-16T09:00:00"), saved.getDateTime());
         assertEquals("Em andamento", saved.getStatus());
-        deleteAndCheckMissing("/cleanupEvent", id);
+        mvc.perform(delete("/cleanupEvent/{id}", id).param("version", "1")).andExpect(status().isConflict());
     }
 
     @Test
@@ -242,20 +242,20 @@ class CrudIntegrationTests {
     }
 
     @Test
-    void linkedResourcesReturn409AndCanBeDeletedAfterCollectionRemoval() throws Exception {
+    void historicalUsersAndEventsRemainPreservedAfterCollectionRemoval() throws Exception {
         long userId = newUser().getId();
         long eventId = newEvent().getId();
         long collectionId = create("/trashCollection", collectionJson(userId, eventId));
-        mvc.perform(delete("/users/{id}", userId))
+        mvc.perform(delete("/users/{id}", userId).param("version", users.findById(userId).map(v -> v.getRowVersion().toString()).orElse("0")))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
-        mvc.perform(delete("/cleanupEvent/{id}", eventId))
+        mvc.perform(delete("/cleanupEvent/{id}", eventId).param("version", events.findById(eventId).map(v -> v.getRowVersion().toString()).orElse("0")))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
         assertTrue(users.existsById(userId));
         assertTrue(events.existsById(eventId));
         assertTrue(collections.existsById(collectionId));
         deleteAndCheckMissing("/trashCollection", collectionId);
-        deleteAndCheckMissing("/users", userId);
-        deleteAndCheckMissing("/cleanupEvent", eventId);
+        mvc.perform(delete("/users/{id}", userId).param("version", "0")).andExpect(status().isConflict());
+        mvc.perform(delete("/cleanupEvent/{id}", eventId).param("version", "0")).andExpect(status().isConflict());
     }
 
     @Test
@@ -452,7 +452,7 @@ class CrudIntegrationTests {
     }
 
     private void deleteAndCheckMissing(String path, long id) throws Exception {
-        mvc.perform(delete(path + "/" + id)).andExpect(status().isNoContent())
+        mvc.perform(delete(path + "/" + id).param("version", objectMapper.readTree(mvc.perform(get(path + "/" + id)).andReturn().getResponse().getContentAsString()).get("version").asText())).andExpect(status().isNoContent())
             .andExpect(content().string(""));
         mvc.perform(get(path + "/" + id)).andExpect(status().isNotFound());
     }

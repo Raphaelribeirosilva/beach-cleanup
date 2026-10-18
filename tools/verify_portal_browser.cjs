@@ -487,8 +487,19 @@ async function main() {
     await click('#admin-filters [type=submit]');
     await adminReady();
     await click('#admin-results .card-actions button:last-child');
-    await waitFor('document.querySelector("#admin-results").textContent.includes("Nenhum registro")');
-    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`)).status, 404);
+    await waitFor('!document.querySelector("#admin-message").hidden && document.querySelector("#admin-message").classList.contains("error")');
+    assert.equal((await request(`/cleanupEvent/${managedEvent.id}`)).status, 200, 'Historical event remains after collection removal');
+    await click('[data-admin-view=audit]');
+    await adminReady();
+    assert.equal(await evaluate('document.querySelector("#admin-create").hidden'), true);
+    await fill('#admin-filters [name=resource]', 'COLLECTION');
+    await fill('#admin-filters [name=resourceId]', String(collectionSnapshot.id));
+    await fill('#admin-filters [name=action]', 'TRANSFER');
+    await click('#admin-filters [type=submit]');
+    await adminReady();
+    assert.equal(await evaluate('document.querySelectorAll("#admin-results .card").length'), 1);
+    assert.ok(await evaluate('document.querySelector("#admin-results").textContent.includes("Transferência")'));
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile audit must not overflow');
     // Exercise collection pagination and returning to the previous page after deleting its last item.
     for (let i = 0; i < 7; i++) await api('/trashCollection', { ...collectionInput, beach: 'Paginação administrativa' }, admin.accessToken);
     await click('[data-admin-view=collections]');

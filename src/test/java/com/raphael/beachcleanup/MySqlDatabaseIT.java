@@ -135,7 +135,7 @@ class MySqlDatabaseIT {
                 assertEquals(7, owner.getCredentialVersion());
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(9, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(10, context.getBean(Flyway.class).info().applied().length);
             }
         } finally {
             Files.deleteIfExists(dump);
@@ -222,7 +222,7 @@ class MySqlDatabaseIT {
             collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(10, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -265,7 +265,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(10, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -336,7 +336,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             var flyway = context.getBean(Flyway.class);
             flyway.validate();
-            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9"), java.util.Arrays.stream(flyway.info().applied())
+            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"), java.util.Arrays.stream(flyway.info().applied())
                 .map(migration -> migration.getVersion().toString()).toList());
             assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -381,7 +381,7 @@ class MySqlDatabaseIT {
     void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
         WeightMigrationAssertions.verify(url, username, password);
         try (var context = start(url, false)) {
-            assertEquals(9, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(10, context.getBean(Flyway.class).info().applied().length);
             assertEquals(101L, context.getBean(AuthService.class)
                 .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
             var report = context.getBean(DataQualityService.class);
@@ -459,7 +459,7 @@ class MySqlDatabaseIT {
                                 context.getBean(TrashCollectionRepository.class).findById(id).orElseThrow();
                                 loaded.countDown();
                                 await(transferred);
-                                if (delete) context.getBean(TrashCollectionService.class).delete(id);
+                                if (delete) context.getBean(TrashCollectionService.class).delete(id, 0L);
                                 else context.getBean(TrashCollectionService.class).update(id, input(first, 9.0), 0L);
                                 return null;
                             }));
@@ -526,10 +526,42 @@ class MySqlDatabaseIT {
             assertEquals(0, report.impact(day, day, beachId, materialId, null, "beach").totals().weightKg()
                 .compareTo(new java.math.BigDecimal("6.252")));
             authenticate(owner.getId().toString(), "VOLUNTEER");
-            try { writer.delete(first.getId()); }
+            try { writer.delete(first.getId(), context.getBean(TrashCollectionRepository.class).findById(first.getId()).orElseThrow().getRowVersion()); }
             finally { SecurityContextHolder.clearContext(); }
             assertEquals(0, report.impact(day, day, beachId, materialId, null, "beach").totals().weightKg()
                 .compareTo(new java.math.BigDecimal("2.251")));
+        }
+    }
+
+    @Test
+    void auditPreservesTransfersAndDeletionEvidenceAcrossMySqlRestart() throws Exception {
+        Long collectionId, ownerId, otherId, actorId;
+        try (var context = start()) {
+            var owner = account(context, "Original"); var other = account(context, "Destino");
+            var actor = account(context, "Administrador");
+            ownerId = owner.getId(); otherId = other.getId(); actorId = actor.getId();
+            authenticate(actorId.toString(), "ADMIN");
+            try {
+                var writer = context.getBean(TrashCollectionService.class);
+                var collection = writer.insert(input(owner, 2.125)); collectionId = collection.getId();
+                var moved = writer.update(collectionId, input(other, 2.125), collection.getRowVersion());
+                assertThrows(OptimisticLockingFailureException.class, () -> writer.delete(collectionId, collection.getRowVersion()));
+                writer.delete(collectionId, moved.getRowVersion());
+                var evidence = context.getBean(AuditService.class).search("COLLECTION", collectionId, actorId, "TRANSFER", null,null,0,20);
+                assertEquals(1,evidence.totalElements());
+                assertEquals(ownerId,evidence.content().getFirst().previousUserId);
+                assertEquals(otherId,evidence.content().getFirst().nextUserId);
+            } finally { SecurityContextHolder.clearContext(); }
+        }
+        try (var context = start(url,false)) {
+            var evidence = context.getBean(AuditService.class).search("COLLECTION",collectionId,null,null,null,null,0,20);
+            assertEquals(3,evidence.totalElements());
+            assertEquals("DELETE",evidence.content().getFirst().action);
+            assertEquals(actorId,evidence.content().getFirst().actorId);
+            var service = context.getBean(UserService.class);
+            for (Long id : List.of(ownerId,otherId,actorId)) assertThrows(
+                com.raphael.beachcleanup.exceptions.EventStateConflictException.class,
+                () -> service.delete(id,context.getBean(UserRepository.class).findById(id).orElseThrow().getRowVersion()));
         }
     }
 

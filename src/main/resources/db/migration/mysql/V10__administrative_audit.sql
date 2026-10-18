@@ -1,0 +1,23 @@
+CREATE TABLE tb_audit_entry (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    occurred_at TIMESTAMP(6) NOT NULL,
+    actor_id BIGINT NULL,
+    actor_role VARCHAR(20) NOT NULL,
+    resource VARCHAR(30) NOT NULL,
+    resource_id BIGINT NOT NULL,
+    action VARCHAR(30) NOT NULL,
+    previous_user_id BIGINT NULL,
+    next_user_id BIGINT NULL,
+    previous_event_id BIGINT NULL,
+    next_event_id BIGINT NULL,
+    target_id BIGINT NULL,
+    previous_state VARCHAR(30) NULL,
+    next_state VARCHAR(30) NULL,
+    INDEX idx_audit_resource (resource, resource_id),
+    INDEX idx_audit_time (occurred_at, id),
+    INDEX idx_audit_actor (actor_id),
+    INDEX idx_audit_previous_user (previous_user_id),
+    INDEX idx_audit_next_user (next_user_id),
+    INDEX idx_audit_previous_event (previous_event_id),
+    INDEX idx_audit_next_event (next_event_id)
+);

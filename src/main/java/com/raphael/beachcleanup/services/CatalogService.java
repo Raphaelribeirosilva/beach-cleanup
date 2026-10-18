@@ -17,6 +17,7 @@ public class CatalogService {
     private final CatalogEntryRepository entries;
     private final CatalogAliasRepository aliases;
     private final JdbcTemplate jdbc;
+    @org.springframework.beans.factory.annotation.Autowired private AuditService audit;
 
     public CatalogService(CatalogEntryRepository entries, CatalogAliasRepository aliases, JdbcTemplate jdbc) {
         this.entries = entries;
@@ -77,6 +78,8 @@ public class CatalogService {
         for (var alias : aliases.findByEntryId(sourceId)) alias.setEntry(target);
         propagate(kind, sourceId, target);
         source.mergeInto(target);
+        audit.record(kind.equals("beaches") ? "BEACH" : "MATERIAL", sourceId, "MERGE",
+            null, null, null, null, target.getId(), null, null);
         target.touch();
         entries.flush();
         return dto(target, aliases.findByEntryId(target.getId()).stream().map(a -> a.getId().name()).toList());

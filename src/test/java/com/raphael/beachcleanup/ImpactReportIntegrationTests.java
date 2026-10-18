@@ -108,7 +108,7 @@ class ImpactReportIntegrationTests {
             .andExpect(status().isConflict());
         mvc.perform(get("/reports/impact").param("from", "2026-01-01"))
             .andExpect(jsonPath("$.totals.weightKg").value(9.253));
-        mvc.perform(delete("/trashCollection/{id}", first.getId()).with(owner)).andExpect(status().isNoContent());
+        mvc.perform(delete("/trashCollection/{id}", first.getId()).param("version", collections.findById(first.getId()).map(v -> v.getRowVersion().toString()).orElse("0")).with(owner)).andExpect(status().isNoContent());
         mvc.perform(get("/reports/impact").param("from", "2026-01-01"))
             .andExpect(jsonPath("$.totals.weightKg").value(5.252)).andExpect(jsonPath("$.totals.collections").value(3));
         mvc.perform(get("/users/{id}", ana.getId()).with(owner))
@@ -117,7 +117,7 @@ class ImpactReportIntegrationTests {
 
     @Test void volunteerCannotModifyOtherAccountsOrCollections() throws Exception {
         var stranger = user(bruno.getId().toString()).roles("VOLUNTEER");
-        mvc.perform(delete("/trashCollection/{id}", first.getId()).with(stranger)).andExpect(status().isForbidden());
+        mvc.perform(delete("/trashCollection/{id}", first.getId()).param("version", collections.findById(first.getId()).map(v -> v.getRowVersion().toString()).orElse("0")).with(stranger)).andExpect(status().isForbidden());
         mvc.perform(put("/trashCollection/{id}", first.getId()).with(stranger).contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"beachId":%d,"materialId":%d,"weightKg":1,"registrationDate":"2026-01-10","version":0}

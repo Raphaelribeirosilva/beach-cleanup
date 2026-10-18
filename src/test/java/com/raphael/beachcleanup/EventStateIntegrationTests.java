@@ -128,7 +128,7 @@ class EventStateIntegrationTests {
             .andExpect(status().isNoContent());
         mvc.perform(get("/users/{id}", volunteer.getId()))
             .andExpect(jsonPath("$.totalCollectedKg").value(3.5));
-        mvc.perform(delete("/trashCollection/{id}", collection)).andExpect(status().isNoContent());
+        mvc.perform(delete("/trashCollection/{id}", collection).param("version", collections.findById(collection).map(v -> v.getRowVersion().toString()).orElse("0"))).andExpect(status().isNoContent());
     }
 
     private CleanupEvent event(String state) {

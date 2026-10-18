@@ -73,10 +73,10 @@ class CollectedTotalsIntegrationTests {
             .andExpect(status().isOk()).andExpect(jsonPath("$.volunteer.totalCollectedKg").value(4.0));
         assertTotal(ana, 3.5);
         assertTotal(bruno, 4.0);
-        mvc.perform(delete("/trashCollection/{id}", second)).andExpect(status().isNoContent());
+        mvc.perform(delete("/trashCollection/{id}", second).param("version", collections.findById(second).map(v -> v.getRowVersion().toString()).orElse("0"))).andExpect(status().isNoContent());
         assertTotal(ana, 0.0);
         assertTotal(bruno, 4.0);
-        mvc.perform(delete("/trashCollection/{id}", first)).andExpect(status().isNoContent());
+        mvc.perform(delete("/trashCollection/{id}", first).param("version", collections.findById(first).map(v -> v.getRowVersion().toString()).orElse("0"))).andExpect(status().isNoContent());
         assertTotal(bruno, 0.0);
         mvc.perform(get("/trashCollection")).andExpect(status().isOk()).andExpect(content().json("[]"));
     }

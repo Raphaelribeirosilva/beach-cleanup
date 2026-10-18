@@ -138,7 +138,7 @@ class SecurityIntegrationTests {
         assertEquals("second@example.com", users.findById(second.getId()).orElseThrow().getEmail());
         mvc.perform(get("/users/" + first.getId()).header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
-        mvc.perform(delete("/users/" + first.getId()).header("Authorization", "Bearer " + token))
+        mvc.perform(delete("/users/" + first.getId()).param("version", users.findById(first.getId()).orElseThrow().getRowVersion().toString()).header("Authorization", "Bearer " + token))
             .andExpect(status().isNoContent());
         mvc.perform(get("/trashCollection").header("Authorization", "Bearer " + token))
             .andExpect(status().isUnauthorized());
@@ -172,7 +172,7 @@ class SecurityIntegrationTests {
             .contentType(MediaType.APPLICATION_JSON).content(collectionJson(",\"volunteer\":null")))
             .andExpect(status().isOk()).andExpect(jsonPath("$.volunteer.id").value(first.getId()));
         assertEquals(2, collections.count());
-        mvc.perform(delete("/trashCollection/" + id).header("Authorization", "Bearer " + firstToken))
+        mvc.perform(delete("/trashCollection/" + id).param("version", collections.findById(id).orElseThrow().getRowVersion().toString()).header("Authorization", "Bearer " + firstToken))
             .andExpect(status().isNoContent());
     }
 
@@ -189,7 +189,7 @@ class SecurityIntegrationTests {
         createCollection(token, collectionJson(""));
         mvc.perform(get("/trashCollection").header("Authorization", "Bearer " + token))
             .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
-        mvc.perform(delete("/cleanupEvent/" + id).header("Authorization", "Bearer " + token))
+        mvc.perform(delete("/cleanupEvent/" + id).param("version", events.findById(id).orElseThrow().getRowVersion().toString()).header("Authorization", "Bearer " + token))
             .andExpect(status().isNoContent());
         admin.setRole(UserRole.VOLUNTEER);
         users.save(admin);
