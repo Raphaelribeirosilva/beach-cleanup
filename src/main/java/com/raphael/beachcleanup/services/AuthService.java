@@ -2,6 +2,12 @@ package com.raphael.beachcleanup.services;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.Duration;
+import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -16,40 +22,97 @@ import com.raphael.beachcleanup.dto.TokenDTO;
 import com.raphael.beachcleanup.dto.ChangePasswordDTO;
 import com.raphael.beachcleanup.exceptions.FieldValidationException;
 import com.raphael.beachcleanup.repositories.UserRepository;
+import com.raphael.beachcleanup.repositories.AuthSessionRepository;
+import com.raphael.beachcleanup.repositories.RefreshTokenRepository;
+import com.raphael.beachcleanup.entities.AuthSession;
+import com.raphael.beachcleanup.entities.RefreshToken;
+import com.raphael.beachcleanup.entities.User;
 
 @Service
 public class AuthService {
+    public static final long REFRESH_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
+    private static final SecureRandom RANDOM = new SecureRandom();
     private final UserRepository users;
     private final PasswordEncoder passwords;
     private final JwtEncoder encoder;
     private final String dummyHash;
+    private final AuthSessionRepository sessions;
+    private final RefreshTokenRepository refreshTokens;
+    private final Clock clock;
 
-    public AuthService(UserRepository users, PasswordEncoder passwords, JwtEncoder encoder) {
+    public AuthService(UserRepository users, PasswordEncoder passwords, JwtEncoder encoder,
+            AuthSessionRepository sessions, RefreshTokenRepository refreshTokens, Clock clock) {
         this.users = users;
         this.passwords = passwords;
         this.encoder = encoder;
+        this.sessions = sessions; this.refreshTokens = refreshTokens; this.clock = clock;
         this.dummyHash = passwords.encode(UUID.randomUUID().toString());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TokenDTO login(LoginDTO input) {
-        var foundAccount = users.findByEmail(UserService.normalizeEmail(input.email()));
-        String hash = foundAccount.map(value -> value.getPassword()).orElse(dummyHash);
+        var foundAccount = users.findIdByEmail(UserService.normalizeEmail(input.email()));
+        // Serialize credential checks with password changes and refresh operations.
+        var account = foundAccount.flatMap(users::findByIdForAuthentication).orElse(null);
+        String hash = account == null ? dummyHash : account.getPassword();
         boolean matches = input.password().getBytes(StandardCharsets.UTF_8).length <= 72
             && passwords.matches(input.password(), hash);
-        if (!matches || foundAccount.isEmpty()) {
+        if (!matches || account == null) {
             throw new BadCredentialsException("Credenciais inválidas");
         }
-        var account = foundAccount.orElseThrow();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
+        var session = sessions.save(new AuthSession(UUID.randomUUID().toString(), account,
+            now.plusSeconds(REFRESH_LIFETIME_SECONDS)));
+        return issue(account, session, now);
+    }
+
+    private TokenDTO issue(User account, AuthSession session, Instant now) {
+        byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
+        String refresh = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        refreshTokens.save(new RefreshToken(hash(refresh), session));
+        long accessLifetime = Math.min(JwtConfig.TOKEN_LIFETIME_SECONDS, Duration.between(now, session.getExpiresAt()).getSeconds());
         var claims = JwtClaimsSet.builder().issuer(JwtConfig.ISSUER).audience(List.of(JwtConfig.AUDIENCE))
             .subject(account.getId().toString()).issuedAt(now).notBefore(now)
             .claim(JwtConfig.CREDENTIAL_VERSION_CLAIM, account.getCredentialVersion())
-            .expiresAt(now.plusSeconds(JwtConfig.TOKEN_LIFETIME_SECONDS)).id(UUID.randomUUID().toString()).build();
+            .claim("sid", session.getId())
+            .expiresAt(now.plusSeconds(accessLifetime)).id(UUID.randomUUID().toString()).build();
         String token = encoder.encode(JwtEncoderParameters.from(
             JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
-        return new TokenDTO(token, "Bearer", JwtConfig.TOKEN_LIFETIME_SECONDS,
-            account.getId(), account.getRole().name());
+        return new TokenDTO(token, "Bearer", accessLifetime,
+            account.getId(), account.getRole().name(), refresh, Duration.between(now, session.getExpiresAt()).getSeconds());
+    }
+
+    /** Replay revocation MUST commit even though the response is 401. */
+    @Transactional(noRollbackFor = BadCredentialsException.class)
+    public TokenDTO refresh(String refresh) {
+        String hash = hash(refresh);
+        var owner = refreshTokens.owner(hash).orElseThrow(AuthService::invalidRefresh);
+        var user = users.findByIdForAuthentication(owner.getUserId()).orElseThrow(AuthService::invalidRefresh);
+        var session = sessions.findLocked(owner.getSessionId()).orElseThrow(AuthService::invalidRefresh);
+        // A locking read avoids stale snapshots after waiting on another rotation in MySQL REPEATABLE READ.
+        var token = refreshTokens.findLocked(hash).orElseThrow(AuthService::invalidRefresh);
+        Instant now = clock.instant();
+        if (token.isConsumed() || !session.active(now) || session.getCredentialVersion() != user.getCredentialVersion()
+                || Duration.between(now, session.getExpiresAt()).getSeconds() < 1) {
+            session.revoke(now);
+            throw invalidRefresh();
+        }
+        token.consume();
+        return issue(user, session, now);
+    }
+
+    @Transactional
+    public void logout(String refresh) {
+        var owner = refreshTokens.owner(hash(refresh)).orElse(null);
+        if (owner == null || users.findByIdForAuthentication(owner.getUserId()).isEmpty()) return;
+        sessions.findLocked(owner.getSessionId()).ifPresent(session -> session.revoke(clock.instant()));
+    }
+
+    private static BadCredentialsException invalidRefresh() { return new BadCredentialsException("Sessão encerrada ou refresh token inválido."); }
+    private static String hash(String token) {
+        if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) throw invalidRefresh();
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.US_ASCII))); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 
     @Transactional
@@ -58,7 +121,7 @@ public class AuthService {
             throw new BadCredentialsException("Credenciais inválidas");
         }
         long id = Long.parseLong(principal.getSubject());
-        var account = users.findById(id).orElseThrow(
+        var account = users.findByIdForAuthentication(id).orElseThrow(
             () -> new BadCredentialsException("Credenciais inválidas"));
         Long credentialVersion = JwtConfig.credentialVersion(principal);
         if (credentialVersion == null || credentialVersion != account.getCredentialVersion()
@@ -80,5 +143,6 @@ public class AuthService {
         account.setPassword(passwords.encode(newPassword));
         account.setCredentialVersion(Math.incrementExact(account.getCredentialVersion()));
         users.saveAndFlush(account);
+        sessions.revokeByUser(account.getId(), clock.instant());
     }
 }

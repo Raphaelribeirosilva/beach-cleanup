@@ -221,7 +221,9 @@ class SecurityIntegrationTests {
             mvc.perform(get("/users/" + id).header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.status").value(401));
         }
-        String forgedRole = encode(encoder, JwtClaimsSet.from(claims).claim("role", "ADMIN").build());
+        String sid = context.getBean(org.springframework.security.oauth2.jwt.JwtDecoder.class)
+            .decode(login("ana@example.com")).getClaimAsString("sid");
+        String forgedRole = encode(encoder, JwtClaimsSet.from(claims).claim("sid", sid).claim("role", "ADMIN").build());
         mvc.perform(get("/users").header("Authorization", "Bearer " + forgedRole))
             .andExpect(status().isForbidden());
     }

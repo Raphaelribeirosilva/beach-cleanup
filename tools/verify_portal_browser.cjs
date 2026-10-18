@@ -207,7 +207,7 @@ async function main() {
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile layout must not overflow');
     await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'portal-mobile.png'), Buffer.from(result.data, 'base64')));
     // Personal collection edits preserve drafts on stale versions and require confirmed deletions.
-    const ownSession = await evaluate('JSON.parse(sessionStorage.getItem("beachcleanup.session.v1")).session');
+    const ownSession = await evaluate('JSON.parse(sessionStorage.getItem("beachcleanup.session.v2")).session');
     const ownCollections = (await (await request(`/trashCollection/search?volunteerId=${ownSession.userId}`, 'GET', undefined, ownSession.accessToken)).json()).content;
     const independent = ownCollections.find(item => !item.event);
     await click('#results .card-actions button:first-child');
@@ -274,7 +274,7 @@ async function main() {
     await waitFor('!document.querySelector("#auth-dialog").open && document.querySelector("#account-name").textContent === "Perfil atualizado"');
     await click('#logout');
     await waitFor('document.querySelector("#impact").hidden && !document.querySelector("#account").hidden');
-    assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v1")'), null);
+    assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v2")'), null);
     await reloadPage();
     await waitFor('!document.querySelector("#account").hidden && document.querySelectorAll(".card").length > 0');
     await click('#login-open');
@@ -290,11 +290,32 @@ async function main() {
     await reloadPage();
     await waitFor('document.querySelector("#account-name").textContent === "Ana Silva" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
-    // Reloading must not revive an expired token or silently extend its deadline.
-    await evaluate('(() => { const key = "beachcleanup.session.v1"; const saved = JSON.parse(sessionStorage.getItem(key)); saved.expiresAt = Date.now() - 1; sessionStorage.setItem(key, JSON.stringify(saved)); })()');
+    // Expired access renews without login, but the absolute refresh deadline remains fixed.
+    const beforeRenewal = await evaluate('JSON.parse(sessionStorage.getItem("beachcleanup.session.v2"))');
+    await evaluate('(() => { const key = "beachcleanup.session.v2"; const saved = JSON.parse(sessionStorage.getItem(key)); saved.expiresAt = Date.now() - 1; sessionStorage.setItem(key, JSON.stringify(saved)); })()');
+    await reloadPage();
+    await waitFor('document.querySelector("#account-name").textContent === "Ana Silva" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    const afterRenewal = await evaluate('JSON.parse(sessionStorage.getItem("beachcleanup.session.v2"))');
+    assert.notEqual(afterRenewal.session.accessToken, beforeRenewal.session.accessToken);
+    assert.notEqual(afterRenewal.session.refreshToken, beforeRenewal.session.refreshToken);
+    assert.ok(afterRenewal.refreshExpiresAt <= beforeRenewal.refreshExpiresAt);
+    assert.equal(await evaluate('document.cookie'), '', 'Session credentials do not use cookies');
+    await cdp('Network.enable');
+    await cdp('Network.setBlockedURLs', { urls: [`${base}/auth/logout`] });
+    await click('#logout');
+    await waitFor('document.querySelector("#notice button") !== null && document.querySelector("#notice").textContent.includes("não foi possível encerrar no servidor")');
+    assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v2")'), null);
+    assert.equal((await request(`/users/${afterRenewal.session.userId}`, 'GET', undefined, afterRenewal.session.accessToken)).status, 200, 'A failed logout must not claim server revocation');
+    await cdp('Network.setBlockedURLs', { urls: [] });
+    await click('#notice button');
+    await waitFor('!document.querySelector("#account").hidden && document.querySelector("#notice").textContent.includes("Sessão encerrada no servidor") && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal((await request(`/users/${afterRenewal.session.userId}`, 'GET', undefined, afterRenewal.session.accessToken)).status, 401, 'Logout revokes issued access tokens');
+    assert.equal((await request('/auth/refresh', 'POST', { refreshToken: afterRenewal.session.refreshToken }, '')).status, 401);
+    // Simulate a fully expired saved session: reload cannot revive it.
+    await evaluate(`sessionStorage.setItem('beachcleanup.session.v2', ${JSON.stringify(JSON.stringify({ ...afterRenewal, expiresAt: 1, refreshExpiresAt: 1 }))})`);
     await reloadPage();
     await waitFor('document.querySelector("#impact").hidden && !document.querySelector("#account").hidden && document.querySelectorAll(".card").length > 0');
-    assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v1")'), null);
+    assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v2")'), null);
     assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
 
     // Administrative browser flows use the same login and styles as the volunteer portal.
@@ -541,7 +562,7 @@ async function main() {
     await click('#admin-tab');
     assert.equal(await evaluate('document.querySelector("#admin-workspace").hidden'), true, 'Revealing a control must not grant administrative access');
     assert.deepEqual(browserErrors, [], 'No script exceptions or CSP violations');
-    console.log('PASS: public impact dashboard and admin registrations; personal profile/password, collection edits/deletions, stale drafts, totals and permissions; admin regression, desktop/mobile and CSP.');
+    console.log('PASS: silent renewal, refresh rotation/deadline, server logout and revoked JWTs; public impact dashboard and admin registrations; personal profile/password, collection edits/deletions, stale drafts, totals and permissions; admin regression, desktop/mobile and CSP.');
   } catch (error) {
     console.error(logs.slice(-3000));
     throw error;

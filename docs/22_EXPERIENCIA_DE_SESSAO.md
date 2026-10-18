@@ -1,6 +1,8 @@
 # Experiência de sessão do portal
 
-Data: 16/10/2026.
+Data da entrega original: 16/10/2026.
+
+**Atualização:** o lembrete de refresh token foi atendido pela [etapa 29](29_RENOVACAO_E_ENCERRAMENTO_DE_SESSAO.md). A partir dela há renovação com rotação e logout com revogação no servidor. As regras e os resultados abaixo registram a etapa 22, anterior a essa entrega.
 
 ## Comportamento entregue
 
@@ -14,13 +16,13 @@ Conteúdo armazenado inválido ou expirado é descartado. Quando o navegador blo
 
 ## Limites e renovação
 
-Esta versão preserva a sessão durante os 30 minutos de validade e **não implementa refresh token nem renovação automática**. Ao expirar, é necessário entrar novamente. Foi solicitada a preferência do usuário sobre incluir esse fluxo adicional; este registro descreve a melhoria de duração e recarga implementada enquanto essa preferência não foi informada.
+A versão original desta etapa preservava a sessão durante os 30 minutos de validade e **não implementava refresh token nem renovação automática**. Ao expirar, era necessário entrar novamente. A renovação foi entregue posteriormente na etapa 29; este registro descreve a melhoria anterior de duração e recarga.
 
 O token armazenado permanece acessível a JavaScript da mesma origem. A CSP e a renderização de texto sem HTML continuam aplicadas. `sessionStorage` é limitado à sessão da aba e normalmente é eliminado ao fechá-la; restauração de abas e duplicação podem preservar/copiar seu conteúdo conforme o navegador. A opção Sair é o mecanismo explícito de limpeza. Não há gravação em `localStorage` nem cookie de autenticação.
 
 Sair remove as credenciais deste portal; não revoga um JWT previamente copiado. A troca de senha continua invalidando os tokens anteriores pelo `credentialVersion`. O prazo maior também aumenta de 15 para 30 minutos a validade máxima de um token copiado que não tenha sido revogado.
 
-Uma futura renovação automática exige contrato de refresh e logout no backend, armazenamento seguro e revogação/rotação dos tokens de renovação, proteção das rotas correspondentes e testes de concorrência, expiração e troca de senha. Preservar o token da aba não substitui esse fluxo.
+Os requisitos que ficaram para a renovação automática foram atendidos na etapa 29: contrato de refresh e logout no backend, armazenamento seguro e revogação/rotação dos tokens de renovação, proteção das rotas correspondentes e testes de concorrência, expiração e troca de senha. Preservar o token da aba não substitui esse fluxo.
 
 ## Arquivos e verificação
 

@@ -1,59 +1,113 @@
 (function (root) {
   'use strict';
-  const SESSION_KEY = 'beachcleanup.session.v1';
+  const SESSION_KEY = 'beachcleanup.session.v2';
+  const MAX_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
   function browserStorage() {
     try { return root.sessionStorage; } catch (_) { return null; }
   }
   function createPortalApi(fetcher, onSessionExpired = () => {}, {
-    storage = browserStorage(), now = () => Date.now(),
-    schedule = setTimeout, cancel = clearTimeout
+    storage = browserStorage(), now = () => Date.now(), schedule = setTimeout, cancel = clearTimeout
   } = {}) {
-    let session = null;
-    let expiresAt = 0;
-    let expiryTimer;
-    let loginGeneration = 0;
+    let session = null, expiresAt = 0, refreshExpiresAt = 0, expiryTimer;
+    let loginGeneration = 0, refreshing = null;
+    const pendingRevocations = new Set();
     function clearSession() {
       loginGeneration++;
-      session = null;
-      expiresAt = 0;
+      session = null; expiresAt = 0; refreshExpiresAt = 0;
       cancel(expiryTimer);
-      try { storage?.removeItem(SESSION_KEY); } catch (_) { /* storage may be disabled */ }
+      try { storage?.removeItem(SESSION_KEY); } catch (_) { /* disabled storage */ }
     }
     function expire() {
       if (!session) return;
-      clearSession();
-      onSessionExpired();
+      clearSession(); onSessionExpired();
     }
     function currentSession() {
-      if (session && now() >= expiresAt) expire();
+      if (session && now() >= refreshExpiresAt) expire();
       return session;
-    }
-    function armExpiry() {
-      cancel(expiryTimer);
-      expiryTimer = schedule(() => {
-        if (now() >= expiresAt) expire();
-        else armExpiry();
-      }, Math.min(Math.max(expiresAt - now(), 1), 2147483647));
-      expiryTimer?.unref?.();
     }
     function validSession(value) {
       return value && typeof value.accessToken === 'string' && value.accessToken.length > 0
         && value.tokenType === 'Bearer' && Number.isSafeInteger(value.userId) && value.userId > 0
         && ['ADMIN', 'VOLUNTEER'].includes(value.role)
-        && Number.isFinite(value.expiresIn) && value.expiresIn > 0 && value.expiresIn <= 1800;
+        && Number.isFinite(value.expiresIn) && value.expiresIn > 0 && value.expiresIn <= 1800
+        && typeof value.refreshToken === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value.refreshToken)
+        && Number.isFinite(value.refreshExpiresIn) && value.refreshExpiresIn > 0
+        && value.refreshExpiresIn <= MAX_SESSION_MS / 1000;
+    }
+    function persist() {
+      try { storage?.setItem(SESSION_KEY, JSON.stringify({ session, expiresAt, refreshExpiresAt })); }
+      catch (_) { /* credentials remain in memory */ }
+    }
+    function armExpiry() {
+      cancel(expiryTimer);
+      const lastAccess = expiresAt >= refreshExpiresAt - 1000;
+      expiryTimer = schedule(() => {
+        if (!currentSession()) return;
+        void renew().catch(() => {});
+      }, Math.max((lastAccess ? refreshExpiresAt : expiresAt - 30000) - now(), 1000));
+      expiryTimer?.unref?.();
+    }
+    function accept(result, deadline = now() + result.refreshExpiresIn * 1000) {
+      session = result;
+      refreshExpiresAt = Math.min(deadline, now() + result.refreshExpiresIn * 1000);
+      expiresAt = Math.min(now() + result.expiresIn * 1000, refreshExpiresAt);
+      persist(); armExpiry();
     }
     try {
+      // Old non-renewable sessions must authenticate again after this upgrade.
+      storage?.removeItem('beachcleanup.session.v1');
       const saved = JSON.parse(storage?.getItem(SESSION_KEY) || 'null');
       if (validSession(saved?.session) && Number.isFinite(saved.expiresAt)
-          && saved.expiresAt > now() && saved.expiresAt <= now() + 1800000) {
-        session = saved.session;
-        expiresAt = saved.expiresAt;
-        armExpiry();
+          && Number.isFinite(saved.refreshExpiresAt) && saved.expiresAt <= now() + 1800000
+          && saved.expiresAt > 0 && saved.refreshExpiresAt > now()
+          && saved.refreshExpiresAt <= now() + MAX_SESSION_MS && saved.expiresAt <= saved.refreshExpiresAt) {
+        session = saved.session; expiresAt = saved.expiresAt; refreshExpiresAt = saved.refreshExpiresAt; armExpiry();
       } else clearSession();
     } catch (_) { clearSession(); }
-    async function request(path, { method = 'GET', body, authenticated = false } = {}) {
+    async function revoke(refreshToken) {
+      pendingRevocations.add(refreshToken);
+      await request('/auth/logout', { method: 'POST', body: { refreshToken } });
+      pendingRevocations.delete(refreshToken);
+    }
+    async function logout() {
+      const refreshToken = session?.refreshToken;
+      if (refreshToken) pendingRevocations.add(refreshToken);
+      clearSession();
+      const results = await Promise.allSettled([...pendingRevocations].map(revoke));
+      if (results.some(result => result.status === 'rejected'))
+        throw new Error('Sua sessão local foi removida, mas não foi possível encerrar no servidor. Tente encerrar novamente.');
+    }
+    function renew() {
+      if (refreshing?.generation === loginGeneration) return refreshing.promise;
       const current = currentSession();
+      if (!current) return Promise.reject(new Error('Entre na sua conta para continuar.'));
+      const generation = loginGeneration, deadline = refreshExpiresAt;
+      const task = { generation };
+      task.promise = (async () => {
+        try {
+          const result = await request('/auth/refresh', { method: 'POST', body: { refreshToken: current.refreshToken } });
+          if (generation !== loginGeneration) {
+            // Logout can revoke by the old token too; this also covers a cancelled login/refresh response.
+            if (validSession(result)) void revoke(result.refreshToken).catch(() => {});
+            throw new Error('A sessão mudou. Entre novamente para continuar.');
+          }
+          if (!validSession(result) || result.userId !== current.userId) throw new Error('Resposta de renovação inválida.');
+          accept(result, deadline);
+          return session;
+        } catch (error) {
+          if (generation === loginGeneration) expire();
+          throw error;
+        } finally { if (refreshing === task) refreshing = null; }
+      })();
+      refreshing = task;
+      return task.promise;
+    }
+    async function request(path, { method = 'GET', body, authenticated = false } = {}) {
+      let current = currentSession();
+      const generation = loginGeneration;
       if (authenticated && !current) throw new Error('Entre na sua conta para continuar.');
+      if (authenticated && (now() >= expiresAt || (now() >= expiresAt - 30000 && expiresAt < refreshExpiresAt - 1000))) current = await renew();
+      if (authenticated && generation !== loginGeneration) throw new Error('A sessão mudou. Entre novamente para continuar.');
       const headers = { Accept: 'application/json' };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
       if (authenticated) headers.Authorization = `Bearer ${current.accessToken}`;
@@ -66,11 +120,9 @@
       }
       const data = response.status === 204 ? null : await response.json().catch(() => null);
       if (!response.ok) {
-        if (response.status === 401 && authenticated && session === current) {
-          expire();
-        }
+        if (response.status === 401 && authenticated && generation === loginGeneration && session === current) expire();
         const messages = {
-          401: authenticated ? 'Sua sessão expirou. Entre novamente para continuar.' : 'E-mail ou senha inválidos.',
+          401: authenticated || path === '/auth/refresh' ? 'Sua sessão expirou ou foi encerrada. Entre novamente para continuar.' : 'E-mail ou senha inválidos.',
           403: 'Você não tem permissão para realizar esta ação.',
           404: 'Este registro não está mais disponível.',
           409: 'Os dados mudaram ou a operação conflita com registros existentes. Atualize e tente novamente.'
@@ -79,12 +131,9 @@
         const message = fields.length ? fields.join(' ') : response.status >= 500
           ? 'O serviço está indisponível no momento. Tente novamente em instantes.'
           : response.status === 401 ? messages[401] : data?.message || messages[response.status] || 'Não foi possível concluir a ação.';
-        const error = new Error(message);
-        error.status = response.status;
-        throw error;
+        const error = new Error(message); error.status = response.status; throw error;
       }
-      // An older response must not restore data belonging to a session that has ended.
-      if (authenticated && currentSession() !== current) throw new Error('A sessão mudou. Entre novamente para continuar.');
+      if (authenticated && (generation !== loginGeneration || !currentSession())) throw new Error('A sessão mudou. Entre novamente para continuar.');
       return data;
     }
     function query(path, values) {
@@ -132,21 +181,18 @@
         dateValid: (value, today) => /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= '1900-01-01' && value <= today
       },
       catalog: kind => request(`/catalog/${kind}`),
-      logout: clearSession,
+      logout,
+      renew,
       signup: input => request('/users', { method: 'POST', body: input }),
       async login(input) {
         const generation = ++loginGeneration;
         const result = await request('/auth/login', { method: 'POST', body: input });
-        if (generation !== loginGeneration) throw new Error('A sessão mudou. Entre novamente para continuar.');
-        if (!validSession(result)) throw new Error('Não foi possível iniciar a sessão. Tente entrar novamente.');
-        session = result;
-        expiresAt = now() + result.expiresIn * 1000;
-        try {
-          storage?.removeItem(SESSION_KEY);
-          storage?.setItem(SESSION_KEY, JSON.stringify({ session, expiresAt }));
+        if (generation !== loginGeneration) {
+          if (validSession(result)) void revoke(result.refreshToken).catch(() => {});
+          throw new Error('A sessão mudou. Entre novamente para continuar.');
         }
-        catch (_) { /* login remains available in memory when storage is unavailable */ }
-        armExpiry();
+        if (!validSession(result)) throw new Error('Não foi possível iniciar a sessão. Tente entrar novamente.');
+        accept(result);
         return result;
       },
       report: filters => request(query('/reports/impact', filters)),

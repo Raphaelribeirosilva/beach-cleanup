@@ -41,7 +41,7 @@
         ],
         "operationId": "login",
         "summary": "Autenticar usuário",
-        "description": "Normaliza e-mail removendo espaços nas extremidades e convertendo para minúsculas. A resposta tem Cache-Control: no-store.",
+        "description": "Normaliza e-mail removendo espaços nas extremidades e convertendo para minúsculas. A resposta tem Cache-Control: no-store. Cria uma família de sessão com prazo máximo de sete dias. Retorna access token e refresh token; nenhum cookie é emitido. Access tokens incluem sid e são conferidos contra a sessão persistida. Tokens antigos sem sid exigem novo login após esta atualização.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -94,7 +94,7 @@
         ],
         "operationId": "changePassword",
         "summary": "Trocar a própria senha",
-        "description": "Requer a senha atual e uma senha diferente. Sucesso revoga todos os tokens anteriores da conta, inclusive o usado nesta chamada. Faça novo login.",
+        "description": "Requer a senha atual e uma senha diferente. Sucesso revoga todos os tokens anteriores da conta, inclusive o usado nesta chamada. Faça novo login. O sucesso revoga todas as famílias de refresh tokens da conta, além dos access tokens, na mesma transação da troca de senha.",
         "responses": {
           "204": {
             "description": "Operação concluída."
@@ -1886,6 +1886,90 @@
           }
         }
       }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Renovar sessão com rotação do refresh token",
+        "operationId": "refreshSession",
+        "security": [],
+        "description": "Autentica pelo refresh token no corpo JSON, sem cookie e sem exigir access token válido. Cada uso consome o token anterior. Reutilização revoga toda a sessão e seus access tokens; duas renovações simultâneas do mesmo token permitem uma rotação e depois encerram a sessão por reutilização. O cliente deve serializar as renovações. Respostas perdidas não devem ser repetidas automaticamente. Nunca repita operações de escrita automaticamente.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Novo access token e novo refresh token. Cache-Control: no-store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token desconhecido, expirado, consumido ou revogado. O cliente deve limpar a sessão e solicitar login."
+          },
+          "400": {
+            "description": "JSON ausente, inválido ou refresh token malformado."
+          },
+          "415": {
+            "description": "Envie application/json; formulário e cookies não autenticam estes endpoints."
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Encerrar a sessão atual no servidor",
+        "operationId": "logoutSession",
+        "security": [],
+        "description": "Recebe refresh token em JSON; revoga a família inteira, incluindo access tokens já emitidos. Um token antigo consumido também identifica e encerra sua família. Idempotente: token de formato válido, mas desconhecido ou já revogado, retorna 204. Não encerra sessões de outros logins. Em falha de rede, o cliente informa que a revogação não foi confirmada e oferece nova tentativa. Requisições autorizadas antes da revogação podem terminar.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sessão revogada ou token desconhecido. Sem corpo; Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON ausente, inválido ou refresh token malformado."
+          },
+          "415": {
+            "description": "Envie application/json; formulário e cookies não autenticam estes endpoints."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1947,12 +2031,14 @@
           "tokenType",
           "expiresIn",
           "userId",
-          "role"
+          "role",
+          "refreshToken",
+          "refreshExpiresIn"
         ],
         "properties": {
           "accessToken": {
             "type": "string",
-            "description": "JWT emitido no login; nenhum token real é incluído nesta documentação."
+            "description": "JWT emitido no login ou renovação; inclui sid e deixa de autenticar quando a sessão é encerrada. Nenhum token real é incluído nesta documentação."
           },
           "tokenType": {
             "type": "string",
@@ -1963,8 +2049,10 @@
           "expiresIn": {
             "type": "integer",
             "format": "int64",
-            "description": "Validade em segundos: 1800 (30 minutos) a partir do login.",
-            "example": 1800
+            "description": "Validade do access token em segundos: no máximo 1.800, limitada pelo tempo restante da sessão.",
+            "example": 1800,
+            "minimum": 1,
+            "maximum": 1800
           },
           "userId": {
             "type": "integer",
@@ -1976,6 +2064,18 @@
               "VOLUNTEER",
               "ADMIN"
             ]
+          },
+          "refreshToken": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "description": "Credencial opaca de uso único, enviada apenas no JSON. O servidor persiste somente SHA-256. Rotação obrigatória a cada renovação."
+          },
+          "refreshExpiresIn": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 604800,
+            "description": "Segundos restantes da sessão, com limite absoluto de sete dias desde o login. A rotação não estende esse prazo."
           }
         }
       },
@@ -3044,6 +3144,19 @@
             "type": "integer",
             "format": "int64",
             "description": "Inscrições atuais neste evento, sem inferir presença ou coleta."
+          }
+        }
+      },
+      "RefreshTokenInput": {
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "writeOnly": true,
+            "pattern": "^[A-Za-z0-9_-]{43}$"
           }
         }
       }

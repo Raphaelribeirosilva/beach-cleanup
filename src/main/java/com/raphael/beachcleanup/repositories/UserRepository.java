@@ -11,6 +11,12 @@ import com.raphael.beachcleanup.entities.User;
 public interface UserRepository extends JpaRepository<User, Long>,
         org.springframework.data.jpa.repository.JpaSpecificationExecutor<User> {
     java.util.Optional<User> findByEmail(String email);
+    @Query("select u.id from User u where u.email = :email")
+    java.util.Optional<Long> findIdByEmail(@Param("email") String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id = :id")
+    java.util.Optional<User> findByIdForAuthentication(@Param("id") Long id);
     boolean existsByEmail(String email);
     boolean existsByEmailAndIdNot(String email, Long id);
 

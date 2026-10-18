@@ -296,7 +296,17 @@
   $('login-open').addEventListener('click', () => openAuth('login'));
   $('signup-open').addEventListener('click', () => openAuth('signup'));
   $('auth-switch').addEventListener('click', () => openAuth(state.signup ? 'login' : 'signup'));
-  $('logout').addEventListener('click', () => { api.logout(); resetAccount(); notify('Você saiu da sua conta.'); });
+  async function endSession() {
+    const pending = api.logout();
+    resetAccount();
+    notify('Encerrando a sessão no servidor…');
+    try { await pending; notify('Sessão encerrada no servidor. Você saiu da sua conta.'); }
+    catch (error) {
+      notify(error.message, true);
+      $('notice').append(action('Tentar encerrar no servidor', endSession));
+    }
+  }
+  $('logout').addEventListener('click', () => void busy($('logout'), endSession));
   $('collection-open').addEventListener('click', () => openCollection());
   $('unlink-event').addEventListener('click', () => { state.selectedEvent = null; syncCollectionEvent(); });
   document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => $(button.dataset.close).close()));
@@ -439,7 +449,7 @@
     if (input.newPassword !== form.elements.confirmation.value) { notify('A confirmação da nova senha não confere.', true); return; }
     if (Object.values(input).some(value => new TextEncoder().encode(value).length > 72)) { notify('Cada senha deve ter no máximo 72 bytes em UTF-8.', true); return; }
     void busy(form.querySelector('[type="submit"]'), async () => {
-      try { await api.changePassword(input); api.logout(); resetAccount(); notify('Senha alterada. Entre novamente.'); openAuth('login'); }
+      try { await api.changePassword(input); await api.logout(); resetAccount(); notify('Senha alterada. Entre novamente.'); openAuth('login'); }
       catch (error) { notify(error.message, true); }
       finally { form.reset(); }
     });

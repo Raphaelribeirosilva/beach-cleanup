@@ -41,7 +41,7 @@ Com a aplicação iniciada, abra **http://localhost:8080/** no navegador. O port
 
 É possível explorar eventos e filtrar por local/status sem login. Crie uma conta ou entre para inscrever-se, cancelar inscrições, registrar coletas independentes ou vinculadas a um evento e consultar suas coletas e seu total em kg. No perfil `test`, pode usar `ana@example.com` / `ana123`. O evento inicial está pausado; novos eventos são cadastrados por administrador pela API.
 
-O portal preserva a sessão da aba ao recarregar a página, usando `sessionStorage`. O token dura 30 minutos a partir do login; recarregar não renova esse prazo. Sair remove a sessão armazenada. Ao expirar, o portal solicita novo login. Se o navegador bloquear o armazenamento, o login continua funcionando em memória. A interface usa a mesma origem da API, sem CORS adicional ou dependências externas. Detalhes na [melhoria de sessão](docs/22_EXPERIENCIA_DE_SESSAO.md).
+O portal preserva a sessão da aba em `sessionStorage` e renova access tokens de até 30 minutos por até sete dias desde o login. Cada renovação gira o refresh token; o servidor guarda somente hashes. Sair revoga a sessão no servidor, incluindo access tokens já emitidos; trocar a senha revoga todas as sessões da conta. Não há cookie de autenticação. Detalhes na [renovação e encerramento de sessão](docs/29_RENOVACAO_E_ENCERRAMENTO_DE_SESSAO.md).
 
 Para administrar, entre com uma conta `ADMIN` e abra a aba **Administração**. No perfil `test`, use `admin@example.com` / `admin123`. As abas Eventos, Usuários e Coletas oferecem buscas paginadas; eventos e coletas possuem formulários e exclusão com confirmação. Voluntários não têm acesso à área administrativa, e o backend continua protegendo cada operação. Veja o uso, os testes e os limites na [entrega da interface administrativa](docs/20_INTERFACE_ADMINISTRATIVA.md).
 
@@ -65,7 +65,7 @@ java -jar target/beachcleanup-0.0.1-SNAPSHOT.jar --spring.profiles.active=mysql
 
 O perfil MySQL usa Flyway, `ddl-auto=validate`, `open-in-view=false` e desabilita console H2 e logs SQL. Não carrega contas de exemplo. O cadastro público cria contas `VOLUNTEER`; a definição do primeiro administrador é uma operação controlada no banco, descrita na [etapa 10](docs/10_PERSISTENCIA_E_MIGRACOES.md).
 
-As migrações atuais são V1 (esquema), V2 (índices), V3 (versão das coletas), V4 (versão dos eventos), V5 (tabelas e referências dos catálogos), V6 (associação dos textos antigos aos catálogos) e V7 (pesos `DECIMAL(38,3)` e auditoria dos arredondamentos). V6 e V7 são migrações Java incluídas no JAR. Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica. Siga o [procedimento de instalação e atualização](docs/25_CONSOLIDACAO_DA_BASE.md) e a [conferência da V7](docs/26_QUALIDADE_DOS_DADOS.md) para conferir histórico, backup e dados após a atualização.
+As migrações atuais são V1 (esquema), V2 (índices), V3 (versão das coletas), V4 (versão dos eventos), V5 (tabelas e referências dos catálogos), V6 (associação dos textos antigos aos catálogos) V7 (pesos `DECIMAL(38,3)` e auditoria dos arredondamentos) e V8 (sessões renováveis e hashes de refresh tokens). V6 e V7 são migrações Java incluídas no JAR. Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica. Siga o [procedimento de instalação e atualização](docs/25_CONSOLIDACAO_DA_BASE.md) e a [conferência da V7](docs/26_QUALIDADE_DOS_DADOS.md) para conferir histórico, backup e dados após a atualização.
 
 ## Preparação para implantação
 
@@ -186,7 +186,10 @@ Os resultados da revisão de qualidade, instalação V1–V7, atualização de b
 | Catálogos, aliases e unificação | [Etapa 24](docs/24_CATALOGOS_DE_PRAIAS_E_MATERIAIS.md) |
 | Consolidação, instalação, atualização e verificações atuais | [Etapa 25](docs/25_CONSOLIDACAO_DA_BASE.md) |
 | Qualidade dos dados, pesos decimais, V7 e revisão dos legados | [Etapa 26](docs/26_QUALIDADE_DOS_DADOS.md) |
+| Relatórios de impacto | [Etapa 27](docs/27_RELATORIOS_DE_IMPACTO.md) |
+| Área do voluntário: perfil, senha e manutenção das coletas | [Etapa 28](docs/28_AREA_DO_VOLUNTARIO.md) |
+| Renovação e encerramento de sessão | [Etapa 29](docs/29_RENOVACAO_E_ENCERRAMENTO_DE_SESSAO.md) |
 
 As análises `ANALISE_PROJETO.md` e `07_ANALISE_ATUAL_E_PROXIMO_PASSO.md` são diagnósticos anteriores. Totais, inscrições, estados, persistência, buscas e OpenAPI já foram implementados; eles não devem ser tratados como funcionalidades pendentes.
 
-O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md). A [etapa 21](docs/21_HOMOLOGACAO_RESTRITA.md) registra a preparação da homologação e suas pendências de validação hospedada. Interface administrativa, proteção de formulários e catálogos já foram implementados; relatórios e ampliação da área do voluntário continuam pendentes.
+O perfil e os procedimentos de operação estão preparados na [etapa 17](docs/17_IMPLANTACAO_E_OPERACAO.md). A [etapa 21](docs/21_HOMOLOGACAO_RESTRITA.md) registra a preparação da homologação e suas pendências de validação hospedada. Interface administrativa, proteção de formulários, catálogos, relatórios, área do voluntário e renovação de sessão já foram implementados.

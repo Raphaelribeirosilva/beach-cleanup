@@ -37,9 +37,9 @@ Para MySQL ou produção, use as variáveis e perfis descritos no README e na et
 
 As respostas do portal enviam Content Security Policy com scripts, estilos e conexões restritos à mesma origem, sem scripts inline, objetos ou incorporação em frames. Dados da API são inseridos com `textContent`, sem interpretação como HTML.
 
-Atualização em 16/10/2026: o JWT e seu prazo absoluto de expiração ficam em `sessionStorage`, permitindo recarregar a página sem perder o login durante os 30 minutos de validade. Se o armazenamento estiver indisponível, a sessão funciona somente em memória. A recarga não renova o token. O prazo local e uma resposta 401 de operação privada limpam a sessão e os dados da conta; o usuário precisa entrar novamente. Respostas atrasadas de uma sessão anterior são descartadas; requisições públicas não levam o token. Sair remove a sessão armazenada; um token copiado anteriormente continua sujeito à validade/revogação do backend. Não há refresh token nesta versão. Veja a [entrega de experiência de sessão](22_EXPERIENCIA_DE_SESSAO.md).
+Atualização da sessão: o portal guarda o access token e o refresh token em `sessionStorage`, renova o acesso por até sete dias desde o login e revoga a sessão no servidor ao sair. A rotação não amplia o prazo absoluto. A troca de senha revoga todas as sessões. Sem armazenamento disponível, o login continua em memória. Não há cookie de autenticação. Consulte a [etapa 29](29_RENOVACAO_E_ENCERRAMENTO_DE_SESSAO.md) para expiração, concorrência, proteção das credenciais e falha de conexão no logout.
 
-Campos obrigatórios e peso recebem validação no navegador, mas o backend permanece a fonte de validação e autorização. O limite de senha é conferido em bytes UTF-8. Não há renovação automática do token nem armazenamento de rascunhos.
+Campos obrigatórios e peso recebem validação no navegador, mas o backend permanece a fonte de validação e autorização. O limite de senha é conferido em bytes UTF-8. Rascunhos não são persistidos.
 
 ## Verificação reproduzível
 

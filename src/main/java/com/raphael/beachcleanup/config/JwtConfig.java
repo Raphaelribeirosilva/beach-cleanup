@@ -2,6 +2,7 @@ package com.raphael.beachcleanup.config;
 
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Clock;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -18,6 +19,8 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 
 @Configuration
 public class JwtConfig {
+    @Bean
+    public Clock authClock() { return Clock.systemUTC(); }
     public static final String ISSUER = "https://beachcleanup.example";
     public static final String AUDIENCE = "beachcleanup-api";
     public static final long TOKEN_LIFETIME_SECONDS = 1800;
@@ -56,12 +59,15 @@ public class JwtConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(SecretKey jwtSigningKey) {
+    public JwtDecoder jwtDecoder(SecretKey jwtSigningKey,
+            com.raphael.beachcleanup.security.SessionJwtValidator sessions, Clock clock) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSigningKey)
             .macAlgorithm(MacAlgorithm.HS256).build();
+        var timestamps = new JwtTimestampValidator(Duration.ZERO);
+        timestamps.setClock(clock);
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-            new JwtTimestampValidator(Duration.ZERO), new JwtIssuerValidator(ISSUER), jwt -> {
-                if (jwt.getExpiresAt() == null || jwt.getAudience() == null
+            timestamps, new JwtIssuerValidator(ISSUER), sessions, jwt -> {
+                if (jwt.getExpiresAt() == null || !jwt.getExpiresAt().isAfter(clock.instant()) || jwt.getAudience() == null
                         || !jwt.getAudience().contains(AUDIENCE)) {
                     return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token"));
                 }

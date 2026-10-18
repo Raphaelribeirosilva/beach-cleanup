@@ -3,8 +3,117 @@ const assert = require('node:assert/strict');
 const { createPortalApi } = require('../src/main/resources/static/portal-api.js');
 
 const response = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => body });
-const token = { accessToken: 'test-token', tokenType: 'Bearer', expiresIn: 1800, userId: 17, role: 'VOLUNTEER' };
-const sessionKey = 'beachcleanup.session.v1';
+const token = { accessToken: 'test-token', tokenType: 'Bearer', expiresIn: 1800, userId: 17, role: 'VOLUNTEER', refreshToken: 'r'.repeat(43), refreshExpiresIn: 604800 };
+const sessionKey = 'beachcleanup.session.v2';
+
+test('concurrent private requests share one refresh, rotate storage and retain the original session deadline', async () => {
+  const storage = memoryStorage();
+  let time = 100000, resolveRefresh;
+  const calls = [];
+  const next = { ...token, accessToken: 'renewed-access', refreshToken: 's'.repeat(43) };
+  const api = createPortalApi(async (path, options) => {
+    calls.push({ path, options });
+    if (path === '/auth/login') return response(200, token);
+    if (path === '/auth/refresh') return new Promise(resolve => { resolveRefresh = resolve; });
+    return response(200, {});
+  }, undefined, { storage, now: () => time, schedule: () => 0, cancel: () => {} });
+  await api.login({});
+  const deadline = JSON.parse(storage.getItem(sessionKey)).refreshExpiresAt;
+  time += 1800000;
+  const profile = api.profile(), collections = api.collections({});
+  assert.equal(calls.filter(call => call.path === '/auth/refresh').length, 1);
+  assert.equal(calls.length, 2, 'private requests wait until renewal completes');
+  resolveRefresh(response(200, next));
+  await Promise.all([profile, collections]);
+  const renewal = calls[1];
+  assert.deepEqual(JSON.parse(renewal.options.body), { refreshToken: token.refreshToken });
+  assert.equal(renewal.options.credentials, 'omit');
+  assert.equal(renewal.options.headers.Authorization, undefined);
+  for (const call of calls.slice(2)) assert.equal(call.options.headers.Authorization, 'Bearer renewed-access');
+  const saved = JSON.parse(storage.getItem(sessionKey));
+  assert.equal(saved.refreshExpiresAt, deadline);
+  assert.equal(saved.session.refreshToken, next.refreshToken);
+});
+
+test('reload with expired access silently renews while refresh is valid', async () => {
+  const storage = memoryStorage();
+  let time = 100000;
+  const settings = { storage, now: () => time, schedule: () => 0, cancel: () => {} };
+  await createPortalApi(async () => response(200, token), undefined, settings).login({});
+  time += 1800000;
+  const calls = [];
+  const restored = createPortalApi(async path => { calls.push(path); return response(200, path === '/auth/refresh' ? { ...token, accessToken: 'new' } : { name: 'Ana' }); }, undefined, settings);
+  assert.ok(restored.session());
+  assert.equal((await restored.profile()).name, 'Ana');
+  assert.deepEqual(calls, ['/auth/refresh', '/users/17']);
+});
+
+test('proactive renewal fires before access expiry and does not reauthenticate', async () => {
+  let time = 100000, callback;
+  const calls = [];
+  const api = createPortalApi(async path => {
+    calls.push(path); return response(200, { ...token, accessToken: path === '/auth/refresh' ? 'renewed' : 'initial' });
+  }, undefined, { now: () => time, schedule: fn => { callback = fn; }, cancel: () => {} });
+  await api.login({}); time += 1770000; callback();
+  await api.renew(); // Joins the timer's pending renewal.
+  assert.deepEqual(calls, ['/auth/login', '/auth/refresh']);
+  assert.equal(api.session().accessToken, 'renewed');
+});
+
+test('logout while refresh is pending revokes the family and a late result cannot restore credentials', async () => {
+  let resolveRefresh;
+  const revoked = [];
+  const api = createPortalApi(async (path, options) => {
+    if (path === '/auth/login') return response(200, token);
+    if (path === '/auth/logout') { revoked.push(JSON.parse(options.body).refreshToken); return response(204); }
+    return new Promise(resolve => { resolveRefresh = resolve; });
+  });
+  await api.login({});
+  const renewal = api.renew(); await api.logout();
+  resolveRefresh(response(200, { ...token, refreshToken: 's'.repeat(43) }));
+  await assert.rejects(renewal, /sessão mudou/);
+  assert.equal(api.session(), null);
+  assert.deepEqual(revoked, [token.refreshToken, 's'.repeat(43)]);
+});
+
+test('logout failure clears local storage but retains a credential in memory only for explicit retry', async () => {
+  const storage = memoryStorage();
+  let offline = true, attempts = 0;
+  const api = createPortalApi(async path => {
+    if (path === '/auth/login') return response(200, token);
+    attempts++;
+    if (offline) throw new Error('offline');
+    return response(204);
+  }, undefined, { storage });
+  await api.login({});
+  await assert.rejects(api.logout(), /não foi possível encerrar no servidor/);
+  assert.equal(api.session(), null); assert.equal(storage.getItem(sessionKey), null);
+  offline = false; await api.logout(); await api.logout();
+  assert.equal(attempts, 2, 'successful revocation removes the pending credential');
+});
+
+test('failed refresh is never retried automatically and expires the session exactly once', async () => {
+  for (const failure of [response(401, {}), null]) {
+    let calls = 0, expired = 0;
+    const api = createPortalApi(async path => {
+      if (path === '/auth/login') return response(200, token);
+      calls++; if (!failure) throw new Error('lost response'); return failure;
+    }, () => expired++);
+    await api.login({});
+    await assert.rejects(api.renew());
+    await assert.rejects(api.profile(), /Entre na sua conta/);
+    assert.equal(calls, 1); assert.equal(expired, 1); assert.equal(api.session(), null);
+  }
+});
+
+test('401 on a write does not repeat the write or attempt refresh', async () => {
+  const calls = [];
+  const api = createPortalApi(async path => { calls.push(path); return path === '/auth/login' ? response(200, token) : response(401, {}); });
+  await api.login({});
+  await assert.rejects(api.createCollection({ weightKg: 1 }), { status: 401 });
+  assert.deepEqual(calls, ['/auth/login', '/trashCollection']);
+  assert.equal(api.session(), null);
+});
 
 test('impact is public; participation is admin-only and personal changes send versions with JWT', async () => {
   const calls = [];
@@ -63,11 +172,12 @@ function memoryStorage() {
   };
 }
 
-test('reload restores the session without extending its original expiry; logout removes it', async () => {
+test('reload restores the session without extending its refresh deadline; logout revokes it', async () => {
   const storage = memoryStorage();
   let time = 100000;
   const fetcher = async (path, options) => {
     if (path === '/auth/login') return response(200, token);
+    if (path === '/auth/logout') return response(204);
     assert.equal(options.headers.Authorization, 'Bearer test-token');
     return response(200, { name: 'Ana' });
   };
@@ -81,11 +191,11 @@ test('reload restores the session without extending its original expiry; logout 
   assert.deepEqual(reloaded.session(), token);
   assert.equal(storage.getItem(sessionKey), persisted);
   assert.equal((await reloaded.profile()).name, 'Ana');
-  time = 1900000;
+  time = 604900000;
   assert.equal(reloaded.session(), null);
   assert.equal(storage.getItem(sessionKey), null);
   await reloaded.login({});
-  reloaded.logout();
+  await reloaded.logout();
   assert.equal(createPortalApi(fetcher, undefined, options).session(), null);
 });
 
@@ -99,7 +209,7 @@ test('expiration clears storage and notifies once even before a network request'
     storage, now: () => time, schedule: callback => { timer = callback; }, cancel: () => {}
   });
   await api.login({});
-  time += 1800000;
+  time += 604800000;
   timer();
   assert.equal(api.session(), null);
   assert.equal(storage.getItem(sessionKey), null);
@@ -111,7 +221,7 @@ test('expiration clears storage and notifies once even before a network request'
 test('corrupt, malformed and expired stored sessions are discarded', () => {
   const storage = memoryStorage();
   for (const saved of ['invalid-json', 'null', '{}',
-    JSON.stringify({ session: token, expiresAt: 1000 }),
+    JSON.stringify({ session: token, expiresAt: 1000, refreshExpiresAt: 1000 }),
     JSON.stringify({ session: { ...token, role: 'ROOT' }, expiresAt: 2000000 }),
     JSON.stringify({ session: { ...token, userId: -1 }, expiresAt: 2000000 }),
     JSON.stringify({ session: token, expiresAt: 9999999999 })]) {
@@ -130,7 +240,7 @@ test('unavailable storage does not prevent login or logout', async () => {
   });
   await api.login({});
   assert.deepEqual(api.session(), token);
-  api.logout();
+  await api.logout();
   assert.equal(api.session(), null);
 });
 
@@ -151,7 +261,7 @@ test('logout during a pending login cannot restore credentials', async () => {
   let complete;
   const api = createPortalApi(() => new Promise(resolve => { complete = resolve; }), undefined, { storage });
   const pending = api.login({});
-  api.logout();
+  await api.logout();
   complete(response(200, token));
   await assert.rejects(pending, /sessão mudou/);
   assert.equal(api.session(), null);
@@ -190,10 +300,12 @@ test('private actions use JWT, constrain collections to the current account and 
   const input = { beach: 'Praia A', materialType: 'Vidro', weightKg: 2.5, registrationDate: '2026-10-15', event: { id: 23 } };
   await api.createCollection(input);
   assert.deepEqual(JSON.parse(calls[4].options.body), input);
-  api.logout();
+  await api.logout();
   assert.equal(api.session(), null);
   await assert.rejects(api.profile(), /Entre na sua conta/);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
+  assert.equal(calls[5].path, '/auth/logout');
+  assert.deepEqual(JSON.parse(calls[5].options.body), { refreshToken: token.refreshToken });
 });
 
 test('401 clears the session, while a login failure does not masquerade as expiration', async () => {
@@ -213,10 +325,10 @@ test('401 clears the session, while a login failure does not masquerade as expir
 test('old private responses cannot reveal data after logout or clear a newer session', async () => {
   let complete;
   const api = createPortalApi(path => path === '/auth/login'
-    ? Promise.resolve(response(200, { ...token })) : new Promise(resolve => { complete = resolve; }));
+    ? Promise.resolve(response(200, { ...token })) : path === '/auth/logout' ? Promise.resolve(response(204)) : new Promise(resolve => { complete = resolve; }));
   await api.login({});
   const pending = api.profile();
-  api.logout();
+  await api.logout();
   complete(response(200, { name: 'Previous account' }));
   await assert.rejects(pending, /sessão mudou/);
   await api.login({});
@@ -313,7 +425,7 @@ test('administrative requests preserve conflict details, expire sessions and dis
   let complete;
   const api = createPortalApi(path => path === '/auth/login'
     ? Promise.resolve(response(200, { ...token, role: 'ADMIN' }))
-    : result ? Promise.resolve(result) : new Promise(resolve => { complete = resolve; }));
+    : path === '/auth/logout' ? Promise.resolve(response(204)) : result ? Promise.resolve(result) : new Promise(resolve => { complete = resolve; }));
   await api.login({});
   await assert.rejects(api.admin.saveCollection(null, {}), error => error.status === 409 && /não aceita/.test(error.message));
   result = response(401, {});
@@ -322,7 +434,7 @@ test('administrative requests preserve conflict details, expire sessions and dis
   await api.login({});
   result = null;
   const pending = api.admin.users({});
-  api.logout();
+  await api.logout();
   complete(response(200, { content: [{ email: 'private@example.com' }] }));
   await assert.rejects(pending, /sessão mudou/);
 });
