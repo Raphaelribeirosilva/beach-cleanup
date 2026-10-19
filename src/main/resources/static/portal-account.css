@@ -1,3 +1,13 @@
+.auth-field {
+  display: grid;
+  gap: .4rem;
+}
+
+.auth-field[hidden] { display: none; }
+.auth-field .text-button { justify-self: start; margin: 0; }
+.field-error { color: #9f2036; font-size: .9rem; margin: 0; }
+#auth-form input[aria-invalid="true"] { border: 2px solid #9f2036; }
+
 #profile-workspace  {
   max-width: 42rem;
   

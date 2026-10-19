@@ -131,7 +131,12 @@
         const message = fields.length ? fields.join(' ') : response.status >= 500
           ? 'O serviço está indisponível no momento. Tente novamente em instantes.'
           : response.status === 401 ? messages[401] : data?.message || messages[response.status] || 'Não foi possível concluir a ação.';
-        const error = new Error(message); error.status = response.status; throw error;
+        const error = new Error(message);
+        error.status = response.status;
+        error.code = data?.error;
+        error.fields = response.status < 500 && Array.isArray(data?.errors)
+          ? data.errors.filter(field => typeof field?.fieldName === 'string' && typeof field.message === 'string') : [];
+        throw error;
       }
       if (authenticated && (generation !== loginGeneration || !currentSession())) throw new Error('A sessão mudou. Entre novamente para continuar.');
       return data;

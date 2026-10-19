@@ -72,3 +72,11 @@ Esta entrega não inclui interface administrativa, alteração/exclusão de cole
 ## Git
 
 O commit desta etapa contém apenas o portal, sua configuração de acesso, testes, CI e documentação. Alterações locais preexistentes, inclusive arquivos já preparados no índice, são preservadas e excluídas deste commit. Nenhum push ou deploy faz parte desta entrega.
+
+## Login e cadastro: senha e erros nos campos (19/10/2026)
+
+O formulário oferece Mostrar/Ocultar senha, inclusive por teclado. A senha volta a ficar oculta ao fechar ou alternar entre login e cadastro. Os erros de nome, e-mail e senha aparecem junto ao respectivo campo, com destaque visual, `aria-invalid`, descrição associada e foco no primeiro campo inválido. Os valores digitados são preservados e o erro do campo é removido ao editá-lo.
+
+O cliente preserva `errors[].fieldName` das respostas da API. E-mail duplicado no cadastro destaca o e-mail; credenciais inválidas no login destacam e-mail e senha com a mesma mensagem genérica. Falhas sem campo específico, como indisponibilidade e conexão, continuam na mensagem geral. Não há mudança nos endpoints ou nos payloads de autenticação.
+
+Verificação: testes do cliente e fluxos reais de navegador cobrem exibição da senha, campos obrigatórios, política de senha retornada pelo servidor, limite UTF-8, e-mail duplicado, credenciais inválidas, foco e limpeza ao editar/alternar formulário.

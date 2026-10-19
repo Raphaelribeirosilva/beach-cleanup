@@ -6,6 +6,18 @@ const response = (status, body) => ({ status, ok: status >= 200 && status < 300,
 const token = { accessToken: 'test-token', tokenType: 'Bearer', expiresIn: 1800, userId: 17, role: 'VOLUNTEER', refreshToken: 'r'.repeat(43), refreshExpiresIn: 604800 };
 const sessionKey = 'beachcleanup.session.v2';
 
+test('authentication preserves structured field errors and email conflict codes', async () => {
+  const fields = [{ fieldName: 'password', message: 'Evite senhas comuns.' }];
+  const api = createPortalApi(async () => response(400, { errors: fields }), undefined, { storage: null });
+  await assert.rejects(api.signup({}), error => {
+    assert.deepEqual(error.fields, fields);
+    assert.equal(error.status, 400);
+    return true;
+  });
+  const conflict = createPortalApi(async () => response(409, { error: 'Email conflict', message: 'E-mail já cadastrado.' }), undefined, { storage: null });
+  await assert.rejects(conflict.signup({}), error => error.code === 'Email conflict' && error.status === 409);
+});
+
 test('recovery and confirmation use public JSON without persisting action tokens', async () => {
   const calls = [], storage = memoryStorage();
   const api = createPortalApi(async (path, options) => { calls.push({ path, options }); return response(200, { message: 'Resposta genérica' }); }, undefined, { storage });

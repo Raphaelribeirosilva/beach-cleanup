@@ -225,9 +225,62 @@
       }
     }
   }
+  const authFields = ['name', 'email', 'password'];
+  function clearAuthField(name) {
+    $('auth-form').elements[name].removeAttribute('aria-invalid');
+    $(`auth-${name}-error`).textContent = '';
+    $(`auth-${name}-error`).hidden = true;
+  }
+  function authFieldError(name, message) {
+    if (!authFields.includes(name)) return;
+    $('auth-form').elements[name].setAttribute('aria-invalid', 'true');
+    $(`auth-${name}-error`).textContent = message;
+    $(`auth-${name}-error`).hidden = false;
+  }
+  function focusAuthError() {
+    const name = authFields.find(name => $('auth-form').elements[name].getAttribute('aria-invalid') === 'true');
+    if (name) window.PortalUI.focus($('auth-form').elements[name]);
+  }
+  function hideAuthPassword() {
+    $('auth-password').type = 'password';
+    $('auth-password-toggle').textContent = 'Mostrar senha';
+    $('auth-password-toggle').setAttribute('aria-pressed', 'false');
+  }
+  function validateAuth(form) {
+    for (const name of authFields) {
+      clearAuthField(name);
+      const field = form.elements[name];
+      if (name === 'name' && !state.signup) continue;
+      if (!field.value.trim()) authFieldError(name, name === 'name' ? 'Informe seu nome.' : name === 'email' ? 'Informe seu e-mail.' : 'Informe sua senha.');
+      else if (field.validity.typeMismatch) authFieldError(name, 'Informe um e-mail válido.');
+      else if (field.minLength > 0 && field.value.length < field.minLength) authFieldError(name, `Use pelo menos ${field.minLength} caracteres.`);
+      else if (field.maxLength > 0 && field.value.length > field.maxLength) authFieldError(name, `Use até ${field.maxLength} caracteres.`);
+    }
+    if (new TextEncoder().encode(form.elements.password.value).length > 72)
+      authFieldError('password', 'A senha deve ter no máximo 72 bytes em UTF-8.');
+    const invalid = authFields.some(name => form.elements[name].getAttribute('aria-invalid') === 'true');
+    if (invalid) focusAuthError();
+    return !invalid;
+  }
+  function showAuthError(error) {
+    for (const field of error.fields || []) {
+      if (!authFields.includes(field.fieldName) || (field.fieldName === 'name' && !state.signup)) continue;
+      const previous = $(`auth-${field.fieldName}-error`).textContent;
+      authFieldError(field.fieldName, previous ? `${previous} ${field.message}` : field.message);
+    }
+    if (!state.signup && error.status === 401) {
+      for (const name of ['email', 'password']) authFieldError(name, 'E-mail ou senha inválidos.');
+    } else if (state.signup && error.status === 409 && error.code === 'Email conflict') {
+      authFieldError('email', error.message);
+    }
+    errorAt('auth-error', error.message);
+    focusAuthError();
+  }
   function openAuth(mode) {
     state.signup = mode === 'signup';
     $('auth-form').reset();
+    hideAuthPassword();
+    authFields.forEach(clearAuthField);
     errorAt('auth-error');
     errorAt('auth-status');
     $('name-label').hidden = !state.signup;
@@ -329,10 +382,10 @@
     event.preventDefault();
     const form = event.currentTarget;
     const signup = state.signup;
+    errorAt('auth-error');
+    errorAt('auth-status');
+    if (!validateAuth(form)) return;
     const input = { email: form.elements.email.value.trim(), password: form.elements.password.value };
-    if (new TextEncoder().encode(input.password).length > 72) {
-      errorAt('auth-error', 'A senha deve ter no máximo 72 bytes em UTF-8.'); return;
-    }
     void busy($('auth-submit'), async () => {
       errorAt('auth-error');
       let created = false;
@@ -351,9 +404,21 @@
         if (await load()) notify(created ? 'Conta criada. Bem-vindo à sua próxima ação!' : 'Você entrou na sua conta.');
       } catch (error) {
         if (created) openAuth('login');
-        errorAt('auth-error', created ? `Conta criada. Faça login para continuar. ${error.message}` : error.message);
+        showAuthError(error);
       }
     });
+  });
+  $('auth-password-toggle').addEventListener('click', () => {
+    const show = $('auth-password').type === 'password';
+    $('auth-password').type = show ? 'text' : 'password';
+    $('auth-password-toggle').textContent = show ? 'Ocultar senha' : 'Mostrar senha';
+    $('auth-password-toggle').setAttribute('aria-pressed', String(show));
+  });
+  $('auth-dialog').addEventListener('close', hideAuthPassword);
+  $('auth-form').addEventListener('input', event => {
+    if (!authFields.includes(event.target.name)) return;
+    clearAuthField(event.target.name);
+    errorAt('auth-error');
   });
   $('collection-form').addEventListener('submit', event => {
     event.preventDefault();
