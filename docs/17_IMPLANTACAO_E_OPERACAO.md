@@ -1,5 +1,7 @@
 # Etapa 17 — Preparação para implantação e operação
 
+> Atualização de 18/10/2026: seguir [Homologação e recuperação](33_HOMOLOGACAO_E_RECUPERACAO.md) para migração separada, permissões, timers, retenção e aceitação. Os registros anteriores abaixo permanecem históricos.
+
 Data: 14/10/2026.
 
 ## Entrega e limites

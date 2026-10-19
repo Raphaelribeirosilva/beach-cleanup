@@ -67,6 +67,7 @@ jobs:
           path: |
             target/surefire-reports/
             target/portal-performance-*.json
+            target/staging-recovery-proof.json
             target/*-mobile.png
             target/*-desktop.png
             target/portal-browser-*.json

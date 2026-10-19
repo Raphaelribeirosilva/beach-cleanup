@@ -1,0 +1,11 @@
+[Unit]
+Description=Beach Cleanup operational failure in %i
+
+[Service]
+Type=oneshot
+User=beachbackup
+Group=beachbackup
+ExecStart=/usr/bin/logger --priority daemon.crit --tag beachcleanup Operational failure in %i - investigate restricted staging
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true

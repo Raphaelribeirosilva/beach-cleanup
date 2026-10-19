@@ -1,0 +1,18 @@
+{
+  "elapsedSeconds": 4.2186812,
+  "status": "passed",
+  "allTablesCompared": 13,
+  "hostedAcceptance": "pending",
+  "oldAccountLinksRejected": true,
+  "oldAccessAndRefreshRejected": true,
+  "scope": "disposable MySQL local restore",
+  "sessionsQuarantined": true,
+  "applicationLoginAndTotals": "passed",
+  "recordedDate": "2026-10-18",
+  "javaTestsPassed": 23,
+  "pythonTestsPassed": 12,
+  "openapi": {
+    "paths": 28,
+    "operations": 39
+  }
+}

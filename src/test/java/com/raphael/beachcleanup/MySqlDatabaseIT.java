@@ -90,6 +90,10 @@ class MySqlDatabaseIT {
     void backupRestoresAllDataAndStartsInSeparateDatabase() throws Exception {
         long userId;
         long eventId;
+        int comparedTables;
+        long began = System.nanoTime();
+        com.raphael.beachcleanup.dto.TokenDTO oldSession;
+        String oldAction = "r".repeat(43);
         try (var context = start()) {
             User owner = account(context, "Ana");
             userId = owner.getId();
@@ -105,6 +109,12 @@ class MySqlDatabaseIT {
             var jdbc = context.getBean(JdbcTemplate.class);
             jdbc.update("update tb_user set role='ADMIN', credential_version=7, row_version=3 where id=?", userId);
             jdbc.update("update tb_trash_collection set row_version=4");
+            oldSession = context.getBean(AuthService.class).login(new LoginDTO("ana@example.com", "senha-segura-forte"));
+            String actionHash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(oldAction.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+            context.getBean(AccountActionTokenRepository.class).saveAndFlush(new AccountActionToken(actionHash,
+                context.getBean(UserRepository.class).findById(userId).orElseThrow(),AccountActionService.VERIFY,java.time.Instant.now().plusSeconds(3600)));
+            jdbc.update("insert into tb_auth_rate_limit(bucket_key,window_start,attempts) values (?,UTC_TIMESTAMP(6),1)", "b".repeat(64));
+
         }
 
         String generated = "beachcleanup_ci_" + UUID.randomUUID().toString().replace("-", "");
@@ -129,9 +139,18 @@ class MySqlDatabaseIT {
             // Compare every column, including hashes, roles, versions, links and Flyway history.
             try (var source = DriverManager.getConnection(url, username, password);
                     var restored = DriverManager.getConnection(restoredUrl, username, password)) {
-                for (String table : List.of("tb_user", "tb_cleanup_event", "tb_event_volunteer",
-                        "tb_trash_collection", "tb_catalog_entry", "tb_catalog_alias", "tb_weight_conversion_audit", "flyway_schema_history")) {
-                    assertEquals(tableRows(source, table), tableRows(restored, table), table);
+                var sourceTables = databaseTables(source);
+                comparedTables = sourceTables.size();
+                assertEquals(sourceTables,databaseTables(restored));
+                assertTrue(sourceTables.containsAll(List.of("tb_auth_session","tb_refresh_token","tb_account_action_token","tb_auth_rate_limit","tb_audit_entry")));
+                for (String table : sourceTables) assertEquals(tableRows(source, table), tableRows(restored, table), table);
+                // Compare exact restored state first; then quarantine credentials before serving traffic.
+                try (var sql = restored.createStatement()) {
+                    restored.setAutoCommit(false);
+                    sql.executeUpdate("update tb_auth_session set revoked_at=UTC_TIMESTAMP(6) where revoked_at is null");
+                    sql.executeUpdate("update tb_account_action_token set consumed=1");
+                    sql.executeUpdate("update tb_user set credential_version=credential_version+1");
+                    restored.commit();
                 }
             }
             try (var context = start(restoredUrl)) {
@@ -139,14 +158,64 @@ class MySqlDatabaseIT {
                 assertEquals(userId, context.getBean(AuthService.class)
                     .login(new LoginDTO("ana@example.com", "senha-segura-forte")).userId());
                 assertEquals(UserRole.ADMIN, owner.getRole());
-                assertEquals(7, owner.getCredentialVersion());
+                assertEquals(8, owner.getCredentialVersion());
+                assertThrows(org.springframework.security.oauth2.jwt.JwtException.class, () -> context.getBean(org.springframework.security.oauth2.jwt.JwtDecoder.class).decode(oldSession.accessToken()));
+                assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> context.getBean(AuthService.class).refresh(oldSession.refreshToken()));
+                assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> context.getBean(AccountActionService.class).verify(oldAction));
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
                 assertEquals(10, context.getBean(Flyway.class).info().applied().length);
+                var proof = java.util.Map.of("scope","disposable MySQL local restore", "status","passed",
+                    "allTablesCompared",comparedTables,"sessionsQuarantined",true,"oldAccessAndRefreshRejected",true,
+                    "oldAccountLinksRejected",true,"applicationLoginAndTotals","passed",
+                    "elapsedSeconds",(System.nanoTime()-began)/1e9,"hostedAcceptance","pending");
+                Files.writeString(Path.of("target/staging-recovery-proof.json"),new tools.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(proof));
             }
         } finally {
             Files.deleteIfExists(dump);
             Files.deleteIfExists(log);
+        }
+    }
+
+    private static List<String> databaseTables(java.sql.Connection connection) throws Exception {
+        var names = new java.util.ArrayList<String>();
+        try (var sql=connection.createStatement(); var rows=sql.executeQuery("select table_name from information_schema.tables where table_schema=database() and table_type='BASE TABLE' order by table_name")) {
+            while(rows.next()) { String name=rows.getString(1); assertTrue(name.matches("[A-Za-z0-9_]+")); names.add(name); }
+        }
+        return names;
+    }
+
+    @Test
+    void runtimeAccountCanOperateWithoutSchemaOrGlobalPrivileges() throws Exception {
+        try (var migrated=start()) { assertEquals(10,migrated.getBean(Flyway.class).info().applied().length); }
+        String account="beach_app_"+UUID.randomUUID().toString().replace("-", "").substring(0,12);
+        try (var root=DriverManager.getConnection(serverUrl,username,password); var sql=root.createStatement()) {
+            sql.executeUpdate("create user '"+account+"'@'localhost' identified by 'discardable-runtime-test-password'");
+            try {
+                sql.executeUpdate("grant select,insert,update,delete on `"+schema+"`.* to '"+account+"'@'localhost'");
+                try (var runtime=new SpringApplicationBuilder(BeachcleanupApplication.class).run(
+                    "--spring.profiles.active=prod","--spring.flyway.enabled=false","--security.database.external-migrations=true","--server.port=0",
+                    "--spring.datasource.url="+url,"--spring.datasource.username="+account,"--spring.datasource.password=discardable-runtime-test-password",
+                    "--security.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","--security.accounts.require-verified-email=false",
+                    "--security.abuse.enabled=false","--logging.level.root=WARN")) {
+                    var owner=account(runtime,"Runtime");
+                    runtime.getBean(TrashCollectionService.class).insert(input(owner,2.5));
+                    assertEquals(2.5,runtime.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
+                    assertNotNull(runtime.getBean(AuthService.class).login(new LoginDTO("runtime@example.com","senha-segura-forte")).refreshToken());
+                    var jdbc=runtime.getBean(JdbcTemplate.class);
+                    assertThrows(org.springframework.dao.DataAccessException.class, () -> jdbc.execute("create table denied_schema_change(id bigint)"));
+                    assertThrows(org.springframework.dao.DataAccessException.class, () -> jdbc.queryForList("select * from mysql.user"));
+                }
+                sql.executeUpdate("delete from `"+schema+"`.flyway_schema_history where version='10'");
+                var failure = assertThrows(Exception.class, () -> new SpringApplicationBuilder(BeachcleanupApplication.class).run(
+                    "--spring.profiles.active=prod","--spring.flyway.enabled=false","--security.database.external-migrations=true","--server.port=0",
+                    "--spring.datasource.url="+url,"--spring.datasource.username="+account,"--spring.datasource.password=discardable-runtime-test-password",
+                    "--security.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","--logging.level.root=OFF"));
+                Throwable cause = failure;
+                while (cause.getCause() != null) cause = cause.getCause();
+                assertTrue(cause instanceof org.flywaydb.core.api.exception.FlywayValidateException
+                    || cause.getMessage().contains("Execute as migrações"), cause.toString());
+            } finally { sql.executeUpdate("drop user '"+account+"'@'localhost'"); }
         }
     }
 

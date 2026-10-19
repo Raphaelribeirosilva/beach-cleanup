@@ -1,0 +1,19 @@
+[Unit]
+Description=Beach Cleanup isolated migration instance - stop after readiness
+After=network-online.target
+
+[Service]
+Type=simple
+User=beachcleanup
+Group=beachcleanup
+WorkingDirectory=/opt/beachcleanup
+EnvironmentFile=/etc/beachcleanup/prod.env
+EnvironmentFile=/etc/beachcleanup/migration.env
+ExecStart=/usr/bin/java -jar /opt/beachcleanup/beachcleanup.jar --spring.profiles.active=prod --server.address=127.0.0.1 --server.port=18080 --spring.flyway.enabled=true --security.database.external-migrations=false
+Restart=no
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077

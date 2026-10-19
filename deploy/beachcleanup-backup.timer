@@ -1,0 +1,11 @@
+[Unit]
+Description=Beach Cleanup daily backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+Unit=beachcleanup-backup.service
+
+[Install]
+WantedBy=timers.target

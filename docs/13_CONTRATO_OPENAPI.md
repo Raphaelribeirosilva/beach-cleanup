@@ -53,3 +53,5 @@ Ao mudar rotas ou DTOs, atualize o contrato junto da implementação. O document
 A consulta administrativa de auditoria e a versão obrigatória nas exclusões estão documentadas em [Auditoria e preservação do histórico](31_AUDITORIA_E_PRESERVACAO_DO_HISTORICO.md).
 
 Consulte também [Interface, acessibilidade e desempenho](32_INTERFACE_ACESSIBILIDADE_E_DESEMPENHO.md) para os limites das listagens antigas, a paginação de inscrições e as medições.
+
+Operação em homologação: [migrações externas, recuperação e aceitação](33_HOMOLOGACAO_E_RECUPERACAO.md). Nenhuma rota pública nova nesta entrega.

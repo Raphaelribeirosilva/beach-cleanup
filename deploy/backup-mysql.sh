@@ -11,6 +11,10 @@ client_config=$1
 backup_directory=$2
 database=$3
 [[ -f "$client_config" && -r "$client_config" ]] || { echo 'Client config unavailable.' >&2; exit 2; }
+[[ ! -L "$client_config" && $(stat -c '%a' -- "$client_config") == 600 ]] || {
+    echo 'Client config must be a regular private file (0600).' >&2; exit 2;
+}
+[[ ! -L "$backup_directory" ]] || { echo 'Backup directory must not be a symlink.' >&2; exit 2; }
 mkdir -p -- "$backup_directory"
 backup_file=$(mktemp "$backup_directory/$database-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX.sql")
 complete=false
@@ -27,6 +31,7 @@ mysqldump --defaults-file="$client_config" --single-transaction --quick \
     --no-tablespaces --set-gtid-purged=OFF --routines --events --triggers \
     --result-file="$backup_file" "$database"
 [[ -s "$backup_file" ]] || { echo 'Empty backup rejected.' >&2; exit 1; }
-sha256sum -- "$backup_file" > "$backup_file.sha256"
+# Relative checksum names remain verifiable after copying the pair to another host.
+(cd -- "$backup_directory" && sha256sum -- "$(basename -- "$backup_file")" > "$(basename -- "$backup_file").sha256")
 complete=true
 printf 'Backup created; restore still needs verification: %s\n' "$backup_file"

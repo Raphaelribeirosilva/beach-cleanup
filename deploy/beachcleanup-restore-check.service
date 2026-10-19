@@ -1,0 +1,18 @@
+[Unit]
+OnFailure=beachcleanup-alert@%n.service
+Description=Beach Cleanup isolated database restore drill
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=beachbackup
+Group=beachbackup
+EnvironmentFile=/etc/beachcleanup/operations.env
+ExecStart=/usr/bin/bash /opt/beachcleanup/deploy/restore-latest.sh
+TimeoutStartSec=30min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/beachcleanup
+UMask=0077

@@ -1,0 +1,23 @@
+{
+  "status": "pending_infrastructure",
+  "deployedCommit": null,
+  "artifactSha256": null,
+  "timestamp": null,
+  "operatorId": null,
+  "restrictedOrigin": null,
+  "evidence": {
+    "tlsAndRenewal": null,
+    "allowedNetwork": null,
+    "blockedIpv4AndIpv6": null,
+    "databaseLeastPrivilege": null,
+    "offVmBackup": null,
+    "restoreAndReconciliation": null,
+    "oldTokensRejected": null,
+    "recoveryTimeAndDataLoss": null,
+    "alertDeliveredAndRecovered": null,
+    "desktopAndMobile": null,
+    "volunteerAndAdministratorAcceptance": null,
+    "realEmailDelivery": null
+  },
+  "acceptedBy": null
+}

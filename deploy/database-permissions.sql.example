@@ -1,0 +1,20 @@
+-- Run interactively on the dedicated staging MySQL instance, after replacing all placeholders.
+-- Do not store real passwords in this file, Git, shell history or chat.
+CREATE DATABASE beachcleanup_staging CHARACTER SET utf8mb4;
+CREATE USER 'beachcleanup_app'@'localhost' IDENTIFIED BY 'REPLACE_APP_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE ON beachcleanup_staging.* TO 'beachcleanup_app'@'localhost';
+
+CREATE USER 'beachcleanup_migrator'@'localhost' IDENTIFIED BY 'REPLACE_MIGRATOR_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES
+    ON beachcleanup_staging.* TO 'beachcleanup_migrator'@'localhost';
+
+CREATE USER 'beachcleanup_backup'@'localhost' IDENTIFIED BY 'REPLACE_BACKUP_PASSWORD';
+GRANT SELECT, SHOW VIEW, TRIGGER, EVENT ON beachcleanup_staging.* TO 'beachcleanup_backup'@'localhost';
+-- Required by --routines in mysqldump 8.0.20+. This is global metadata visibility:
+-- use a dedicated instance or adapt backup design on shared/managed instances.
+GRANT SHOW_ROUTINE ON *.* TO 'beachcleanup_backup'@'localhost';
+
+-- Isolated restore drills only. Assumes @@partial_revokes=0 (verify before installing).
+CREATE USER 'beachcleanup_restore'@'localhost' IDENTIFIED BY 'REPLACE_RESTORE_PASSWORD';
+GRANT ALL PRIVILEGES ON `beachcleanup_restorecheck\_%`.* TO 'beachcleanup_restore'@'localhost';
+-- No GRANT OPTION, FILE, PROCESS, global SELECT or source-schema writes for backup/restore.

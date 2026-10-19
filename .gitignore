@@ -3,6 +3,9 @@ backups/
 deploy/prod.env
 deploy/backup.cnf
 deploy/staging.env
+deploy/operations.env
+deploy/migration.env
+deploy/restore.cnf
 target/
 __pycache__/
 .mvn/wrapper/maven-wrapper.jar

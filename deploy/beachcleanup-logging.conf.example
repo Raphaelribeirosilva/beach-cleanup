@@ -1,0 +1,4 @@
+# Optional drop-in: /etc/systemd/system/beachcleanup.service.d/10-logging.conf
+# Configure the matching namespace collector before enabling.
+[Service]
+LogNamespace=beachcleanup

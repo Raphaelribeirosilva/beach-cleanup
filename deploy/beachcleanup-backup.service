@@ -1,0 +1,19 @@
+[Unit]
+OnFailure=beachcleanup-alert@%n.service
+Description=Beach Cleanup verified local and offsite backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=beachbackup
+Group=beachbackup
+EnvironmentFile=/etc/beachcleanup/operations.env
+ExecStart=/usr/bin/bash /opt/beachcleanup/deploy/backup-cycle.sh
+TimeoutStartSec=30min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/beachcleanup /mnt/beachcleanup-offsite
+UMask=0077

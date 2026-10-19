@@ -1,0 +1,16 @@
+[Unit]
+OnFailure=beachcleanup-alert@%n.service
+Description=Beach Cleanup readiness and verified-backup monitoring
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=beachbackup
+Group=beachbackup
+ExecStart=/usr/bin/python3 /opt/beachcleanup/deploy/monitor-staging.py /var/backups/beachcleanup/.last-success
+TimeoutStartSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+UMask=0077

@@ -14,10 +14,12 @@ public class ProductionConfig {
             throw new IllegalStateException("O perfil prod exige mysql e não pode ser combinado com test.");
         }
         String url = environment.getProperty("spring.datasource.url", "");
+        boolean external = environment.getProperty("security.database.external-migrations", Boolean.class, false);
+        boolean flyway = environment.getProperty("spring.flyway.enabled", Boolean.class, false);
         if (!url.startsWith("jdbc:mysql://")
                 || !"com.mysql.cj.jdbc.Driver".equals(environment.getProperty("spring.datasource.driver-class-name"))
                 || !"validate".equals(environment.getProperty("spring.jpa.hibernate.ddl-auto"))
-                || !environment.getProperty("spring.flyway.enabled", Boolean.class, false)
+                || external == flyway
                 || !environment.getProperty("spring.flyway.clean-disabled", Boolean.class, false)
                 || environment.getProperty("spring.h2.console.enabled", Boolean.class, false)) {
             throw new IllegalStateException("Configuração prod inválida: use MySQL, Flyway sem clean, "

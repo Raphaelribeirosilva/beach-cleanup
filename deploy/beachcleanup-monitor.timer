@@ -1,0 +1,10 @@
+[Unit]
+Description=Beach Cleanup operational checks every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=beachcleanup-monitor.service
+
+[Install]
+WantedBy=timers.target

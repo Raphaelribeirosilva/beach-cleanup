@@ -12,6 +12,15 @@ class ProductionConfigTests {
     }
 
     @Test
+    void externalMigrationsMustBeExplicitAndCannotRunAutomatically() {
+        assertDoesNotThrow(() -> new ProductionConfig(valid()
+            .withProperty("spring.flyway.enabled", "false")
+            .withProperty("security.database.external-migrations", "true")));
+        assertThrows(IllegalStateException.class, () -> new ProductionConfig(valid()
+            .withProperty("security.database.external-migrations", "true")));
+    }
+
+    @Test
     void testProfileAndMissingMysqlProfileAreRejected() {
         var test = valid();
         test.setActiveProfiles("prod", "mysql", "test");
