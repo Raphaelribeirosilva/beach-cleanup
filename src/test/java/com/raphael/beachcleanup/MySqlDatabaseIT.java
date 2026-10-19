@@ -36,6 +36,7 @@ import com.raphael.beachcleanup.services.*;
 
 /** Opt-in tests. Every test creates its own schema on an explicitly configured disposable server. */
 class MySqlDatabaseIT {
+    @org.junit.jupiter.api.io.TempDir Path legacyScripts;
     private String serverUrl;
     private String username;
     private String password;
@@ -76,6 +77,132 @@ class MySqlDatabaseIT {
                     var statement = connection.createStatement()) {
                 statement.executeUpdate("DROP DATABASE " + schema);
             }
+        }
+    }
+
+    @Test
+    void legacyTimestampDefaultsReproduceV8FailureAndRecoverWithoutDroppingData() throws Exception {
+        try (var connection = DriverManager.getConnection(url, username, password);
+                var sql = connection.createStatement()) {
+            var source = new org.springframework.jdbc.datasource.SingleConnectionDataSource(connection, true);
+            legacyTimestampMode(sql);
+            sql.execute("SET SESSION sql_mode='STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,NO_ENGINE_SUBSTITUTION'");
+            var old = legacyFlyway(source, "7");
+            old.migrate();
+            var failure = assertThrows(org.flywaydb.core.api.FlywayException.class, () ->
+                legacyFlyway(source,"8").migrate());
+            Throwable cause = failure;
+            while (cause.getCause() != null) cause = cause.getCause();
+            assertInstanceOf(java.sql.SQLException.class, cause);
+            assertEquals(1067, ((java.sql.SQLException) cause).getErrorCode());
+            assertTrue(cause.getMessage().contains("revoked_at"));
+            assertFalse(databaseTables(connection).contains("tb_auth_session"));
+            assertFalse(databaseTables(connection).contains("tb_refresh_token"));
+            assertEquals(1, scalar(sql,"SELECT COUNT(*) FROM flyway_schema_history WHERE version='8' AND success=0"));
+            var originalUsers = tableRows(connection,"tb_user");
+            long global = scalar(sql,"SELECT @@GLOBAL.explicit_defaults_for_timestamp");
+            // Only this test's disposable schema, after proving no V8 objects were left behind.
+            var fixed = Flyway.configure().dataSource(source).locations("classpath:db/migration/mysql")
+                .cleanDisabled(true).load();
+            fixed.repair();
+            fixed.migrate();
+            fixed.validate();
+            assertEquals(11, fixed.info().applied().length);
+            assertEquals(originalUsers, tableRows(connection,"tb_user",
+                "id,name,email,password,role,credential_version,row_version,total_collected_kg"));
+            assertEquals(global, scalar(sql,"SELECT @@GLOBAL.explicit_defaults_for_timestamp"));
+            assertTimestampDefinitions(sql);
+            assertEquals(0, fixed.migrate().migrationsExecuted);
+        }
+    }
+
+    @Test
+    void timestampUpgradeAlignsOnlyV8ChecksumAndPreservesStoredSessionDates() throws Exception {
+        try (var connection = DriverManager.getConnection(url, username, password);
+                var sql = connection.createStatement()) {
+            var source = new org.springframework.jdbc.datasource.SingleConnectionDataSource(connection, true);
+            legacyTimestampMode(sql);
+            sql.execute("SET SESSION sql_mode='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'");
+            sql.execute("SET SESSION time_zone='+00:00'");
+            legacyFlyway(source,"10").migrate();
+            sql.executeUpdate("INSERT INTO tb_user(id,name,email,password,role,credential_version,email_verified) VALUES(1,'Timestamp','timestamp@example.com','unused-test-hash','VOLUNTEER',0,1)");
+            sql.execute("ALTER TABLE tb_auth_session MODIFY expires_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)");
+            sql.execute("ALTER TABLE tb_auth_session MODIFY revoked_at TIMESTAMP(6) NULL DEFAULT NULL");
+            sql.executeUpdate("INSERT INTO tb_auth_session(id,user_id,credential_version,expires_at,revoked_at) VALUES('active',1,0,'2030-01-02 03:04:05.123456',NULL),('revoked',1,0,'2030-01-02 03:04:05.654321','2026-01-02 03:04:05.123456')");
+            sql.executeUpdate("INSERT INTO tb_refresh_token(token_hash,session_id,consumed) VALUES('test-token-hash','active',0)");
+            var snapshots = new java.util.LinkedHashMap<String,List<List<String>>>();
+            for (String table : databaseTables(connection)) {
+                if (!table.equals("flyway_schema_history")) snapshots.put(table,tableRows(connection,table));
+            }
+            long checksum = scalar(sql,"SELECT checksum FROM flyway_schema_history WHERE version='8'");
+            sql.execute("SET SESSION time_zone='+03:00'");
+            var fixed = Flyway.configure().dataSource(source).locations("classpath:db/migration/mysql").load();
+            var mismatch = assertThrows(org.flywaydb.core.api.exception.FlywayValidateException.class, fixed::validate);
+            assertTrue(mismatch.getMessage().contains("checksum mismatch"));
+            long v9Checksum = scalar(sql,"SELECT checksum FROM flyway_schema_history WHERE version='9'");
+            // Explicit test-only alignment after comparing the old schema and every data row.
+            fixed.repair();
+            assertEquals(1,fixed.migrate().migrationsExecuted);
+            try (var zone=sql.executeQuery("SELECT @@SESSION.time_zone")) {
+                assertTrue(zone.next()); assertEquals("+03:00",zone.getString(1));
+            }
+            sql.execute("SET SESSION time_zone='+00:00'");
+            fixed.validate();
+            assertNotEquals(checksum,scalar(sql,"SELECT checksum FROM flyway_schema_history WHERE version='8'"));
+            assertEquals(v9Checksum,scalar(sql,"SELECT checksum FROM flyway_schema_history WHERE version='9'"));
+            for (var snapshot : snapshots.entrySet()) assertEquals(snapshot.getValue(),tableRows(connection,snapshot.getKey()),snapshot.getKey());
+            assertTimestampDefinitions(sql);
+            sql.executeUpdate("UPDATE tb_auth_session SET credential_version=1 WHERE id='active'");
+            try (var rows=sql.executeQuery("SELECT expires_at,revoked_at FROM tb_auth_session WHERE id='active'")) {
+                assertTrue(rows.next());
+                assertEquals("2030-01-02 03:04:05.123456",rows.getTimestamp(1).toString());
+                assertNull(rows.getTimestamp(2));
+            }
+            assertThrows(java.sql.SQLException.class, () -> sql.executeUpdate(
+                "INSERT INTO tb_auth_session(id,user_id,credential_version) VALUES('missing-expiry',1,0)"));
+        }
+    }
+
+    private Flyway legacyFlyway(javax.sql.DataSource source, String target) throws Exception {
+        try (var files=Files.list(Path.of("src/main/resources/db/migration/mysql"))) {
+            for (Path file : files.filter(path -> path.getFileName().toString().matches("V[1-9]_.*\\.sql|V10_.*\\.sql")).toList()) {
+                String text=Files.readString(file);
+                if (file.getFileName().toString().startsWith("V8__")) {
+                    text=text.replace("expires_at DATETIME(6) NOT NULL", "expires_at TIMESTAMP(6) NOT NULL")
+                        .replace("revoked_at TIMESTAMP(6) NULL DEFAULT NULL", "revoked_at TIMESTAMP(6)");
+                }
+                Files.writeString(legacyScripts.resolve(file.getFileName()),text);
+            }
+        }
+        return Flyway.configure().dataSource(source).locations("filesystem:"+legacyScripts.toAbsolutePath())
+            .javaMigrations(new db.migration.mysql.V6__backfill_reference_catalogs(),new db.migration.mysql.V7__decimal_collection_weights())
+            .target(target).cleanDisabled(true).load();
+    }
+
+    private static void legacyTimestampMode(java.sql.Statement sql) throws Exception {
+        boolean maria;
+        try(var result=sql.executeQuery("SELECT VERSION()")) { assertTrue(result.next()); maria=result.getString(1).contains("MariaDB"); }
+        if (!maria) sql.execute("SET SESSION explicit_defaults_for_timestamp=0");
+        assertEquals(0,scalar(sql,"SELECT @@explicit_defaults_for_timestamp"));
+    }
+
+    private static long scalar(java.sql.Statement sql, String query) throws Exception {
+        try (var result=sql.executeQuery(query)) { assertTrue(result.next()); return result.getLong(1); }
+    }
+
+    private static void assertTimestampDefinitions(java.sql.Statement sql) throws Exception {
+        try (var rows=sql.executeQuery("SELECT table_name,column_name,is_nullable,column_default,extra,data_type FROM information_schema.columns WHERE table_schema=DATABASE() AND ((table_name='tb_auth_session' AND column_name IN ('expires_at','revoked_at')) OR (table_name='tb_account_action_token' AND column_name='expires_at') OR (table_name='tb_auth_rate_limit' AND column_name='window_start') OR (table_name='tb_audit_entry' AND column_name='occurred_at'))")) {
+            int count=0;
+            while(rows.next()) {
+                count++;
+                assertEquals(rows.getString(2).equals("revoked_at") ? "YES" : "NO",rows.getString(3));
+                String defaultValue = rows.getString(4);
+                assertTrue(defaultValue == null || (rows.getString(2).equals("revoked_at")
+                    && defaultValue.equalsIgnoreCase("NULL")), rows.getString(1)+"."+rows.getString(2));
+                assertFalse(rows.getString(5).toLowerCase(java.util.Locale.ROOT).contains("on update"));
+                assertEquals(rows.getString(2).equals("revoked_at") ? "timestamp" : "datetime",rows.getString(6));
+            }
+            assertEquals(5,count);
         }
     }
 
@@ -164,7 +291,7 @@ class MySqlDatabaseIT {
                 assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> context.getBean(AccountActionService.class).verify(oldAction));
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(10, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(11, context.getBean(Flyway.class).info().applied().length);
                 var proof = java.util.Map.of("scope","disposable MySQL local restore", "status","passed",
                     "allTablesCompared",comparedTables,"sessionsQuarantined",true,"oldAccessAndRefreshRejected",true,
                     "oldAccountLinksRejected",true,"applicationLoginAndTotals","passed",
@@ -187,7 +314,7 @@ class MySqlDatabaseIT {
 
     @Test
     void runtimeAccountCanOperateWithoutSchemaOrGlobalPrivileges() throws Exception {
-        try (var migrated=start()) { assertEquals(10,migrated.getBean(Flyway.class).info().applied().length); }
+        try (var migrated=start()) { assertEquals(11,migrated.getBean(Flyway.class).info().applied().length); }
         String account="beach_app_"+UUID.randomUUID().toString().replace("-", "").substring(0,12);
         try (var root=DriverManager.getConnection(serverUrl,username,password); var sql=root.createStatement()) {
             sql.executeUpdate("create user '"+account+"'@'localhost' identified by 'discardable-runtime-test-password'");
@@ -206,7 +333,7 @@ class MySqlDatabaseIT {
                     assertThrows(org.springframework.dao.DataAccessException.class, () -> jdbc.execute("create table denied_schema_change(id bigint)"));
                     assertThrows(org.springframework.dao.DataAccessException.class, () -> jdbc.queryForList("select * from mysql.user"));
                 }
-                sql.executeUpdate("delete from `"+schema+"`.flyway_schema_history where version='10'");
+                sql.executeUpdate("delete from `"+schema+"`.flyway_schema_history where version='11'");
                 var failure = assertThrows(Exception.class, () -> new SpringApplicationBuilder(BeachcleanupApplication.class).run(
                     "--spring.profiles.active=prod","--spring.flyway.enabled=false","--security.database.external-migrations=true","--server.port=0",
                     "--spring.datasource.url="+url,"--spring.datasource.username="+account,"--spring.datasource.password=discardable-runtime-test-password",
@@ -298,7 +425,7 @@ class MySqlDatabaseIT {
             collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(10, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(11, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -341,7 +468,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(10, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(11, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -412,7 +539,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             var flyway = context.getBean(Flyway.class);
             flyway.validate();
-            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"), java.util.Arrays.stream(flyway.info().applied())
+            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"), java.util.Arrays.stream(flyway.info().applied())
                 .map(migration -> migration.getVersion().toString()).toList());
             assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -457,7 +584,7 @@ class MySqlDatabaseIT {
     void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
         WeightMigrationAssertions.verify(url, username, password);
         try (var context = start(url, false)) {
-            assertEquals(10, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(11, context.getBean(Flyway.class).info().applied().length);
             assertEquals(101L, context.getBean(AuthService.class)
                 .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
             var report = context.getBean(DataQualityService.class);

@@ -3,7 +3,7 @@
   "info": {
     "title": "Beach Cleanup API",
     "version": "0.0.1-SNAPSHOT",
-    "description": "Contrato estático da API atual. Proteção por JWT Bearer; permissões de perfil/propriedade são descritas por operação. PUT substitui os campos de entrada. Banco MySQL existente deve ser preservado; este contrato não executa migrações. Homologação restrita e recuperação: consultar docs/33_HOMOLOGACAO_E_RECUPERACAO.md; runtime com migrações externas valida o histórico antes de iniciar. Esta entrega não adiciona endpoints públicos."
+    "description": "Contrato estático da API atual. Proteção por JWT Bearer; permissões de perfil/propriedade são descritas por operação. PUT substitui os campos de entrada. Banco MySQL existente deve ser preservado; este contrato não executa migrações. Homologação restrita e recuperação: consultar docs/33_HOMOLOGACAO_E_RECUPERACAO.md; runtime com migrações externas valida o histórico antes de iniciar. Esta entrega não adiciona endpoints públicos. Correção de TIMESTAMP e recuperação da migração V8 documentadas em docs/34_CORRECAO_TIMESTAMP_E_RECUPERACAO_V8.md; sem alteração de rotas ou payloads."
   },
   "servers": [
     {

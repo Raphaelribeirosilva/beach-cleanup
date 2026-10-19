@@ -38,7 +38,7 @@ class CatalogMigrationTests {
         }
         var flyway = Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration/mysql").load();
         flyway.migrate();
-        assertEquals(10, flyway.info().applied().length);
+        assertEquals(11, flyway.info().applied().length);
         flyway.validate();
         try (var connection = DriverManager.getConnection(url, "sa", ""); var sql = connection.createStatement()) {
             try (var rows = sql.executeQuery("select * from tb_trash_collection order by id")) {
