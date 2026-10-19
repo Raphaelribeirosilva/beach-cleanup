@@ -83,3 +83,5 @@ A resposta genérica, o envio assíncrono e os tokens temporários seguem as ori
 - Edge headless: formulários de recuperação/confirmação, fragmento removido do endereço, ausência de consumo por simples abertura, cadastro e novo login, troca de e-mail com senha atual, regressões de conta/coletas/relatórios/administração, computador/celular e CSP aprovados.
 
 O adaptador SMTP foi exercitado com remetente/destinatário/mensagem simulados. Isso **não valida conexão ao provedor nem chegada em caixa postal**. A verificação real permanece pendente conforme o roteiro acima. As alterações locais anteriores foram preservadas. Não houve publicação ou envio de e-mail real.
+
+Configuração do remetente Gmail para caixas Gmail/Hotmail e ativação local: [etapa 35](35_ENVIO_DE_CONFIRMACAO_PELO_GMAIL.md). A entrega real depende da conta Google autorizada e ainda deve ser comprovada.

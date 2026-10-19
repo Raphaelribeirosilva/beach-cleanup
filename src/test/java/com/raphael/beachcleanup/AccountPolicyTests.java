@@ -54,6 +54,23 @@ class AccountPolicyTests {
         env.withProperty("account.mail.mode", "memory");
         assertThrows(IllegalStateException.class, () -> new AccountPolicy(env));
     }
+    @Test void realMailLocalHttpRequiresExplicitLoopbackAndNeverAllowsPublicOrProd() {
+        var env = new MockEnvironment(); env.setActiveProfiles("mysql"); smtp(env);
+        env.withProperty("account.public-base-url", "http://localhost:8080")
+            .withProperty("account.mail.allow-local-http", "true").withProperty("server.address", "127.0.0.1");
+        assertDoesNotThrow(() -> new AccountPolicy(env));
+        env.withProperty("server.address", "0.0.0.0");
+        assertThrows(IllegalStateException.class, () -> new AccountPolicy(env));
+        env.withProperty("server.address", "127.0.0.1").withProperty("security.public-access.enabled", "true");
+        assertThrows(IllegalStateException.class, () -> new AccountPolicy(env));
+        env.withProperty("security.public-access.enabled", "false"); env.setActiveProfiles("prod", "mysql");
+        assertThrows(IllegalStateException.class, () -> new AccountPolicy(env));
+        env.setActiveProfiles("mysql"); env.withProperty("account.public-base-url", "http://outside.example");
+        assertThrows(IllegalStateException.class, () -> new AccountPolicy(env));
+        env.withProperty("account.public-base-url", "http://localhost:8080").withProperty("account.mail.allow-local-http", "false");
+        assertThrows(IllegalStateException.class, () -> new AccountPolicy(env));
+    }
+
     private void smtp(MockEnvironment env) {
         env.withProperty("account.mail.mode", "smtp").withProperty("account.public-base-url", "https://app.example")
             .withProperty("account.mail.from", "sender@example.com").withProperty("spring.mail.host", "smtp.example")

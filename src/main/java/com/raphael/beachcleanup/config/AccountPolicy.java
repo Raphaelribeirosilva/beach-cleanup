@@ -16,12 +16,19 @@ public class AccountPolicy {
         mailMode = env.getProperty("account.mail.mode", test ? "memory" : "disabled");
         baseUrl = env.getProperty("account.public-base-url", test ? "http://localhost:8080" : "");
         from = env.getProperty("account.mail.from", "");
+        if (env.acceptsProfiles(Profiles.of("gmail")) && (!mailMode.equals("smtp")
+                || env.getProperty("spring.mail.username", "").isBlank()
+                || env.getProperty("spring.mail.password", "").isBlank()))
+            throw new IllegalStateException("O perfil Gmail exige GMAIL_USERNAME e GMAIL_APP_PASSWORD configurados no ambiente e envio SMTP ativo.");
+        boolean localHttp = env.getProperty("account.mail.allow-local-http", Boolean.class, false)
+            && !env.acceptsProfiles(Profiles.of("prod")) && !publicAccess
+            && java.util.Set.of("localhost", "127.0.0.1").contains(env.getProperty("server.address", ""));
         if (!java.util.Set.of("memory", "smtp", "disabled").contains(mailMode) || (!test && mailMode.equals("memory")))
             throw new IllegalStateException("Modo de e-mail inválido; simulação é permitida somente no perfil test.");
         if (!mailMode.equals("disabled")) {
             URI uri = URI.create(baseUrl);
             if (uri.getHost() == null || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
-                    || !("https".equals(uri.getScheme()) || test && "http".equals(uri.getScheme()) && java.util.Set.of("localhost", "127.0.0.1").contains(uri.getHost())))
+                    || !("https".equals(uri.getScheme()) || (test || localHttp) && "http".equals(uri.getScheme()) && java.util.Set.of("localhost", "127.0.0.1").contains(uri.getHost())))
                 throw new IllegalStateException("Configure ACCOUNT_PUBLIC_BASE_URL com uma origem HTTPS confiável.");
         }
         if (mailMode.equals("smtp") && (from.isBlank() || env.getProperty("spring.mail.host", "").isBlank()
@@ -32,5 +39,8 @@ public class AccountPolicy {
         if (publicAccess && (test || !verifiedRequired || !abuseEnabled || !mailMode.equals("smtp")
                 || !env.getProperty("account.mail.delivery-validated", Boolean.class, false)))
             throw new IllegalStateException("Abertura pública exige confirmação de e-mail, limites ativos e entrega SMTP real previamente validada.");
+        if (verifiedRequired && mailMode.equals("disabled"))
+            org.slf4j.LoggerFactory.getLogger(AccountPolicy.class).warn(
+                "Confirmação de e-mail obrigatória, mas envio desativado. Configure SMTP; para Gmail local, ative mysql,gmail-local com GMAIL_USERNAME e GMAIL_APP_PASSWORD. Contas não confirmadas não poderão entrar.");
     }
 }
