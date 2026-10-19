@@ -2491,9 +2491,9 @@
           },
           "newPassword": {
             "type": "string",
-            "minLength": 15,
+            "minLength": 7,
             "writeOnly": true,
-            "description": "Mesma política do cadastro: mínimo de 15 caracteres Unicode, máximo de 72 bytes UTF-8 e bloqueio básico de senhas comuns."
+            "description": "Mesma política do cadastro: mínimo de 7 caracteres Unicode, máximo de 72 bytes UTF-8 e bloqueio básico de senhas comuns."
           }
         }
       },
@@ -2574,7 +2574,7 @@
           },
           "password": {
             "type": "string",
-            "minLength": 15,
+            "minLength": 7,
             "writeOnly": true,
             "description": "Pelo menos 15 pontos de código Unicode e até 72 bytes UTF-8. Senhas comuns e um único caractere repetido são recusados. Senhas legadas continuam aceitas no login; a política vale para cadastro, troca e redefinição."
           }
@@ -3684,7 +3684,7 @@
           "newPassword": {
             "type": "string",
             "writeOnly": true,
-            "minLength": 15,
+            "minLength": 7,
             "description": "Política de senha igual à do cadastro. A confirmação é feita na interface."
           }
         }

@@ -4,7 +4,7 @@ Esta entrega implementa recuperação de senha, confirmação de e-mail, políti
 
 ## Fluxos pelo portal
 
-No cadastro, a senha deve ter pelo menos **15 caracteres Unicode**, respeitando o limite existente de **72 bytes UTF-8** do BCrypt. Há bloqueio básico de senhas comuns e de um único caractere repetido. Não se exigem combinações arbitrárias de símbolos/maiúsculas nem se impede colar senhas. A política vale para cadastro, troca e redefinição; não muda silenciosamente o hash das senhas legadas aceitas no login.
+No cadastro, a senha deve ter pelo menos **7 caracteres Unicode**, respeitando o limite existente de **72 bytes UTF-8** do BCrypt. Há bloqueio básico de senhas comuns e de um único caractere repetido. Não se exigem combinações arbitrárias de símbolos/maiúsculas nem se impede colar senhas. A política vale para cadastro, troca e redefinição; não muda silenciosamente o hash das senhas legadas aceitas no login.
 
 O cadastro cria `emailVerified=false` e agenda a confirmação após confirmar a transação. O portal orienta a conferir a mensagem antes de entrar. O login em ambiente real exige o endereço confirmado e responde genericamente a senha incorreta, conta ausente ou e-mail não confirmado. Em **Entrar**, há **Esqueci minha senha** e **Reenviar confirmação de e-mail**.
 
@@ -70,7 +70,7 @@ Novos endpoints públicos, todos JSON e com `Cache-Control: no-store`: `POST /au
 
 ## Referências e verificações
 
-A resposta genérica, o envio assíncrono e os tokens temporários seguem as orientações do [OWASP para recuperação de senha](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html). A escolha de 15 caracteres para novas senhas usa a recomendação para senha como fator único do [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html); o bloqueio local básico não representa uma lista completa de credenciais vazadas nem uma declaração de conformidade integral.
+A resposta genérica, o envio assíncrono e os tokens temporários seguem as orientações do [OWASP para recuperação de senha](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html). A escolha de 7 caracteres para novas senhas usa a recomendação para senha como fator único do [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html); o bloqueio local básico não representa uma lista completa de credenciais vazadas nem uma declaração de conformidade integral.
 
 `AccountRecoveryIntegrationTests` cobre cadastro/confirmar, expiração de 15 minutos/24 horas, finalidade, uso único concorrente, resposta genérica, supressão silenciosa, limites HTTP, headers forjados, redefinição com revogação e mudança de e-mail. `AccountPolicyTests` cobre política, bloqueio da abertura pública e adaptação SMTP com remetente/destinatário/mensagem simulados. `MySqlDatabaseIT` verifica concorrência e persistência dos tokens/contadores em MySQL real. O roteiro de navegador cobre os formulários, fragmentos privados, feedback e regressões do portal.
 

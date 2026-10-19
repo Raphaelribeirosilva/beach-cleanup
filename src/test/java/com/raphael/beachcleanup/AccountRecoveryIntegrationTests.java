@@ -136,6 +136,22 @@ class AccountRecoveryIntegrationTests {
         assertFalse(jdbc.queryForList("select bucket_key from tb_auth_rate_limit", String.class).toString().contains("ana@example.com"));
     }
 
+    @Test void sevenCharacterPasswordsWorkForSignupResetAndPasswordChange() throws Exception {
+        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
+            "name", "Bia", "email", "bia@example.com", "password", "Praia7!")))).andExpect(status().isCreated());
+        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
+            "name", "Curta", "email", "curta@example.com", "password", "Mar7!a")))).andExpect(status().isBadRequest());
+        var owner = account(true);
+        request("/auth/recovery", owner.getEmail(), 202); idle();
+        String resetToken = token("Redefinir senha");
+        reset(resetToken, "Mar7!a", 400);
+        reset(resetToken, "Mar7!az", 204);
+        login(owner.getEmail(), "Mar7!az", 200);
+        var session = auth.login(new LoginDTO(owner.getEmail(), "Mar7!az"));
+        auth.changePassword(decoder.decode(session.accessToken()), new ChangePasswordDTO("Mar7!az", "Sol7!az"));
+        login(owner.getEmail(), "Sol7!az", 200);
+    }
+
     @Test void weakPasswordsAreRejectedAndOutstandingLinksDieAfterPasswordChange() throws Exception {
         var owner = account(true);
         for (String weak : List.of("curta", "a".repeat(20), "123456789012345")) {

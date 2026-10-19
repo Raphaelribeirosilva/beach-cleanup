@@ -180,12 +180,14 @@ async function main() {
     await checkAccessibility('login-dialog');
     await fill('#auth-password', 'Senha visível de teste');
     await evaluate('document.querySelector("#auth-password-toggle").focus()');
-    await key('Enter','Enter');
+    await key(' ','Space');
     assert.equal(await evaluate('document.querySelector("#auth-password").type'),'text');
-    assert.equal(await evaluate('document.querySelector("#auth-password-toggle").getAttribute("aria-pressed")'),'true');
+    assert.equal(await evaluate('document.querySelector("#auth-password-toggle").checked'),true);
     assert.equal(await evaluate('document.querySelector("#auth-password").value'),'Senha visível de teste');
-    await key('Enter','Enter');
+    await key(' ','Space');
     assert.equal(await evaluate('document.querySelector("#auth-password").type'),'password');
+    assert.equal(await evaluate('document.querySelector("#password-help")'),null,'No password requirements below the checkbox');
+    assert.ok(await evaluate('document.querySelector("#recovery-open").getBoundingClientRect().top > document.querySelector("#auth-switch").getBoundingClientRect().bottom'),'Account links have visible spacing');
     await fill('#auth-password', '');
     for(let i=0;i<12;i++) {
       await key('Tab','Tab');
@@ -214,12 +216,16 @@ async function main() {
     assert.ok(await evaluate('parseFloat(getComputedStyle(document.activeElement).outlineWidth) >= 2'),'Keyboard focus is visible');
     assert.equal(await evaluate('document.querySelector("#auth-password").type'),'password','Closing always conceals the password');
     await click('#signup-open');
+    assert.equal(await evaluate('document.querySelector("#auth-password").minLength'),7);
     await click('#auth-submit');
     assert.equal(await evaluate('document.activeElement.id'),'auth-name');
     assert.ok(await evaluate('["name","email","password"].every(name => document.querySelector(`#auth-${name}`).getAttribute("aria-invalid") === "true")'));
     await checkAccessibility('signup-required-errors');
     await fill('#auth-name','Cadastro navegador');
     await fill('#auth-email','cadastro-navegador@example.com');
+    await fill('#auth-password','Mar7!a');
+    await click('#auth-submit');
+    assert.ok(await evaluate('document.querySelector("#auth-password-error").textContent.includes("7 caracteres")'));
     await fill('#auth-password','passwordpassword');
     await click('#auth-submit');
     await waitFor('document.querySelector("#auth-password-error").textContent.includes("evite senhas comuns") && !document.querySelector("#auth-submit").disabled');
@@ -227,7 +233,7 @@ async function main() {
     await fill('#auth-password','🌊'.repeat(19));
     await click('#auth-submit');
     assert.ok(await evaluate('document.querySelector("#auth-password-error").textContent.includes("72 bytes")'));
-    await fill('#auth-password','Uma praia muito mais limpa!');
+    await fill('#auth-password','Praia7!');
     await fill('#auth-email','ana@example.com');
     await click('#auth-submit');
     await waitFor('document.querySelector("#auth-email").getAttribute("aria-invalid") === "true" && !document.querySelector("#auth-submit").disabled');

@@ -1,6 +1,6 @@
 # Área do voluntário completa
 
-Atualização na [etapa 30](30_RECUPERACAO_DE_CONTA_E_PROTECAO_CONTRA_ABUSO.md): alterar o e-mail exige a senha atual do voluntário, remove a confirmação do endereço e encerra as sessões. Confirme o novo endereço e entre novamente. A política mínima de 15 caracteres também se aplica à troca de senha.
+Atualização na [etapa 30](30_RECUPERACAO_DE_CONTA_E_PROTECAO_CONTRA_ABUSO.md): alterar o e-mail exige a senha atual do voluntário, remove a confirmação do endereço e encerra as sessões. Confirme o novo endereço e entre novamente. A política mínima de 7 caracteres também se aplica à troca de senha.
 
 O portal passa a oferecer **Meu perfil**, troca de senha e edição/exclusão das próprias coletas, aproveitando os endpoints e as verificações de autorização existentes. Os fluxos funcionam pelo navegador, sem Postman.
 

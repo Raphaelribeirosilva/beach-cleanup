@@ -243,8 +243,7 @@
   }
   function hideAuthPassword() {
     $('auth-password').type = 'password';
-    $('auth-password-toggle').textContent = 'Mostrar senha';
-    $('auth-password-toggle').setAttribute('aria-pressed', 'false');
+    $('auth-password-toggle').checked = false;
   }
   function validateAuth(form) {
     for (const name of authFields) {
@@ -253,7 +252,7 @@
       if (name === 'name' && !state.signup) continue;
       if (!field.value.trim()) authFieldError(name, name === 'name' ? 'Informe seu nome.' : name === 'email' ? 'Informe seu e-mail.' : 'Informe sua senha.');
       else if (field.validity.typeMismatch) authFieldError(name, 'Informe um e-mail válido.');
-      else if (field.minLength > 0 && field.value.length < field.minLength) authFieldError(name, `Use pelo menos ${field.minLength} caracteres.`);
+      else if (field.minLength > 0 && (name === 'password' ? [...field.value].length : field.value.length) < field.minLength) authFieldError(name, `Use pelo menos ${field.minLength} caracteres.`);
       else if (field.maxLength > 0 && field.value.length > field.maxLength) authFieldError(name, `Use até ${field.maxLength} caracteres.`);
     }
     if (new TextEncoder().encode(form.elements.password.value).length > 72)
@@ -285,8 +284,7 @@
     errorAt('auth-status');
     $('name-label').hidden = !state.signup;
     $('auth-form').elements.name.required = state.signup;
-    $('auth-form').elements.password.minLength = state.signup ? 15 : 1;
-    $('password-help').textContent = state.signup ? 'Use pelo menos 15 caracteres, até 72 bytes UTF-8 e evite senhas comuns. Você precisará confirmar o e-mail.' : 'Confira a senha e confirme seu e-mail para entrar. A sessão pode ser renovada por até sete dias.';
+    $('auth-form').elements.password.minLength = state.signup ? 7 : 1;
     $('auth-form').elements.password.autocomplete = state.signup ? 'new-password' : 'current-password';
     $('auth-title').textContent = state.signup ? 'Comece a fazer a diferença.' : 'Que bom ter você aqui.';
     $('auth-description').textContent = state.signup ? 'Crie sua conta para cuidar das praias com a gente.'
@@ -408,11 +406,9 @@
       }
     });
   });
-  $('auth-password-toggle').addEventListener('click', () => {
-    const show = $('auth-password').type === 'password';
+  $('auth-password-toggle').addEventListener('change', () => {
+    const show = $('auth-password-toggle').checked;
     $('auth-password').type = show ? 'text' : 'password';
-    $('auth-password-toggle').textContent = show ? 'Ocultar senha' : 'Mostrar senha';
-    $('auth-password-toggle').setAttribute('aria-pressed', String(show));
   });
   $('auth-dialog').addEventListener('close', hideAuthPassword);
   $('auth-form').addEventListener('input', event => {
@@ -492,7 +488,7 @@
     $('account-help-form').elements.newPassword.required = reset;
     $('account-help-form').elements.confirmation.required = reset;
     $('account-help-title').textContent = reset ? 'Escolher nova senha' : verify ? 'Confirmar seu e-mail' : mode === 'verification' ? 'Reenviar confirmação' : 'Recuperar acesso';
-    $('account-help-description').textContent = reset ? 'Use pelo menos 15 caracteres, até 72 bytes UTF-8. A redefinição encerra todas as sessões da conta.'
+    $('account-help-description').textContent = reset ? 'Use pelo menos 7 caracteres, até 72 bytes UTF-8. A redefinição encerra todas as sessões da conta.'
       : verify ? 'Clique para confirmar que este endereço de e-mail é seu.' : 'Informe seu e-mail. Se o endereço estiver apto, enviaremos as instruções. Confira também o spam.';
     $('account-help-submit').textContent = reset ? 'Redefinir senha' : verify ? 'Confirmar e-mail' : 'Enviar instruções';
     if (!$('account-help-dialog').open) window.PortalUI.openDialog($('account-help-dialog'));

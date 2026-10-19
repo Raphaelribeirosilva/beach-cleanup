@@ -80,3 +80,9 @@ O formulário oferece Mostrar/Ocultar senha, inclusive por teclado. A senha volt
 O cliente preserva `errors[].fieldName` das respostas da API. E-mail duplicado no cadastro destaca o e-mail; credenciais inválidas no login destacam e-mail e senha com a mesma mensagem genérica. Falhas sem campo específico, como indisponibilidade e conexão, continuam na mensagem geral. Não há mudança nos endpoints ou nos payloads de autenticação.
 
 Verificação: testes do cliente e fluxos reais de navegador cobrem exibição da senha, campos obrigatórios, política de senha retornada pelo servidor, limite UTF-8, e-mail duplicado, credenciais inválidas, foco e limpeza ao editar/alternar formulário.
+
+### Ajuste da apresentação e do mínimo de senha (19/10/2026)
+
+Mostrar senha agora é uma checkbox acessível por teclado; ela é desmarcada ao fechar ou alternar o formulário. Os links de conta, recuperação e confirmação ficam em linhas separadas com espaçamento. O texto permanente de requisitos abaixo da checkbox foi removido; erros continuam aparecendo junto ao campo quando necessário.
+
+Senhas novas passam a exigir pelo menos 7 caracteres Unicode, em cadastro, troca e redefinição, tanto na interface quanto no backend e no OpenAPI. O limite de 72 bytes UTF-8 e as rejeições de senhas comuns/repetidas foram preservados. O login continua aceitando as credenciais de contas existentes.
