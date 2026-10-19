@@ -55,13 +55,25 @@ public class SearchService {
 
     public PageDTO<CleanupEventDTO> events(String location, String status,
             LocalDateTime from, LocalDateTime to, Long beachId, Pageable pageable) {
+        return events(location, status, from, to, beachId, null, null, pageable);
+    }
+
+    public PageDTO<CleanupEventDTO> events(String location, String status,
+            LocalDateTime from, LocalDateTime to, Long beachId, String uf, String city, Pageable pageable) {
         validateText("location", location);
+        validateText("city", city);
+        if (uf != null && !uf.isBlank()) Geography.requireState(uf);
+        if (city != null && !city.isBlank() && (uf == null || uf.isBlank()))
+            throw new FieldValidationException("state", "Selecione o Estado antes da cidade.");
+        String selectedCity = city == null || city.isBlank() ? null : Geography.requireCity(uf, city);
         validateId("beachId", beachId);
         validateRange(from, to);
         String state = status == null ? null : EventStatus.parse(status).value();
         Specification<CleanupEvent> filter = (root, query, builder) -> {
             var predicates = new ArrayList<Predicate>();
             catalogContains(predicates, root, query, builder, "beachReference", "location", "beaches", location);
+            if (uf != null && !uf.isBlank()) predicates.add(builder.equal(root.get("beachReference").get("state"), uf));
+            if (selectedCity != null) predicates.add(builder.equal(root.get("beachReference").get("city"), selectedCity));
             if (beachId != null) predicates.add(builder.equal(root.get("beachReference").get("id"), beachId));
             if (state != null) predicates.add(builder.equal(root.get("status"), state));
             if (from != null) predicates.add(builder.greaterThanOrEqualTo(root.get("dateTime"), from));

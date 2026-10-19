@@ -6,12 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123e40">
   <meta name="description" content="Encontre mutirões de limpeza de praias, participe e acompanhe suas coletas.">
-  <title>Beach Cleanup · Cada coleta conta</title>
+  <title>Elo do mar · Cada coleta conta</title>
   <link rel="stylesheet" href="/portal.css">
   <link rel="stylesheet" href="/portal-admin.css">
   <link rel="stylesheet" href="/portal-account.css">
   <script src="/portal-ui.js" defer></script>
   <script src="/portal-api.js" defer></script>
+  <script src="/portal-locations.js" defer></script>
   <script src="/portal-reports.js" defer></script>
   <script src="/portal-admin.js" defer></script>
   <script src="/portal.js" defer></script>
@@ -19,7 +20,7 @@
 <body>
   <a class="skip" href="#main">Pular para o conteúdo</a>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Beach Cleanup, início"><span class="brand-mark" aria-hidden="true">≈</span><span>beach<span class="brand-light">cleanup</span></span></a>
+    <a class="brand" href="/" aria-label="Elo do mar, início"><span class="brand-mark" aria-hidden="true">≈</span><span>Elo <span class="brand-light">do mar</span></span></a>
     <div id="account"><button class="button outline" id="login-open">Entrar</button><button class="button primary" id="signup-open">Quero participar</button></div>
     <div id="signed-account" hidden><span id="account-name"></span><button class="button outline" id="logout">Sair</button></div>
   </header>
@@ -32,7 +33,7 @@
     <section id="workspace" class="workspace" aria-labelledby="workspace-title">
       <div class="section-heading"><div><p class="eyebrow">Vamos fazer parte</p><h2 id="workspace-title" tabindex="-1">Encontre sua próxima ação</h2></div><button class="button primary" id="collection-open">+ Registrar coleta</button></div>
       <nav class="tabs" aria-label="Áreas do portal"><button class="tab active" data-view="events" aria-current="page">Explorar eventos</button><button class="tab" data-view="mine">Minhas inscrições</button><button class="tab" data-view="collections">Minhas coletas</button><button class="tab" data-view="profile">Meu perfil</button><button class="tab" data-view="reports">Relatórios de impacto</button><button class="tab" id="admin-tab" data-view="admin" hidden>Administração</button></nav>
-      <form id="filters" class="filters"><label id="location-label">Praia ou local<select id="location-filter" name="beachId"><option value="">Todas as praias</option></select></label><label id="status-label">Status<select id="status-filter" name="status"><option value="">Todos os status</option><option>Agendado</option><option>Em andamento</option><option>Pausado</option><option value="Concluido">Concluído</option><option>Cancelado</option></select></label><button class="button outline" type="submit">Buscar</button></form>
+      <form id="filters" class="filters"><span id="location-filters" class="location-filters"></span><label id="status-label">Status<select id="status-filter" name="status"><option value="">Todos os status</option><option>Agendado</option><option>Em andamento</option><option>Pausado</option><option value="Concluido">Concluído</option><option>Cancelado</option></select></label><button class="button outline" type="submit">Buscar</button></form>
       <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
       <section id="admin-workspace" aria-label="Administração" hidden>
         <nav class="tabs" aria-label="Recursos administrativos"><button class="tab active" data-admin-view="events" aria-current="page">Eventos</button><button class="tab" data-admin-view="users">Usuários</button><button class="tab" data-admin-view="collections">Coletas</button><button class="tab" data-admin-view="beaches">Praias</button><button class="tab" data-admin-view="materials">Materiais</button><button class="tab" data-admin-view="quality">Qualidade dos dados</button><button class="tab" type="button" data-admin-view="audit">Auditoria</button>
@@ -62,7 +63,7 @@
       <div id="pagination" class="pagination" hidden><button class="button outline" id="previous">← Anterior</button><span id="page-info"></span><button class="button outline" id="next">Próxima →</button></div>
     </section>
   </main>
-  <footer><a class="brand" href="/">≈ beachcleanup</a><p>Cada pessoa importa. Cada coleta conta.</p></footer>
+  <footer><a class="brand" href="/">≈ Elo do mar</a><p>Cada pessoa importa. Cada coleta conta.</p></footer>
   <dialog id="admin-dialog" aria-labelledby="admin-editor-title"><div class="dialog-heading"><p class="eyebrow">Administração</p><button class="close" data-close="admin-dialog" aria-label="Fechar">×</button></div><h2 id="admin-editor-title"></h2><form id="admin-form"></form></dialog>
   <dialog id="auth-dialog" aria-labelledby="auth-title"><div class="dialog-heading"><p class="eyebrow">Faça parte da mudança</p><button class="close" data-close="auth-dialog" aria-label="Fechar">×</button></div><h2 id="auth-title">Que bom ter você aqui.</h2><p id="auth-description">Entre para participar dos eventos e acompanhar suas coletas.</p><form id="auth-form" novalidate>
     <div class="auth-field" id="name-label" hidden><label for="auth-name">Nome</label><input id="auth-name" name="name" autocomplete="name" maxlength="255" aria-describedby="auth-name-error"><p id="auth-name-error" class="field-error" hidden></p></div>

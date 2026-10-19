@@ -13,6 +13,10 @@ public class CatalogEntry {
     private String kind;
     @Column(nullable = false)
     private String name;
+    @Column(length = 2)
+    private String state;
+    @Column(length = 255)
+    private String city;
     @Version
     @Column(nullable = false)
     private Long version;
@@ -36,6 +40,9 @@ public class CatalogEntry {
     public Long getId() { return id; }
     public String getKind() { return kind; }
     public String getName() { return name; }
+    public String getState() { return state; }
+    public String getCity() { return city; }
+    public void setGeography(String state, String city) { this.state = state; this.city = city; touch(); }
     public Long getVersion() { return version; }
     public CatalogEntry getMergedInto() { return mergedInto; }
     public void setName(String name) { this.name = name; touch(); }

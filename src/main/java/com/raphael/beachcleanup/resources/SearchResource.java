@@ -31,13 +31,15 @@ public class SearchResource {
 
     @GetMapping("/cleanupEvent/search")
     public PageDTO<CleanupEventDTO> events(@RequestParam(required = false) String location,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String city,
             @RequestParam(required = false) Long beachId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "id") String sortBy, @RequestParam(defaultValue = "asc") String direction) {
-        return service.events(location, status, from, to, beachId,
+        return service.events(location, status, from, to, beachId, state, city,
             SearchPagination.of(page, size, sortBy, direction, Set.of("id", "title", "location", "dateTime", "status")));
     }
 

@@ -206,6 +206,50 @@ class CatalogIntegrationTests {
     }
 
     @Test
+    void geographyFiltersAreCombinedBeforePaginationAndLegacyRecordsArePreserved() throws Exception {
+        var santos = postJson("/catalog/beaches", mapper.createObjectNode().put("name", "Gonzaga")
+            .put("state", "SP").put("city", "Santos"));
+        var guaruja = postJson("/catalog/beaches", mapper.createObjectNode().put("name", "Enseada")
+            .put("state", "SP").put("city", "Guarujá"));
+        var rio = postJson("/catalog/beaches", mapper.createObjectNode().put("name", "Copacabana")
+            .put("state", "RJ").put("city", "Rio de Janeiro"));
+        var legacy = catalog("beaches", "Sem localização");
+        var event = event(santos.get("id").asLong());
+        event(guaruja.get("id").asLong()); event(rio.get("id").asLong()); event(legacy.get("id").asLong());
+        assertEquals("Santos", event.get("city").asText());
+        mvc.perform(get("/cleanupEvent/search").with(anonymous()).param("state", "SP").param("size", "1"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.totalPages").value(2));
+        mvc.perform(get("/cleanupEvent/search").with(anonymous()).param("state", "SP").param("city", "santos"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(event.get("id").asLong()));
+        mvc.perform(get("/cleanupEvent/search").param("state", "SP").param("city", "Santos")
+            .param("beachId", guaruja.get("id").asText()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+        assertEquals(4, read("/cleanupEvent/search").get("totalElements").asInt());
+        santos.put("name", "Gonzaga - Santos");
+        santos.remove("state"); santos.remove("city");
+        var renamed = putJson("/catalog/beaches/" + santos.get("id").asLong(), santos);
+        assertEquals("SP", renamed.get("state").asText());
+        assertEquals("Santos", renamed.get("city").asText());
+    }
+
+    @Test
+    void geographyRejectsUnknownStatesAndCitiesFromAnotherState() throws Exception {
+        for (var body : List.of(
+                mapper.createObjectNode().put("name", "Inválida").put("state", "ZZ").put("city", "Santos"),
+                mapper.createObjectNode().put("name", "Inválida").put("state", "RJ").put("city", "Santos"),
+                mapper.createObjectNode().put("name", "Inválida").put("state", "SP"))) {
+            mvc.perform(post("/catalog/beaches").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(body))).andExpect(status().isBadRequest());
+        }
+        mvc.perform(get("/cleanupEvent/search").param("city", "Santos"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(get("/locations.json").with(anonymous())).andExpect(status().isOk());
+        mvc.perform(get("/portal-locations.js").with(anonymous())).andExpect(status().isOk());
+    }
+
+    @Test
     void aCachedCatalogEntryCannotReintroduceAMergedIdInANewCollection() throws Exception {
         var source = catalog("beaches", "Morro");
         var target = catalog("beaches", "Praia do Morro");

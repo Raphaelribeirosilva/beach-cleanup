@@ -19,7 +19,7 @@
     const isReview = view => ['quality', 'rounding'].includes(view);
     const choices = kind => [{ id: '', name: 'Selecione' }, ...state.catalogs[kind]];
     async function refreshCatalogs() {
-      const [beaches, materials] = await Promise.all([api.catalog('beaches'), api.catalog('materials')]);
+      const [beaches, materials] = await Promise.all([api.catalog('beaches'), api.catalog('materials'), window.PortalLocations.ready()]);
       return { beaches, materials };
     }
     const authorized = () => state.active && api.session()?.role === 'ADMIN';
@@ -60,7 +60,7 @@
         field(form, 'from', 'Desde (UTC)', { type: 'datetime-local' });
         field(form, 'to', 'Até (UTC)', { type: 'datetime-local' });
       } else if (state.view === 'events') {
-        field(form, 'location', 'Praia', { choices: choices('beaches') });
+        state.locationFilters = window.PortalLocations.beaches(form, state.catalogs.beaches, { name: 'location' });
         field(form, 'status', 'Status', { choices: ['', ...statuses] });
       } else if (state.view === 'users') {
         field(form, 'name', 'Nome', { maxlength: 255 });
@@ -109,6 +109,7 @@
         state.catalogs = catalogs;
         const previousFilters = Object.fromEntries(new FormData($('admin-filters')));
         filters();
+        if (view === 'events') state.locationFilters.set(previousFilters.state, previousFilters.city, previousFilters.location);
         for (const [name, value] of Object.entries(previousFilters)) {
           if ($('admin-filters').elements[name]) $('admin-filters').elements[name].value = value;
         }
@@ -172,6 +173,7 @@
       const body = node('div', 'card-body');
       body.append(node('span', 'card-id', `#${record.id}`), node('h3', '', record.name),
         node('p', '', `Nomes reconhecidos: ${record.aliases.join(', ')}`));
+      if (view === 'beaches') body.append(node('p', '', record.city ? `${record.city}/${record.state}` : 'Informe Estado e cidade em Editar nomes.'));
       const actions = node('div', 'card-actions');
       actions.append(action('Editar nomes', () => edit(view, record.id)),
         action('Unificar com outro item', () => edit(view, record.id, true)));
@@ -201,7 +203,7 @@
         node('span', 'badge', view === 'events' ? record.status : view === 'collections' ? record.materialType : 'Usuário'));
       const body = node('div', 'card-body');
       body.append(node('h3', '', view === 'events' ? record.title : view === 'users' ? record.name : `${kg(record.weightKg)} kg · ${record.beach}`));
-      const lines = view === 'events' ? [record.location, date(record.dateTime)]
+      const lines = view === 'events' ? [record.location, record.city ? `${record.city}/${record.state}` : 'Localização ainda não cadastrada', date(record.dateTime)]
         : view === 'users' ? [record.email, `${kg(record.totalCollectedKg)} kg coletados`]
         : [date(record.registrationDate), record.volunteer ? `Usuário #${record.volunteer.id}: ${record.volunteer.name}` : 'Sem proprietário',
           record.event ? `Evento #${record.event.id}: ${record.event.title}` : 'Sem evento'];
@@ -239,11 +241,13 @@
           } else {
             field(form, 'name', 'Nome principal', { value: record.name || '', required: true, maxlength: 255 });
             field(form, 'aliases', 'Outros nomes (separados por vírgula)', { value: record.aliases?.join(', ') || '', maxlength: 12800 });
+            if (view === 'beaches') window.PortalLocations.geography(form, { required: true, state: record.state, city: record.city });
             form.append(node('p', 'hint', 'Inclua a cidade no nome de praias homônimas. Nomes antigos continuam reconhecidos após a edição.'));
           }
         } else if (view === 'events') {
           field(form, 'title', 'Título', { value: record.title || '', required: true, maxlength: 255 });
-          field(form, 'location', 'Praia', { value: record.beachId ?? '', required: true, choices: choices('beaches') });
+          window.PortalLocations.beaches(form, catalogs.beaches, { name: 'location', value: record.beachId ?? '', required: true, existing: id != null });
+          form.append(node('p', 'hint', 'Não encontrou a praia? Cadastre-a primeiro na aba Praias, informando Estado e cidade.'));
           field(form, 'dateTime', 'Data e hora', { type: 'datetime-local', value: record.dateTime || '', required: true, step: 1, min: '1900-01-01T00:00', max: '9999-12-31T23:59:59' });
           field(form, 'status', 'Status', { value: record.status || 'Agendado', choices: id == null ? ['Agendado'] : transitions[record.status] });
           form.append(node('p', 'hint', 'Novos eventos começam como Agendado. Datas passadas são permitidas para histórico. Praia/data não podem conflitar com coletas vinculadas.'));
@@ -315,6 +319,8 @@
           input.aliases = input.aliases.split(',').map(value => value.trim()).filter(Boolean);
         }
       } else {
+        delete input.state;
+        delete input.city;
         for (const [name, target] of [['location', 'beachId'], ['beach', 'beachId'], ['materialType', 'materialId']]) {
           if (name in input) { input[target] = Number(input[name]); delete input[name]; }
         }

@@ -27,6 +27,7 @@
   const activeEvent = event => ['Agendado', 'Em andamento'].includes(event.status);
   const loadReport = window.createImpactReports(api, { node, kg, catalogChoices, isCurrent: generation => generation === state.generation });
   const admin = createAdminPortal(api, { node, action, busy, kg, date });
+  let eventLocation;
   function catalogChoices(select, entries, title) {
     const previous = select.value;
     const placeholder = node('option', '', title);
@@ -124,7 +125,7 @@
     const top = node('div', 'card-top');
     top.append(node('span', 'badge', event.status), node('span', 'card-id', `Mutirão #${event.id}`));
     const body = node('div', 'card-body');
-    body.append(node('h3', '', event.title), node('p', '', `⌖ ${event.location}`), node('p', '', `◷ ${date(event.dateTime)}`));
+    body.append(node('h3', '', event.title), node('p', '', `⌖ ${event.location}${event.city ? ` · ${event.city}/${event.state}` : ''}`), node('p', '', `◷ ${date(event.dateTime)}`));
     const actions = node('div', 'card-actions');
     if (registered || activeEvent(event)) actions.append(action(registered ? 'Cancelar inscrição' : 'Quero participar',
       () => registrationAction(event, registered), !registered));
@@ -183,17 +184,22 @@
     try {
       const signed = Boolean(api.session());
       const resultPromise = view === 'events' ? api.events({ page: state.page,
-        beachId: $('location-filter').value, status: $('status-filter').value })
+        state: eventLocation?.state.value, city: eventLocation?.city.value,
+        beachId: eventLocation?.beach.value, status: $('status-filter').value })
         : view === 'collections' ? api.collections({ page: state.page }) : Promise.resolve(null);
       const [result, profile, beaches] = await Promise.all([
-        resultPromise, signed ? api.profile() : null, api.catalog('beaches')
+        resultPromise, signed ? api.profile() : null, api.catalog('beaches'), window.PortalLocations.ready()
       ]);
       const registrationPage = signed ? await api.registrations({ page: view === 'mine' ? state.page : 0, size: view === 'mine' ? 6 : 1,
         eventIds: view === 'events' ? result.content.map(event => event.id).join(',') : undefined })
         : { content: [], totalElements: 0, registeredEventIds: [] };
       const registrations = registrationPage.content;
       if (generation !== state.generation) return false;
-      catalogChoices($('location-filter'), beaches, 'Todas as praias');
+      const previousLocation = eventLocation ? [eventLocation.state.value, eventLocation.city.value, eventLocation.beach.value] : [];
+      $('location-filters').replaceChildren();
+      eventLocation = window.PortalLocations.beaches($('location-filters'), beaches);
+      eventLocation.beach.id = 'location-filter';
+      eventLocation.set(...previousLocation);
       state.profile = profile;
       state.registrations = view === 'events' ? registrationPage.registeredEventIds.map(id => ({ id })) : registrations;
       state.totalRegistrations = registrationPage.totalElements;

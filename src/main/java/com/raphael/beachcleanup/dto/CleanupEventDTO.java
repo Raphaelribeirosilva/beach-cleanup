@@ -5,11 +5,13 @@ import java.time.LocalDateTime;
 import com.raphael.beachcleanup.entities.CleanupEvent;
 
 public record CleanupEventDTO(Long id, String title, String location,
-        LocalDateTime dateTime, String status, Long version, Long beachId) {
+        LocalDateTime dateTime, String status, Long version, Long beachId, String state, String city) {
 
     public CleanupEventDTO(CleanupEvent entity) {
         this(entity.getId(), entity.getTitle(), entity.getBeachReference() == null ? entity.getLocation() : entity.getBeachReference().getName(),
             entity.getDateTime(), entity.getStatus(), entity.getRowVersion(),
-            entity.getBeachReference() == null ? null : entity.getBeachReference().getId());
+            entity.getBeachReference() == null ? null : entity.getBeachReference().getId(),
+            entity.getBeachReference() == null ? null : entity.getBeachReference().getState(),
+            entity.getBeachReference() == null ? null : entity.getBeachReference().getCity());
     }
 }

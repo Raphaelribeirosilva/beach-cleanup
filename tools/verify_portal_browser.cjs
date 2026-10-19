@@ -76,7 +76,7 @@ async function main() {
     for (const [kind, names] of [
       ['beaches', ['Praia API', 'Praia do navegador', 'Praia independente', 'Praia administrativa', 'Paginação administrativa', 'Lugar inexistente']],
       ['materials', ['<img src=x onerror=alert(1)>']]
-    ]) for (const name of names) await api(`/catalog/${kind}`, { name }, admin.accessToken);
+    ]) for (const name of names) await api(`/catalog/${kind}`, { name, ...(kind === 'beaches' ? { state: 'SP', city: 'Santos' } : {}) }, admin.accessToken);
     for (let i = 0; i < 2; i++) await api('/users', {
       name: `Consulta ${i}`, email: `consulta-${i}@example.com`, password: 'browser-test-password'
     });
@@ -143,6 +143,7 @@ async function main() {
         const option = [...element.options].find(option => option.value === value || option.textContent === value);
         if (!option) throw new Error('Missing catalog choice: ' + value);
         element.value = option.value;
+        element.dispatchEvent(new Event('change', { bubbles: true }));
       } else element.value = value;
     })()`);
     const waitFor = expression => until(() => evaluate(expression), expression);
@@ -254,6 +255,24 @@ async function main() {
       assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),`No horizontal page overflow at ${width}px`);
     }
     await cdp('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
+    assert.equal(await evaluate('document.title'), 'Elo do mar · Cada coleta conta');
+    await fill('#location-filters [name=state]', 'SP');
+    await fill('#location-filters [name=city]', 'Santos');
+    await click('#filters button');
+    await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('document.querySelector("#location-filters [name=city]").value'), 'Santos');
+    assert.equal(await evaluate('document.querySelectorAll("#results .card").length'), 6);
+    await fill('#location-filter', 'Praia do navegador');
+    await fill('#location-filters [name=state]', 'RJ');
+    assert.equal(await evaluate('document.querySelector("#location-filter").value'), '', 'Changing state clears the beach');
+    assert.equal(await evaluate('document.querySelector("#location-filters [name=city]").value'), '', 'Changing state clears the city');
+    assert.ok(await evaluate('![...document.querySelector("#location-filter").options].some(option => option.textContent === "Praia do navegador")'));
+    await fill('#location-filters [name=city]', 'Rio de Janeiro');
+    await click('#filters button');
+    await waitFor('document.querySelector("#results").textContent.includes("Nenhum evento")');
+    await fill('#location-filters [name=state]', '');
+    await click('#filters button');
+    await waitFor('document.querySelectorAll("#results .card").length === 6 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('#next');
     await waitFor('document.querySelector("#page-info").textContent.includes("2 de 2") && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await fill('#location-filter', 'Lugar inexistente');
@@ -487,6 +506,8 @@ async function main() {
     await click('#admin-create');
     await waitFor('document.querySelector("#admin-dialog").open');
     await fill('#admin-form [name=title]', 'Mutirão administrativo');
+    await fill('#admin-form [name=state]', 'SP');
+    await fill('#admin-form [name=city]', 'Santos');
     await fill('#admin-form [name=location]', 'Praia administrativa');
     await fill('#admin-form [name=dateTime]', '2026-10-15T09:00:00');
     assert.deepEqual(await evaluate('[...document.querySelector("#admin-form [name=status]").options].map(o => o.value)'), ['Agendado']);
@@ -647,6 +668,8 @@ async function main() {
     await click('#admin-create');
     await waitFor('document.querySelector("#admin-dialog").open');
     await fill('#admin-form [name=name]', 'Praia de catálogo');
+    await fill('#admin-form [name=state]', 'SP');
+    await fill('#admin-form [name=city]', 'Santos');
     await fill('#admin-form [name=aliases]', 'Apelido de catálogo');
     await saveAdmin();
     await savedAdmin();

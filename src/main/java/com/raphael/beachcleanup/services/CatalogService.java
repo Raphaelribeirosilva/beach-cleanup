@@ -41,7 +41,9 @@ public class CatalogService {
         String name = requireName(input.name(), "name");
         var keys = keys(input, name);
         requireAvailable(kind, keys, null);
-        var entry = entries.saveAndFlush(new CatalogEntry(kind, name));
+        var entry = new CatalogEntry(kind, name);
+        geography(entry, input);
+        entries.saveAndFlush(entry);
         for (String key : keys) entityManager.persist(new CatalogAlias(entry, key));
         aliases.flush(); // Uniqueness also protects concurrent creates.
         return dto(entry, keys);
@@ -56,6 +58,7 @@ public class CatalogService {
         aliases.findByEntryId(id).forEach(alias -> keys.add(alias.getId().name()));
         requireAvailable(kind, keys, id);
         entry.setName(name);
+        geography(entry, input);
         for (String key : keys) {
             if (!aliases.existsById(new CatalogAlias.Key(kind, key))) entityManager.persist(new CatalogAlias(entry, key));
         }
@@ -160,6 +163,17 @@ public class CatalogService {
     }
 
     private CatalogDTO dto(CatalogEntry entry, Collection<String> keys) {
-        return new CatalogDTO(entry.getId(), entry.getName(), entry.getVersion(), keys.stream().sorted().toList());
+        return new CatalogDTO(entry.getId(), entry.getName(), entry.getVersion(), keys.stream().sorted().toList(), entry.getState(), entry.getCity());
+    }
+
+    private void geography(CatalogEntry entry, CatalogInputDTO input) {
+        // Older clients omit both fields: preserve the existing location on updates.
+        if (input.state() == null && input.city() == null) return;
+        if (!entry.getKind().equals("beaches"))
+            throw new FieldValidationException("state", "Localização é permitida somente para praias.");
+        if (input.state() == null || input.city() == null)
+            throw new FieldValidationException("city", "Informe Estado e cidade juntos.");
+        String city = Geography.requireCity(input.state(), input.city());
+        entry.setGeography(input.state(), city);
     }
 }

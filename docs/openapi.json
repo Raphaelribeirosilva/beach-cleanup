@@ -1309,6 +1309,24 @@
               "minimum": 1
             },
             "description": "Filtro exato pelo ID do catalogo."
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            },
+            "description": "Filtra pela UF da praia cadastrada."
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Filtra por municipio; exige state. Combina com praia, status e paginacao."
           }
         ]
       }
@@ -2761,6 +2779,14 @@
             "minimum": 1,
             "nullable": true,
             "description": "ID estavel do catalogo. Pode ser nulo apenas em registros legados incompletos."
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -3319,6 +3345,18 @@
               "type": "string"
             },
             "description": "Nomes reconhecidos, normalizados sem acentos, em minusculas e com espacos simples."
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "UF brasileira da praia; informar junto com city. Opcional para compatibilidade com cadastros antigos.",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "UF e municipio da praia conforme a base IBGE. Informar juntos.",
+            "nullable": true
           }
         }
       },
@@ -3346,6 +3384,16 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "UF brasileira da praia; informar junto com city. Opcional para compatibilidade com cadastros antigos."
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "UF e municipio da praia conforme a base IBGE. Informar juntos."
           }
         }
       },
@@ -3374,6 +3422,16 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "UF brasileira da praia; informar junto com city. Opcional para compatibilidade com cadastros antigos."
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "UF e municipio da praia conforme a base IBGE. Informar juntos."
           }
         }
       },

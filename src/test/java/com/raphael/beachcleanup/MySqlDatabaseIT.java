@@ -107,12 +107,41 @@ class MySqlDatabaseIT {
             fixed.repair();
             fixed.migrate();
             fixed.validate();
-            assertEquals(11, fixed.info().applied().length);
+            assertEquals(12, fixed.info().applied().length);
             assertEquals(originalUsers, tableRows(connection,"tb_user",
                 "id,name,email,password,role,credential_version,row_version,total_collected_kg"));
             assertEquals(global, scalar(sql,"SELECT @@GLOBAL.explicit_defaults_for_timestamp"));
             assertTimestampDefinitions(sql);
             assertEquals(0, fixed.migrate().migrationsExecuted);
+        }
+    }
+
+    @Test
+    void beachGeographyPersistsAndFiltersEventsAfterRestart() {
+        long eventId;
+        try (var context = start()) {
+            var catalogs = context.getBean(CatalogService.class);
+            var beach = catalogs.create("beaches", new com.raphael.beachcleanup.dto.CatalogInputDTO(
+                "Gonzaga - Santos", List.of(), null, "SP", "Santos"));
+            var other = catalogs.create("beaches", new com.raphael.beachcleanup.dto.CatalogInputDTO(
+                "Copacabana", List.of(), null, "RJ", "Rio de Janeiro"));
+            var service = context.getBean(CleanupEventService.class);
+            var first = new CleanupEvent(null, "Mutirão em Santos", null,
+                LocalDateTime.parse("2026-11-01T09:00:00"), "Agendado");
+            first.setBeachReference(CatalogEntry.reference(beach.id()));
+            eventId = service.insert(first).getId();
+            var second = new CleanupEvent(null, "Mutirão no Rio", null,
+                LocalDateTime.parse("2026-11-01T09:00:00"), "Agendado");
+            second.setBeachReference(CatalogEntry.reference(other.id()));
+            service.insert(second);
+        }
+        try (var context = start()) {
+            var page = context.getBean(SearchService.class).events(null, null, null, null, null,
+                "SP", "Santos", org.springframework.data.domain.PageRequest.of(0, 1));
+            assertEquals(1, page.totalElements());
+            assertEquals(eventId, page.content().getFirst().id());
+            assertEquals("Santos", page.content().getFirst().city());
+            assertEquals("SP", page.content().getFirst().state());
         }
     }
 
@@ -291,7 +320,7 @@ class MySqlDatabaseIT {
                 assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> context.getBean(AccountActionService.class).verify(oldAction));
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(11, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(12, context.getBean(Flyway.class).info().applied().length);
                 var proof = java.util.Map.of("scope","disposable MySQL local restore", "status","passed",
                     "allTablesCompared",comparedTables,"sessionsQuarantined",true,"oldAccessAndRefreshRejected",true,
                     "oldAccountLinksRejected",true,"applicationLoginAndTotals","passed",
@@ -314,7 +343,7 @@ class MySqlDatabaseIT {
 
     @Test
     void runtimeAccountCanOperateWithoutSchemaOrGlobalPrivileges() throws Exception {
-        try (var migrated=start()) { assertEquals(11,migrated.getBean(Flyway.class).info().applied().length); }
+        try (var migrated=start()) { assertEquals(12,migrated.getBean(Flyway.class).info().applied().length); }
         String account="beach_app_"+UUID.randomUUID().toString().replace("-", "").substring(0,12);
         try (var root=DriverManager.getConnection(serverUrl,username,password); var sql=root.createStatement()) {
             sql.executeUpdate("create user '"+account+"'@'localhost' identified by 'discardable-runtime-test-password'");
@@ -425,7 +454,7 @@ class MySqlDatabaseIT {
             collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(11, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(12, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -468,7 +497,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(11, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(12, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -584,7 +613,7 @@ class MySqlDatabaseIT {
     void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
         WeightMigrationAssertions.verify(url, username, password);
         try (var context = start(url, false)) {
-            assertEquals(11, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(12, context.getBean(Flyway.class).info().applied().length);
             assertEquals(101L, context.getBean(AuthService.class)
                 .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
             var report = context.getBean(DataQualityService.class);
