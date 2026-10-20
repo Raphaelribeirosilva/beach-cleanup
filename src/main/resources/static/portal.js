@@ -14,7 +14,9 @@
     notify('Sua sessão expirou. Entre novamente para continuar.', true);
     openAuth('login');
   });
-  const state = { view: 'events', page: 0, pages: 0, generation: 0, signup: false,
+  const routes = { home: 'inicio', events: 'mutiroes', reports: 'impacto', mine: 'inscricoes', collections: 'coletas', profile: 'perfil', admin: 'administracao' };
+  const routeView = () => Object.keys(routes).find(view => `#/${routes[view]}` === window.location.hash) || 'home';
+  const state = { view: routeView(), page: 0, pages: 0, generation: 0, signup: false,
     profile: null, totalRegistrations: 0, registrations: [], selectedEvent: null, editingCollection: null, profileVersion: null, loading: false };
   const kg = value => value == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
   const date = value => {
@@ -49,7 +51,8 @@
     const signed = Boolean(api.session());
     $('account').hidden = signed;
     $('signed-account').hidden = !signed;
-    $('impact').hidden = !signed || ['admin', 'reports'].includes(state.view);
+    $('personal-menu').hidden = !signed;
+    $('impact').hidden = !signed || !['mine', 'collections'].includes(state.view);
     $('admin-tab').hidden = api.session()?.role !== 'ADMIN';
     $('account-name').textContent = state.profile?.name || 'Minha conta';
     $('total-kg').textContent = state.profile ? kg(state.profile.totalCollectedKg) : '—';
@@ -77,6 +80,7 @@
     void load();
   }
   function syncView() {
+    if (routeView() !== state.view) window.history.replaceState({ view: state.view }, '', `#/${routes[state.view]}`);
     document.querySelectorAll('[data-view]').forEach(button => {
       const active = button.dataset.view === state.view;
       button.classList.toggle('active', active);
@@ -87,8 +91,12 @@
     const administrative = state.view === 'admin' && api.session()?.role === 'ADMIN';
     const reports = state.view === 'reports';
     const profile = state.view === 'profile';
-    document.querySelector('.hero').hidden = administrative || reports || profile;
-    $('impact').hidden = administrative || reports || !api.session();
+    const home = state.view === 'home';
+    document.body.dataset.page = state.view;
+    document.querySelector('.hero').hidden = !home;
+    $('home-content').hidden = !home;
+    $('workspace').hidden = home;
+    $('impact').hidden = !['mine', 'collections'].includes(state.view) || !api.session();
     admin.setActive(administrative);
     $('reports-workspace').hidden = !reports;
     $('profile-workspace').hidden = !profile;
@@ -96,9 +104,22 @@
     $('collection-open').hidden = administrative || reports || profile;
     if (administrative || reports || profile) $('pagination').hidden = true;
     $('filters').hidden = !events;
+    const pages = {
+      events: ['Mutirões', 'Encontre seu lugar nessa mudança', 'Encontre sua próxima ação', 'Escolha o Estado, a cidade e a praia. Sua próxima ação pode estar bem perto.'],
+      reports: ['Nosso impacto', 'Cada ação deixa uma boa marca', 'Um oceano de pequenas mudanças', 'Acompanhe o que já retiramos da natureza, juntos.'],
+      mine: ['Minhas inscrições', 'Você faz parte dessa maré', 'Seus próximos encontros com o mar', 'Acompanhe os mutirões em que você se inscreveu.'],
+      collections: ['Minhas coletas', 'Seu cuidado em movimento', 'Cada coleta conta', 'Registre e acompanhe o que você já retirou da natureza.'],
+      profile: ['Meu perfil', 'Seu espaço no Elo do mar', 'Bom ter você por aqui', 'Cuide dos seus dados e mantenha sua conta atualizada.'],
+      admin: ['Administração', 'Conecte pessoas a boas ações', 'Organize a próxima mudança', 'Gerencie mutirões, praias e os registros da comunidade.']
+    };
+    const page = pages[state.view] || pages.events;
+    $('page-label').textContent = page[0];
+    $('page-eyebrow').textContent = page[1];
+    $('page-description').textContent = page[3];
     $('workspace-title').textContent = events ? 'Encontre sua próxima ação'
       : administrative ? 'Administração dos mutirões'
-      : reports ? 'Resultados das ações de limpeza' : profile ? 'Meu perfil' : state.view === 'mine' ? 'Seu lugar na próxima mudança' : 'Cada coleta conta';
+      : reports ? page[2] : profile ? page[2] : state.view === 'mine' ? page[2] : 'Cada coleta conta';
+    document.title = `${home ? 'Elo do mar' : page[0] + ' · Elo do mar'} · Cada coleta conta`;
   }
   function empty(title, description) {
     const box = node('div', 'empty');
@@ -125,7 +146,7 @@
     const top = node('div', 'card-top');
     top.append(node('span', 'badge', event.status), node('span', 'card-id', `Mutirão #${event.id}`));
     const body = node('div', 'card-body');
-    body.append(node('h3', '', event.title), node('p', '', `⌖ ${event.location}${event.city ? ` · ${event.city}/${event.state}` : ''}`), node('p', '', `◷ ${date(event.dateTime)}`));
+    body.append(node('h3', '', event.title), node('p', '', `⌖ ${window.PortalLocations.label(event.location)}${event.city ? ` · ${event.city}/${event.state}` : ''}`), node('p', '', `◷ ${date(event.dateTime)}`));
     const actions = node('div', 'card-actions');
     if (registered || activeEvent(event)) actions.append(action(registered ? 'Cancelar inscrição' : 'Quero participar',
       () => registrationAction(event, registered), !registered));
@@ -157,6 +178,7 @@
   }
   async function load() {
     const generation = ++state.generation;
+    if (state.view === 'home') { state.loading = false; return true; }
     if (state.view === 'admin') { state.loading = false; return admin.load(); }
     if (state.view === 'reports') return loadReport(generation);
     if (state.view === 'profile') {
@@ -367,18 +389,38 @@
   $('collection-open').addEventListener('click', () => openCollection());
   $('unlink-event').addEventListener('click', () => { state.selectedEvent = null; syncCollectionEvent(); });
   document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => $(button.dataset.close).close()));
-  document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => {
-    if (button.dataset.view === 'admin' && api.session()?.role !== 'ADMIN') {
+  function navigate(view, push = true) {
+    if (!(view in routes)) view = 'home';
+    if (view === 'admin' && api.session()?.role !== 'ADMIN') {
       notify('Esta área é exclusiva de administradores.', true); return;
     }
-    if (!['events', 'reports'].includes(button.dataset.view) && !api.session()) { openAuth('login'); return; }
-    state.view = button.dataset.view;
+    if (!['home', 'events', 'reports'].includes(view) && !api.session()) { openAuth('login'); return; }
+    state.view = view;
     state.page = 0;
+    $('personal-menu').open = false;
+    $('main-navigation').closest('header').classList.remove('menu-open');
+    $('menu-toggle').setAttribute('aria-expanded', 'false');
+    if (push) window.history.pushState({ view }, '', `#/${routes[view]}`);
     syncView();
     notify('');
     const requested = state.view;
-    void load().then(loaded => { if (loaded && requested === state.view) window.PortalUI.focus($('workspace-title')); });
-  }));
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    void load().then(loaded => { if (loaded && requested === state.view && view !== 'home') window.PortalUI.focus($('workspace-title')); });
+  }
+  document.querySelectorAll('[data-view],[data-go]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.view || button.dataset.go)));
+  $('menu-toggle').addEventListener('click', () => {
+    const opened = document.querySelector('.topbar').classList.toggle('menu-open');
+    $('menu-toggle').setAttribute('aria-expanded', String(opened));
+    $('menu-toggle').setAttribute('aria-label', opened ? 'Fechar menu' : 'Abrir menu');
+  });
+  document.querySelector('.skip').addEventListener('click', event => {
+    event.preventDefault();
+    window.PortalUI.focus($('main'));
+  });
+  window.addEventListener('popstate', () => {
+    // In-page accessibility anchors, such as #main, are not page routes.
+    if (!window.location.hash || window.location.hash.startsWith('#/')) navigate(routeView(), false);
+  });
   $('filters').addEventListener('submit', event => { event.preventDefault(); state.page = 0; notify(''); void load().then(() => window.PortalUI.focus($('results'))); });
   $('previous').addEventListener('click', () => { if (!state.loading && state.page > 0) { state.page--; void load(); } });
   $('next').addEventListener('click', () => { if (!state.loading && state.page + 1 < state.pages) { state.page++; void load(); } });
@@ -405,7 +447,9 @@
         form.reset();
         $('auth-dialog').close();
         syncAccount();
-        if (await load()) notify(created ? 'Conta criada. Bem-vindo à sua próxima ação!' : 'Você entrou na sua conta.');
+        syncView();
+        if (state.view === 'home') navigate('events');
+        else if (await load()) notify(created ? 'Conta criada. Bem-vindo à sua próxima ação!' : 'Você entrou na sua conta.');
       } catch (error) {
         if (created) openAuth('login');
         showAuthError(error);
@@ -535,6 +579,7 @@
   });
 
   // Restored credentials still go through the API before private data is rendered.
+  if (!['home', 'events', 'reports'].includes(state.view) && !api.session()) state.view = 'home';
   syncAccount();
   syncView();
   window.addEventListener('focus', () => { api.session(); });

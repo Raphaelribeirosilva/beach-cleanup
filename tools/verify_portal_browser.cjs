@@ -40,6 +40,7 @@ async function main() {
   const children = [];
   let socket;
   let closeBrowser;
+  let debugPage;
   const browserErrors = [];
   let logs = '';
   function launch(command, args) {
@@ -147,6 +148,11 @@ async function main() {
       } else element.value = value;
     })()`);
     const waitFor = expression => until(() => evaluate(expression), expression);
+    debugPage = async () => {
+      const state = await evaluate(`({page:document.body.dataset.page,hash:location.hash,filters:[...document.querySelectorAll('#filters select')].map(select=>({name:select.name,value:select.value})),notice:document.querySelector('#notice').textContent,results:document.querySelector('#results').textContent.slice(0,1500)})`);
+      fs.writeFileSync(path.join(root,'target','portal-debug.json'),JSON.stringify(state,null,2));
+      await cdp('Page.captureScreenshot', { format:'png' }).then(result=>fs.writeFileSync(path.join(root,'target','portal-debug.png'),Buffer.from(result.data,'base64')));
+    };
     const accessibility = [];
     const checkAccessibility = async stage => {
       accessibility.push(await audit(evaluate,stage));
@@ -168,8 +174,32 @@ async function main() {
     await cdp('Page.enable');
     await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 960, deviceScaleFactor: 1, mobile: false });
     await cdp('Page.navigate', { url: base });
+    await waitFor('document.body.dataset.page === "home" && !document.querySelector("#home-content").hidden');
+    assert.equal(await evaluate('document.querySelector("#workspace").hidden'), true, 'Home and event search are separate views');
+    await checkAccessibility('home-desktop');
+    await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }).then(result => fs.writeFileSync(path.join(root, 'target', 'elo-home.png'), Buffer.from(result.data, 'base64')));
+    await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:844,deviceScaleFactor:1,mobile:true});
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Home fits a narrow viewport');
+    await checkAccessibility('home-mobile');
+    await cdp('Page.captureScreenshot', {format:'png'}).then(result=>fs.writeFileSync(path.join(root,'target','elo-home-mobile.png'),Buffer.from(result.data,'base64')));
+    await click('#menu-toggle');
+    assert.equal(await evaluate('document.querySelector("#menu-toggle").getAttribute("aria-expanded")'),'true');
+    await click('[data-view=events]');
+    await waitFor('document.body.dataset.page === "events" && document.querySelectorAll("#results .card").length === 6');
+    assert.equal(await evaluate('document.querySelector("#menu-toggle").getAttribute("aria-expanded")'),'false');
+    await cdp('Page.captureScreenshot', {format:'png'}).then(result=>fs.writeFileSync(path.join(root,'target','elo-events-mobile.png'),Buffer.from(result.data,'base64')));
+    await cdp('Emulation.setDeviceMetricsOverride', {width:1280,height:960,deviceScaleFactor:1,mobile:false});
+    await click('[data-view=events]');
     await waitFor('document.querySelectorAll(".card").length === 6 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('location.hash'), '#/mutiroes');
+    assert.equal(await evaluate('document.querySelector(".hero").hidden'), true, 'Event search opens without a landing hero above it');
+    await click('[data-view=reports]');
+    await waitFor('document.querySelector("#report-results table") !== null');
+    await evaluate('history.back()');
+    await waitFor('document.body.dataset.page === "events" && location.hash === "#/mutiroes" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await checkAccessibility('public-desktop');
+    await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'elo-events.png'), Buffer.from(result.data, 'base64')));
+    await evaluate('document.body.tabIndex = -1; document.body.focus(); document.body.removeAttribute("tabindex"); window.scrollTo(0,0)');
     await key('Tab','Tab');
     assert.equal(await evaluate('document.activeElement.className'),'skip','First keyboard stop is the skip link');
     await key('Enter','Enter');
@@ -255,10 +285,26 @@ async function main() {
       assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),`No horizontal page overflow at ${width}px`);
     }
     await cdp('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
-    assert.equal(await evaluate('document.title'), 'Elo do mar · Cada coleta conta');
+    assert.equal(await evaluate('document.title'), 'Mutirões · Elo do mar · Cada coleta conta');
+    // Operate the custom picker itself, including accent-insensitive search and keyboard choice.
+    await click('#location-filters [name=state] + .choice .choice-trigger');
+    await waitFor('document.querySelector(".choice-popup:popover-open") !== null');
+    await fill('.choice-popup:popover-open .choice-search', 'espirito santo');
+    await evaluate('document.querySelector(".choice-popup:popover-open .choice-search").dispatchEvent(new Event("input",{bubbles:true}))');
+    await key('Enter', 'Enter');
+    assert.equal(await evaluate('document.querySelector("#location-filters [name=state]").value'), 'ES');
+    await click('#location-filters [name=city] + .choice .choice-trigger');
+    await fill('.choice-popup:popover-open .choice-search', 'guarapari');
+    await evaluate('document.querySelector(".choice-popup:popover-open .choice-search").dispatchEvent(new Event("input",{bubbles:true}))');
+    await key('Enter', 'Enter');
+    assert.ok(await evaluate('[...document.querySelector("#location-filter").options].some(option => option.textContent.includes("Castanheiras"))'), 'Real beaches are available without manual registration');
+    await click('#location-filter + .choice .choice-trigger');
+    await checkAccessibility('beach-picker');
+    await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'elo-beach-picker.png'), Buffer.from(result.data, 'base64')));
+    await key('Escape','Escape');
     await fill('#location-filters [name=state]', 'SP');
     await fill('#location-filters [name=city]', 'Santos');
-    await click('#filters button');
+    await click('#filters button[type=submit]');
     await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false"');
     assert.equal(await evaluate('document.querySelector("#location-filters [name=city]").value'), 'Santos');
     assert.equal(await evaluate('document.querySelectorAll("#results .card").length'), 6);
@@ -268,18 +314,18 @@ async function main() {
     assert.equal(await evaluate('document.querySelector("#location-filters [name=city]").value'), '', 'Changing state clears the city');
     assert.ok(await evaluate('![...document.querySelector("#location-filter").options].some(option => option.textContent === "Praia do navegador")'));
     await fill('#location-filters [name=city]', 'Rio de Janeiro');
-    await click('#filters button');
+    await click('#filters button[type=submit]');
     await waitFor('document.querySelector("#results").textContent.includes("Nenhum evento")');
     await fill('#location-filters [name=state]', '');
-    await click('#filters button');
+    await click('#filters button[type=submit]');
     await waitFor('document.querySelectorAll("#results .card").length === 6 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('#next');
     await waitFor('document.querySelector("#page-info").textContent.includes("2 de 2") && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await fill('#location-filter', 'Lugar inexistente');
-    await click('#filters button');
+    await click('#filters button[type=submit]');
     await waitFor('document.querySelector("#results").textContent.includes("Nenhum evento")');
     await fill('#location-filter', 'Praia do navegador');
-    await click('#filters button');
+    await click('#filters button[type=submit]');
     await waitFor('document.querySelectorAll(".card").length === 6');
     await click('[data-view=reports]');
     await waitFor('document.querySelector("#report-results table") !== null');
@@ -309,8 +355,9 @@ async function main() {
     await fill('#auth-form [name=email]', 'portal-browser@example.com');
     await fill('#auth-form [name=password]', 'portal-test-password');
     await click('#auth-submit');
-    await waitFor('!document.querySelector("#auth-dialog").open && !document.querySelector("#impact").hidden && document.querySelector("#account-name").textContent === "Voluntário navegador"');
+    await waitFor('!document.querySelector("#auth-dialog").open && !document.querySelector("#signed-account").hidden && document.querySelector("#account-name").textContent === "Voluntário navegador"');
     await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    assert.equal(await evaluate('location.hash'), '#/mutiroes', 'Login restores the page route after a verification link');
     await reloadPage();
     await waitFor('document.querySelector("#account-name").textContent === "Voluntário navegador" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('.card-actions .primary');
@@ -747,6 +794,8 @@ async function main() {
     fs.writeFileSync(path.join(root,'target','portal-browser-performance.json'),JSON.stringify(metrics,null,2));
     console.log('PASS: recovery/verification forms, private link fragments and password policy; silent renewal, refresh rotation/deadline, server logout and revoked JWTs; public impact dashboard and admin registrations; personal profile/password, collection edits/deletions, stale drafts, totals and permissions; administrative audit, keyboard/focus, contrast, desktop/mobile and CSP.');
   } catch (error) {
+    if (debugPage) await debugPage().catch(() => {});
+    if (browserErrors.length) logs += '\nBrowser errors: ' + JSON.stringify(browserErrors);
     fs.writeFileSync(path.join(root, 'target', 'portal-browser-failure.log'), logs);
     console.error(logs.slice(-3000));
     throw error;

@@ -10,29 +10,52 @@
   <link rel="stylesheet" href="/portal.css">
   <link rel="stylesheet" href="/portal-admin.css">
   <link rel="stylesheet" href="/portal-account.css">
+  <link rel="stylesheet" href="/portal-design.css">
   <script src="/portal-ui.js" defer></script>
   <script src="/portal-api.js" defer></script>
   <script src="/portal-locations.js" defer></script>
   <script src="/portal-reports.js" defer></script>
   <script src="/portal-admin.js" defer></script>
   <script src="/portal.js" defer></script>
+  <script src="/portal-select.js" defer></script>
 </head>
 <body>
   <a class="skip" href="#main">Pular para o conteúdo</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="Elo do mar, início"><span class="brand-mark" aria-hidden="true">≈</span><span>Elo <span class="brand-light">do mar</span></span></a>
+    <button type="button" class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="main-navigation" aria-label="Abrir menu">☰</button>
+    <nav id="main-navigation" class="main-navigation" aria-label="Navegação principal">
+      <button class="nav-link" data-view="home">Início</button>
+      <button class="nav-link" data-view="events">Mutirões</button>
+      <button class="nav-link" data-view="reports">Nosso impacto</button>
+      <details id="personal-menu" class="personal-menu" hidden><summary>Minha área <span aria-hidden="true">⌄</span></summary><div class="personal-links">
+        <button class="nav-link" data-view="mine">Minhas inscrições</button>
+        <button class="nav-link" data-view="collections">Minhas coletas</button>
+        <button class="nav-link" data-view="profile">Meu perfil</button>
+        <button class="nav-link" id="admin-tab" data-view="admin" hidden>Administração</button>
+      </div></details>
+    </nav>
     <div id="account"><button class="button outline" id="login-open">Entrar</button><button class="button primary" id="signup-open">Quero participar</button></div>
     <div id="signed-account" hidden><span id="account-name"></span><button class="button outline" id="logout">Sair</button></div>
   </header>
   <main id="main" tabindex="-1">
     <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-copy"><p class="eyebrow">Pela praia. Pelo oceano. Por todos.</p><h1 id="hero-title">Uma praia mais limpa<br>começa com você.</h1><p>Encontre um mutirão, faça parte da mudança e acompanhe o que você já retirou da natureza.</p><a class="button sand" href="#workspace">Encontre seu próximo mutirão <span aria-hidden="true">↗</span></a></div>
+      <div class="hero-copy"><p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> Gente que cuida. Mar que conecta.</p><h1 id="hero-title">O próximo elo<br>com o mar<br><em>é você.</em></h1><p>Uma manhã na praia. Pessoas com o mesmo propósito. Um oceano de diferença. Encontre sua próxima ação e venha fazer parte.</p><div class="hero-actions"><button type="button" class="button sand" data-go="events">Encontrar um mutirão <span aria-hidden="true">↗</span></button><button type="button" class="hero-secondary" data-go="reports">Conheça nosso impacto →</button></div><div class="hero-note"><span aria-hidden="true">◌</span> Pequenas ações. Marés de mudança.</div></div>
       <div class="seascape" aria-hidden="true"><svg viewBox="0 0 520 330" role="presentation"><circle cx="366" cy="85" r="40" fill="#efd39f"/><path d="M0 155 Q100 110 225 160 T520 150 V330 H0Z" fill="#478b87"/><path d="M0 208 Q130 150 290 210 T520 190 V330 H0Z" fill="#80b4a3"/><path d="M0 260 Q180 193 350 258 T520 247 V330 H0Z" fill="#e8d7b5"/><path d="M40 175 Q100 150 160 174 M265 192 Q315 170 375 189 M80 242 Q145 218 205 237" fill="none" stroke="#d5ece0" stroke-width="3" stroke-linecap="round"/><path d="M329 99 Q343 88 356 99 M390 126 Q404 115 417 126" fill="none" stroke="#123e40" stroke-width="3" stroke-linecap="round"/></svg><span>Pequenas ações. Marés de mudança.</span></div>
+    </section>
+    <section id="home-content" class="home-content" aria-label="Conheça o Elo do mar">
+      <div class="home-intro"><div><p class="eyebrow">Da vontade à ação</p><h2>Cuidar do mar começa<br>bem perto de você.</h2></div><p>Conectamos quem quer fazer a diferença a ações de limpeza nas praias. Você encontra o lugar, participa do mutirão e acompanha o que ajudou a transformar.</p></div>
+      <div class="journey-grid">
+        <article class="journey-card"><span class="journey-icon" aria-hidden="true">⌖</span><span class="step-number">01 / ENCONTRE</span><h3>Sua praia, sua próxima ação.</h3><p>Escolha o Estado, encontre sua cidade e descubra os mutirões que acontecem por perto.</p><button class="text-button" data-go="events">Explorar mutirões ↗</button></article>
+        <article class="journey-card"><span class="journey-icon" aria-hidden="true">∞</span><span class="step-number">02 / PARTICIPE</span><h3>Sozinho é um começo.<br>Juntos, uma maré.</h3><p>Inscreva-se, encontre outras pessoas e transforme seu cuidado em uma ação coletiva.</p><button class="text-button" data-go="mine">Minha participação ↗</button></article>
+        <article class="journey-card"><span class="journey-icon" aria-hidden="true">≈</span><span class="step-number">03 / TRANSFORME</span><h3>Cada coleta conta.<br>A sua também.</h3><p>Registre os resíduos retirados da natureza e acompanhe o impacto das nossas ações.</p><button class="text-button" data-go="reports">Ver nosso impacto ↗</button></article>
+      </div>
+      <div class="home-invitation"><div><p class="eyebrow">Seu lugar nessa mudança</p><h2>Vamos deixar boas marcas.<br>Na memória, não na areia.</h2></div><button class="button primary" data-go="events">Encontre sua próxima ação ↗</button></div>
     </section>
     <section class="impact" aria-label="Seu impacto" id="impact" hidden><div><span class="eyebrow">Seu impacto até aqui</span><h2>Seu cuidado faz diferença.</h2></div><div class="metric"><strong id="total-kg">—</strong><span>kg coletados por você</span></div><div class="metric"><strong id="total-events">—</strong><span>inscrições em eventos</span></div></section>
     <section id="workspace" class="workspace" aria-labelledby="workspace-title">
-      <div class="section-heading"><div><p class="eyebrow">Vamos fazer parte</p><h2 id="workspace-title" tabindex="-1">Encontre sua próxima ação</h2></div><button class="button primary" id="collection-open">+ Registrar coleta</button></div>
-      <nav class="tabs" aria-label="Áreas do portal"><button class="tab active" data-view="events" aria-current="page">Explorar eventos</button><button class="tab" data-view="mine">Minhas inscrições</button><button class="tab" data-view="collections">Minhas coletas</button><button class="tab" data-view="profile">Meu perfil</button><button class="tab" data-view="reports">Relatórios de impacto</button><button class="tab" id="admin-tab" data-view="admin" hidden>Administração</button></nav>
+      <div class="page-breadcrumb"><button type="button" data-go="home">Início</button><span aria-hidden="true">/</span><span id="page-label">Mutirões</span></div>
+      <div class="section-heading page-heading"><div><p class="eyebrow" id="page-eyebrow">Encontre seu lugar nessa mudança</p><h2 id="workspace-title" tabindex="-1">Encontre sua próxima ação</h2><p id="page-description" class="page-description">Escolha o destino e venha cuidar do que conecta a gente.</p></div><button class="button primary" id="collection-open">+ Registrar coleta</button></div>
       <form id="filters" class="filters"><span id="location-filters" class="location-filters"></span><label id="status-label">Status<select id="status-filter" name="status"><option value="">Todos os status</option><option>Agendado</option><option>Em andamento</option><option>Pausado</option><option value="Concluido">Concluído</option><option>Cancelado</option></select></label><button class="button outline" type="submit">Buscar</button></form>
       <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
       <section id="admin-workspace" aria-label="Administração" hidden>
@@ -63,7 +86,7 @@
       <div id="pagination" class="pagination" hidden><button class="button outline" id="previous">← Anterior</button><span id="page-info"></span><button class="button outline" id="next">Próxima →</button></div>
     </section>
   </main>
-  <footer><a class="brand" href="/">≈ Elo do mar</a><p>Cada pessoa importa. Cada coleta conta.</p></footer>
+  <footer><div><a class="brand" href="/">≈ Elo do mar</a><p>Conexões que cuidam do oceano.</p></div><nav aria-label="Navegação do rodapé"><button data-go="home">Início</button><button data-go="events">Mutirões</button><button data-go="reports">Nosso impacto</button></nav><p>Cada pessoa importa.<br>Cada coleta conta.</p></footer>
   <dialog id="admin-dialog" aria-labelledby="admin-editor-title"><div class="dialog-heading"><p class="eyebrow">Administração</p><button class="close" data-close="admin-dialog" aria-label="Fechar">×</button></div><h2 id="admin-editor-title"></h2><form id="admin-form"></form></dialog>
   <dialog id="auth-dialog" aria-labelledby="auth-title"><div class="dialog-heading"><p class="eyebrow">Faça parte da mudança</p><button class="close" data-close="auth-dialog" aria-label="Fechar">×</button></div><h2 id="auth-title">Que bom ter você aqui.</h2><p id="auth-description">Entre para participar dos eventos e acompanhar suas coletas.</p><form id="auth-form" novalidate>
     <div class="auth-field" id="name-label" hidden><label for="auth-name">Nome</label><input id="auth-name" name="name" autocomplete="name" maxlength="255" aria-describedby="auth-name-error"><p id="auth-name-error" class="field-error" hidden></p></div>

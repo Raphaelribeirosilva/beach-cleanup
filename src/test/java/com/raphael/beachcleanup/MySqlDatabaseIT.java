@@ -107,7 +107,7 @@ class MySqlDatabaseIT {
             fixed.repair();
             fixed.migrate();
             fixed.validate();
-            assertEquals(12, fixed.info().applied().length);
+            assertEquals(13, fixed.info().applied().length);
             assertEquals(originalUsers, tableRows(connection,"tb_user",
                 "id,name,email,password,role,credential_version,row_version,total_collected_kg"));
             assertEquals(global, scalar(sql,"SELECT @@GLOBAL.explicit_defaults_for_timestamp"));
@@ -320,7 +320,7 @@ class MySqlDatabaseIT {
                 assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> context.getBean(AccountActionService.class).verify(oldAction));
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(12, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(13, context.getBean(Flyway.class).info().applied().length);
                 var proof = java.util.Map.of("scope","disposable MySQL local restore", "status","passed",
                     "allTablesCompared",comparedTables,"sessionsQuarantined",true,"oldAccessAndRefreshRejected",true,
                     "oldAccountLinksRejected",true,"applicationLoginAndTotals","passed",
@@ -343,7 +343,7 @@ class MySqlDatabaseIT {
 
     @Test
     void runtimeAccountCanOperateWithoutSchemaOrGlobalPrivileges() throws Exception {
-        try (var migrated=start()) { assertEquals(12,migrated.getBean(Flyway.class).info().applied().length); }
+        try (var migrated=start()) { assertEquals(13, migrated.getBean(Flyway.class).info().applied().length); }
         String account="beach_app_"+UUID.randomUUID().toString().replace("-", "").substring(0,12);
         try (var root=DriverManager.getConnection(serverUrl,username,password); var sql=root.createStatement()) {
             sql.executeUpdate("create user '"+account+"'@'localhost' identified by 'discardable-runtime-test-password'");
@@ -454,7 +454,7 @@ class MySqlDatabaseIT {
             collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(12, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(13, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -497,7 +497,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(12, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(13, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -581,7 +581,7 @@ class MySqlDatabaseIT {
                 assertEquals(id, context.getBean(AuthService.class)
                     .login(new LoginDTO("conta" + id + "@example.com", "senha-legada")).userId());
             }
-            assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='beaches'", Integer.class));
+            assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='beaches' and city is null", Integer.class));
             assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='materials'", Integer.class));
             Long beach = jdbc.queryForObject("select beach_id from tb_cleanup_event where id=501", Long.class);
             assertNotNull(beach);
@@ -603,7 +603,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             assertEquals(2, context.getBean(UserRepository.class).count());
             assertEquals(5, context.getBean(TrashCollectionRepository.class).count());
-            assertEquals(4, context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_catalog_entry", Integer.class));
+            assertEquals(4, context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_catalog_entry where city is null", Integer.class));
             assertEquals(102L, context.getBean(AuthService.class)
                 .login(new LoginDTO("conta102@example.com", "senha-legada")).userId());
         }
@@ -613,7 +613,7 @@ class MySqlDatabaseIT {
     void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
         WeightMigrationAssertions.verify(url, username, password);
         try (var context = start(url, false)) {
-            assertEquals(12, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(13, context.getBean(Flyway.class).info().applied().length);
             assertEquals(101L, context.getBean(AuthService.class)
                 .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
             var report = context.getBean(DataQualityService.class);

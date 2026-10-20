@@ -39,10 +39,11 @@ public class TestConfig implements CommandLineRunner {
 
     @Autowired
     com.raphael.beachcleanup.repositories.CatalogEntryRepository catalogEntries;
+    @Autowired javax.sql.DataSource directoryDataSource;
 	
     @Override
     public void run(String... args) throws Exception {
-        var beach = catalogs.create("beaches", new com.raphael.beachcleanup.dto.CatalogInputDTO("Praia do Morro", java.util.List.of("Morro"), null));
+        var beach = catalogs.create("beaches", new com.raphael.beachcleanup.dto.CatalogInputDTO("Praia do Morro", java.util.List.of("Morro"), null, "ES", "Guarapari"));
         var material = catalogs.create("materials", new com.raphael.beachcleanup.dto.CatalogInputDTO("Pl\u00e1stico", java.util.List.of(), null));
         for (String label : java.util.List.of("Vidro", "Metal", "Papel", "Res\u00edduos mistos")) {
             catalogs.create("materials", new com.raphael.beachcleanup.dto.CatalogInputDTO(label, java.util.List.of(), null));
@@ -85,5 +86,8 @@ public class TestConfig implements CommandLineRunner {
         t1.setEvent(e1);
         
         trashRepository.save(t1);
+        try (var connection = directoryDataSource.getConnection()) {
+            db.migration.mysql.V13__seed_beach_directory.seed(connection);
+        }
     }
 }

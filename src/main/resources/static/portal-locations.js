@@ -53,8 +53,10 @@
     function sync(next = '') {
       const filtered = entries.filter(entry => (!geo.state.value || entry.state === geo.state.value)
         && (!geo.city.value || entry.city === geo.city.value));
-      options(beach, filtered, required ? 'Selecione a praia' : 'Todas as praias', next);
-      hint.textContent = filtered.length ? '' : 'Nenhuma praia cadastrada nesta localização. O administrador pode cadastrá-la na aba Praias.';
+      options(beach, filtered.map(entry => ({ ...entry, name: geo.city.value ? label(entry.name) : entry.name })), required ? 'Selecione a praia' : 'Todas as praias', next);
+      hint.textContent = filtered.length ? '' : required
+        ? 'Ainda não temos praias nesta cidade. Cadastre uma praia na administração para organizar seu mutirão.'
+        : 'Ainda não temos praias nesta cidade. Você pode buscar os eventos de toda a região ou escolher outra cidade.';
       hint.hidden = Boolean(filtered.length);
     }
     // Existing beaches without geography remain editable; no location is guessed.
@@ -65,5 +67,6 @@
     sync(value);
     return { ...geo, beach, set(uf, city, id) { geo.set(uf, city); sync(id); } };
   }
-  window.PortalLocations = { ready, geography, beaches };
+  const label = name => (name || 'Local não informado').replace(/ — .+\/[A-Z]{2}$/, '');
+  window.PortalLocations = { ready, geography, beaches, label };
 })();

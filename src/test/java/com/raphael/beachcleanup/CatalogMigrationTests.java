@@ -8,6 +8,34 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class CatalogMigrationTests {
+    @Test
+    void directoryAddsRealBeachesWithoutChangingLegacyPlacesAndCanBeReapplied() throws Exception {
+        String directoryUrl = "jdbc:h2:mem:directory-migration;MODE=MySQL;DB_CLOSE_DELAY=-1";
+        Flyway.configure().dataSource(directoryUrl, "sa", "").locations("classpath:db/migration/mysql").target("12").load().migrate();
+        try (var connection = DriverManager.getConnection(directoryUrl, "sa", ""); var sql = connection.createStatement()) {
+            sql.executeUpdate("insert into tb_catalog_entry(id,kind,name) values (99001,'beaches','Praia do Morro')");
+            sql.executeUpdate("insert into tb_catalog_alias values ('beaches','praia do morro',99001)");
+            sql.executeUpdate("insert into tb_catalog_entry(id,kind,name,state,city) values (99002,'beaches','Praia do Gonzaga','SP','Santos')");
+            sql.executeUpdate("insert into tb_catalog_alias values ('beaches','praia do gonzaga',99002)");
+        }
+        Flyway.configure().dataSource(directoryUrl, "sa", "").locations("classpath:db/migration/mysql").load().migrate();
+        try (var connection = DriverManager.getConnection(directoryUrl, "sa", ""); var sql = connection.createStatement()) {
+            try (var rows = sql.executeQuery("select name,state,city from tb_catalog_entry where id=99001")) {
+                assertTrue(rows.next()); assertEquals("Praia do Morro", rows.getString(1));
+                assertNull(rows.getString(2)); assertNull(rows.getString(3));
+            }
+            try (var rows = sql.executeQuery("select count(*) from tb_catalog_entry where state='ES' and city='Guarapari'")) {
+                assertTrue(rows.next()); assertTrue(rows.getInt(1) >= 15);
+            }
+            try (var rows = sql.executeQuery("select count(*) from tb_catalog_entry where state='SP' and city='Santos' and name like 'Praia do Gonzaga%'")) {
+                assertTrue(rows.next()); assertEquals(1, rows.getInt(1));
+            }
+            long before;
+            try (var rows = sql.executeQuery("select count(*) from tb_catalog_entry")) { rows.next(); before = rows.getLong(1); }
+            db.migration.mysql.V13__seed_beach_directory.seed(connection);
+            try (var rows = sql.executeQuery("select count(*) from tb_catalog_entry")) { rows.next(); assertEquals(before, rows.getLong(1)); }
+        }
+    }
     @TempDir Path directory;
 
     @Test
@@ -38,7 +66,7 @@ class CatalogMigrationTests {
         }
         var flyway = Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration/mysql").load();
         flyway.migrate();
-        assertEquals(12, flyway.info().applied().length);
+        assertEquals(13, flyway.info().applied().length);
         flyway.validate();
         try (var connection = DriverManager.getConnection(url, "sa", ""); var sql = connection.createStatement()) {
             try (var rows = sql.executeQuery("select * from tb_trash_collection order by id")) {

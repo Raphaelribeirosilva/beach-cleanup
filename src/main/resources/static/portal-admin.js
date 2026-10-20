@@ -203,7 +203,7 @@
         node('span', 'badge', view === 'events' ? record.status : view === 'collections' ? record.materialType : 'Usuário'));
       const body = node('div', 'card-body');
       body.append(node('h3', '', view === 'events' ? record.title : view === 'users' ? record.name : `${kg(record.weightKg)} kg · ${record.beach}`));
-      const lines = view === 'events' ? [record.location, record.city ? `${record.city}/${record.state}` : 'Localização ainda não cadastrada', date(record.dateTime)]
+      const lines = view === 'events' ? [window.PortalLocations.label(record.location), record.city ? `${record.city}/${record.state}` : 'Localização ainda não cadastrada', date(record.dateTime)]
         : view === 'users' ? [record.email, `${kg(record.totalCollectedKg)} kg coletados`]
         : [date(record.registrationDate), record.volunteer ? `Usuário #${record.volunteer.id}: ${record.volunteer.name}` : 'Sem proprietário',
           record.event ? `Evento #${record.event.id}: ${record.event.title}` : 'Sem evento'];
