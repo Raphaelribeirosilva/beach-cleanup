@@ -35,7 +35,7 @@
       input.name = name;
       if (choices) choices.forEach(choice => {
         const option = node('option', '', typeof choice === 'object' ? choice.name
-          : choice === 'Concluido' ? 'Concluído' : choice || 'Todos');
+          : window.PortalUI.eventStatusLabel(choice) || 'Todos');
         option.value = typeof choice === 'object' ? choice.id : choice;
         input.append(option);
       });
@@ -200,7 +200,7 @@
       const card = node('article', 'card');
       const top = node('div', 'card-top');
       top.append(node('span', 'card-id', `#${record.id}`),
-        node('span', 'badge', view === 'events' ? record.status : view === 'collections' ? record.materialType : 'Usuário'));
+        node('span', 'badge', view === 'events' ? window.PortalUI.eventStatusLabel(record.status) : view === 'collections' ? record.materialType : 'Usuário'));
       const body = node('div', 'card-body');
       body.append(node('h3', '', view === 'events' ? record.title : view === 'users' ? record.name : `${kg(record.weightKg)} kg · ${record.beach}`));
       const lines = view === 'events' ? [window.PortalLocations.label(record.location), record.city ? `${record.city}/${record.state}` : 'Localização ainda não cadastrada', date(record.dateTime)]

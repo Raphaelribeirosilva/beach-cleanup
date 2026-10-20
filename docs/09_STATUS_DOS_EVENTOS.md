@@ -1,13 +1,13 @@
 # Etapa 9 — Estados dos eventos
 
-Novos eventos devem começar como `Agendado`. O campo JSON continua sendo `status`, com nomes em português; `Concluído`, diferenças de caixa e espaços nas extremidades são normalizados. Status desconhecido retorna 400 com erro no campo `status`; criação com outro estado conhecido e transição não permitida retornam 409.
+Novos eventos devem começar como `Agendado`. O campo JSON continua sendo `status`, com nomes em português; `Concluído`, `Finalizado`, diferenças de caixa e espaços nas extremidades são normalizados. O estado existente `COMPLETED` mantém o valor canônico `Concluido` na API e no banco, mas é exibido como **Finalizado** em toda a interface. Não há um segundo estado de encerramento. Status desconhecido retorna 400 com erro no campo `status`; criação com outro estado conhecido e transição não permitida retornam 409.
 
 | Estado atual | Próximos estados permitidos |
 |---|---|
 | Agendado | Em andamento, Pausado, Cancelado |
-| Em andamento | Pausado, Concluido, Cancelado |
+| Em andamento | Pausado, Finalizado (`Concluido`), Cancelado |
 | Pausado | Agendado, Em andamento, Cancelado |
-| Concluido | Nenhum |
+| Finalizado (`Concluido`) | Nenhum |
 | Cancelado | Nenhum |
 
 Manter o estado atual permite corrigir metadados. Eventos concluídos/cancelados não podem ser reabertos. A mudança usa o PUT existente de `/cleanupEvent/{id}` e continua exclusiva do administrador. Datas não provocam mudanças automáticas de estado.
@@ -20,4 +20,4 @@ As escritas bloqueiam o registro do evento durante a validação, evitando que a
 
 `EventStateIntegrationTests` verifica a matriz completa de transições, criação/normalização, rejeição de estados desconhecidos, preservação dos dados após rejeição, restrições de novas inscrições/coletas e correção de registros históricos. Os testes anteriores continuam exercitando autenticação, autorização e concorrência das inscrições.
 
-Suíte completa: **BUILD SUCCESS — 52 testes, zero falhas e zero erros**, em 10/10/2026.
+Registro histórico da etapa original: **BUILD SUCCESS — 52 testes, zero falhas e zero erros**, em 10/10/2026. A revisão do nome Finalizado e suas verificações estão em [Finalização de eventos](23_FINALIZACAO_DE_EVENTOS.md).

@@ -83,5 +83,6 @@
     return [...form.querySelectorAll('.material-row')].filter(row => row.querySelector('[type=checkbox]').checked)
       .map(row => ({ materialId: Number(row.querySelector('[type=checkbox]').value), weightKg: row.querySelector('[data-material-weight]').value }));
   }
-  window.PortalUI = { node, busy, action, focus, errorAt, openDialog, materials, materialValues };
+  const eventStatusLabel = value => ['concluido', 'concluído', 'finalizado'].includes(String(value).trim().toLowerCase()) ? 'Finalizado' : value;
+  window.PortalUI = { node, busy, action, focus, errorAt, openDialog, materials, materialValues, eventStatusLabel };
 })();

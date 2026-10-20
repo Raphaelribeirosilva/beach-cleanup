@@ -577,7 +577,7 @@
         ],
         "operationId": "updateCleanupEvent",
         "summary": "Atualizar CleanupEvent",
-        "description": "Leitura pública; edição e exclusão somente administrador. Somente administrador. Mantém o estado ou aplica transições: Agendado → Em andamento/Pausado/Cancelado; Em andamento → Pausado/Concluido/Cancelado; Pausado → Agendado/Em andamento/Cancelado. Concluido e Cancelado não reabrem. Mudanças não são automáticas pela data. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar.",
+        "description": "Leitura pública; edição e exclusão somente administrador. Somente administrador. Mantém o estado ou aplica transições: Agendado → Em andamento/Pausado/Cancelado; Em andamento → Pausado/Concluido/Cancelado; Pausado → Agendado/Em andamento/Cancelado. Concluido (exibido como Finalizado) e Cancelado não reabrem. Finalizado é aceito como alias de Concluido, sem novo estado. A finalização preserva inscrições e coletas, bloqueia novas inscrições e novos vínculos de coleta e permite corrigir coletas já vinculadas. Mudanças não são automáticas pela data. Envie version obtida na leitura do registro. Ausência ou valor inválido: 400. Versão diferente da atual: 409, sem alterar os dados. Recarregue e revise antes de reenviar.",
         "responses": {
           "200": {
             "description": "Operação concluída.",
@@ -1220,7 +1220,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e Concluído. Novo evento deve começar como Agendado.",
+              "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e os aliases Concluído e Finalizado (ambos normalizados para Concluido). A interface exibe Finalizado. Novo evento deve começar como Agendado.",
               "example": "Agendado"
             },
             "description": "Estado aceito pela API; vazio é inválido."
@@ -2769,7 +2769,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e Concluído. Novo evento deve começar como Agendado.",
+            "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e os aliases Concluído e Finalizado (ambos normalizados para Concluido). A interface exibe Finalizado. Novo evento deve começar como Agendado.",
             "example": "Agendado"
           },
           "version": {
@@ -2834,7 +2834,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Estados canônicos para eventos gerenciados pela API: Agendado, Em andamento, Pausado, Concluido, Cancelado. Dados externos legados são retornados como armazenados.",
+            "description": "Estados canônicos para eventos gerenciados pela API: Agendado, Em andamento, Pausado, Concluido, Cancelado. Concluido corresponde a COMPLETED e é exibido como Finalizado na interface; o valor canônico da resposta permanece Concluido para compatibilidade. Dados externos legados são retornados como armazenados.",
             "example": "Agendado"
           },
           "version": {
@@ -3254,7 +3254,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e Concluído. Novo evento deve começar como Agendado.",
+            "description": "Estados aceitos: Agendado, Em andamento, Pausado, Concluido, Cancelado. Aceita diferenças de caixa, espaços nas extremidades e os aliases Concluído e Finalizado (ambos normalizados para Concluido). A interface exibe Finalizado. Novo evento deve começar como Agendado.",
             "example": "Agendado"
           },
           "version": {

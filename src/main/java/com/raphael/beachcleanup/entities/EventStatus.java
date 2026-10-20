@@ -34,7 +34,7 @@ public enum EventStatus {
 
     public static EventStatus parse(String input) {
         String normalized = input == null ? "" : input.strip();
-        if (normalized.equalsIgnoreCase("Concluído")) {
+        if (normalized.equalsIgnoreCase("Concluído") || normalized.equalsIgnoreCase("Finalizado")) {
             return COMPLETED;
         }
         for (var status : values()) {
@@ -43,6 +43,6 @@ public enum EventStatus {
             }
         }
         throw new FieldValidationException("status",
-            "Use Agendado, Em andamento, Pausado, Concluido ou Cancelado.");
+            "Use Agendado, Em andamento, Pausado, Finalizado (Concluido) ou Cancelado.");
     }
 }

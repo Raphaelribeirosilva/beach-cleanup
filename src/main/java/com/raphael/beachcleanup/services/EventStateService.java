@@ -29,6 +29,9 @@ public class EventStateService {
     }
 
     public void requireNewRecordsAllowed(CleanupEvent event) {
+        if (EventStatus.parse(event.getStatus()) == EventStatus.COMPLETED) {
+            throw new EventStateConflictException("Evento finalizado: novas inscrições e novos vínculos de coleta estão encerrados.");
+        }
         if (!EventStatus.parse(event.getStatus()).acceptsNewRecords()) {
             throw new EventStateConflictException("O evento não aceita novas inscrições ou coletas neste status.");
         }

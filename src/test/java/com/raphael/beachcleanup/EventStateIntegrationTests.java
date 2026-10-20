@@ -2,6 +2,7 @@ package com.raphael.beachcleanup;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -46,7 +47,7 @@ class EventStateIntegrationTests {
     void onlyScheduledEventsCanBeCreatedAndUnknownStatusIsRejected() throws Exception {
         mvc.perform(post("/cleanupEvent").contentType(MediaType.APPLICATION_JSON).content(eventJson(" agendado ")))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("Agendado"));
-        for (String state : new String[] {"Em andamento", "Pausado", "Concluido", "Cancelado"}) {
+        for (String state : new String[] {"Em andamento", "Pausado", "Concluido", "Finalizado", "Cancelado"}) {
             mvc.perform(post("/cleanupEvent").contentType(MediaType.APPLICATION_JSON).content(eventJson(state)))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
         }
@@ -110,7 +111,7 @@ class EventStateIntegrationTests {
         var created = mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON)
             .content(collectionJson(volunteer.getId(), id, 2.0))).andExpect(status().isCreated()).andReturn();
         long collection = mapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
-        mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON).content(eventJson("Concluido")))
+        mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON).content(eventJson(" finalizado ")))
             .andExpect(status().isOk());
         mvc.perform(get("/users/me/events").with(user(volunteer.getId().toString()).roles("VOLUNTEER")))
             .andExpect(jsonPath("$[0].status").value("Concluido"));
@@ -119,6 +120,9 @@ class EventStateIntegrationTests {
         mvc.perform(put("/trashCollection/{id}", collection).contentType(MediaType.APPLICATION_JSON)
             .content(collectionJson(volunteer.getId(), id, 3.5)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.volunteer.totalCollectedKg").value(3.5));
+        mvc.perform(get("/reports/impact").param("eventId", Long.toString(id)).with(anonymous()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.totals.weightKg").value(3.5))
+            .andExpect(jsonPath("$.totals.collections").value(1));
         long other = event("Cancelado").getId();
         mvc.perform(put("/trashCollection/{id}", collection).contentType(MediaType.APPLICATION_JSON)
             .content(collectionJson(volunteer.getId(), other, 4.0, 1)))
@@ -129,6 +133,40 @@ class EventStateIntegrationTests {
         mvc.perform(get("/users/{id}", volunteer.getId()))
             .andExpect(jsonPath("$.totalCollectedKg").value(3.5));
         mvc.perform(delete("/trashCollection/{id}", collection).param("version", collections.findById(collection).map(v -> v.getRowVersion().toString()).orElse("0"))).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void finalizadoAliasRequiresAdminAndRetainsCanonicalSearchAndTerminalRules() throws Exception {
+        var event = event("Em andamento");
+        long id = event.getId();
+        mvc.perform(put("/cleanupEvent/{id}", id).with(anonymous())
+            .contentType(MediaType.APPLICATION_JSON).content(eventJson("Finalizado")))
+            .andExpect(status().isUnauthorized());
+        User volunteer = userService.insert(new User(null, "Bia", "bia@example.com", "senha-segura-forte", 0.0));
+        mvc.perform(put("/cleanupEvent/{id}", id).with(user(volunteer.getId().toString()).roles("VOLUNTEER"))
+            .contentType(MediaType.APPLICATION_JSON).content(eventJson("Finalizado")))
+            .andExpect(status().isForbidden());
+        assertEquals("Em andamento", events.findById(id).orElseThrow().getStatus());
+        mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON)
+            .content(eventJson(" FINALIZADO "))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("Concluido"));
+        for (String query : new String[]{"Finalizado", "Concluido", "Concluído"}) {
+            mvc.perform(get("/cleanupEvent/search").param("status", query).with(anonymous()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].status").value("Concluido"));
+        }
+        mvc.perform(get("/cleanupEvent/{id}", id).with(anonymous())).andExpect(status().isOk());
+        mvc.perform(put("/users/me/events/{id}", id).with(user(volunteer.getId().toString()).roles("VOLUNTEER")))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Evento finalizado")));
+        mvc.perform(post("/trashCollection").contentType(MediaType.APPLICATION_JSON)
+            .content(collectionJson(volunteer.getId(), id, 1.0))).andExpect(status().isConflict());
+        var scheduled = event("Agendado");
+        mvc.perform(put("/cleanupEvent/{id}", scheduled.getId()).contentType(MediaType.APPLICATION_JSON)
+            .content(eventJson("Finalizado"))).andExpect(status().isConflict());
+        String reopen = eventJson("Em andamento").replace("\"version\":0", "\"version\":" + events.findById(id).orElseThrow().getRowVersion());
+        mvc.perform(put("/cleanupEvent/{id}", id).contentType(MediaType.APPLICATION_JSON).content(reopen))
+            .andExpect(status().isConflict());
+        assertEquals("Concluido", events.findById(id).orElseThrow().getStatus());
     }
 
     private CleanupEvent event(String state) {

@@ -150,7 +150,7 @@
     const registered = state.registrations.some(item => item.id === event.id);
     const card = node('article', 'card event-card');
     const top = node('div', 'card-top');
-    top.append(node('span', 'badge', event.status === 'Concluido' ? 'Concluído' : event.status),
+    top.append(node('span', 'badge', window.PortalUI.eventStatusLabel(event.status)),
       node('span', registered ? 'registration-state registered' : 'registration-state', registered ? 'Inscrição confirmada' : activeEvent(event) ? 'Inscrições abertas' : 'Inscrições encerradas'));
     const body = node('div', 'card-body');
     const time = node('time', 'event-date', date(event.dateTime));
@@ -161,7 +161,8 @@
     const actions = node('div', 'card-actions');
     if (registered || activeEvent(event)) actions.append(action(registered ? 'Cancelar inscrição' : 'Inscrever-se',
       () => registrationAction(event, registered), !registered));
-    else body.append(node('p', '', 'Este evento não aceita novas inscrições.'));
+    else if (window.PortalUI.eventStatusLabel(event.status) !== 'Finalizado') body.append(node('p', '', 'Este evento não aceita novas inscrições.'));
+    if (window.PortalUI.eventStatusLabel(event.status) === 'Finalizado') body.append(node('p', '', 'Evento finalizado. Novas inscrições e novos vínculos de coleta estão encerrados.'));
     if (activeEvent(event)) actions.append(action('Registrar coleta', () => openCollection(event)));
     body.append(actions);
     card.append(top, body);
