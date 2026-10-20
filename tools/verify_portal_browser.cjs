@@ -156,6 +156,18 @@ async function main() {
       } else element.value = value;
     })()`);
     const waitFor = expression => until(() => evaluate(expression), expression);
+    async function captureHome(name) {
+      for (let i = 0; i < 6; i++) {
+        await evaluate(`document.querySelectorAll('main img')[${i}].scrollIntoView({behavior:'instant',block:'center'})`);
+        await waitFor(`document.querySelectorAll('main img')[${i}].complete && document.querySelectorAll('main img')[${i}].naturalWidth > 0`);
+      }
+      await evaluate('window.scrollTo({top:0,behavior:"instant"})');
+      await pause(400);
+      const {cssContentSize} = await cdp('Page.getLayoutMetrics');
+      const shot = await cdp('Page.captureScreenshot', {format:'png',captureBeyondViewport:true,
+        clip:{x:0,y:0,width:cssContentSize.width,height:cssContentSize.height,scale:1}});
+      fs.writeFileSync(path.join(root,'target',name),Buffer.from(shot.data,'base64'));
+    }
     debugPage = async () => {
       const state = await evaluate(`({page:document.body.dataset.page,hash:location.hash,filters:[...document.querySelectorAll('#filters select')].map(select=>({name:select.name,value:select.value})),notice:document.querySelector('#notice').textContent,results:document.querySelector('#results').textContent.slice(0,1500)})`);
       fs.writeFileSync(path.join(root,'target','portal-debug.json'),JSON.stringify(state,null,2));
@@ -190,11 +202,44 @@ async function main() {
     assert.equal((await fetch(`${base}/images/praia-de-camburi.jpg`)).status, 401, 'Original photos are not added to the public allowlist');
     assert.equal(await evaluate('document.querySelector("#workspace").hidden'), true, 'Home and event search are separate views');
     await checkAccessibility('home-desktop');
-    await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }).then(result => fs.writeFileSync(path.join(root, 'target', 'elo-home.png'), Buffer.from(result.data, 'base64')));
+    assert.equal(await evaluate('document.querySelectorAll("main img").length'),6,'All six supplied photographs appear');
+    await captureHome('elo-home.png');
     await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:844,deviceScaleFactor:1,mobile:true});
     assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Home fits a narrow viewport');
     await checkAccessibility('home-mobile');
-    await cdp('Page.captureScreenshot', {format:'png'}).then(result=>fs.writeFileSync(path.join(root,'target','elo-home-mobile.png'),Buffer.from(result.data,'base64')));
+    await captureHome('elo-home-mobile.png');
+    await cdp('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+    assert.ok(await evaluate('[...document.querySelectorAll("[data-enter]")].every(el=>getComputedStyle(el).animationName === "none" && getComputedStyle(el).opacity === "1")'),'Reduced motion keeps content visible without entrance animations');
+    await cdp('Emulation.setEmulatedMedia',{features:[]});
+    const localityLinks = await evaluate('[...document.querySelectorAll("[data-locality]")].map(link=>link.getAttribute("href"))');
+    for (const href of localityLinks) {
+      await evaluate(`document.querySelector('[data-locality][href="' + ${JSON.stringify(href)} + '"]').focus()`);
+      await key('Enter','Enter');
+      await waitFor('document.body.dataset.page === "events" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+      const filters = new URLSearchParams(href.split('?')[1]);
+      assert.equal(await evaluate('document.querySelector("#filters [name=state]").value'),filters.get('state'));
+      assert.equal(await evaluate('document.querySelector("#filters [name=city]").value'),filters.get('city'));
+      if (filters.get('city') === 'Guarapari') {
+        assert.ok(await evaluate('[...document.querySelectorAll("#results .card")].every(card=>card.textContent.includes("Guarapari")) && document.querySelectorAll("#results .card").length > 0'));
+      } else {
+        assert.ok(await evaluate('document.querySelector("#results").textContent.includes("Nenhum evento encontrado.")'));
+      }
+      await checkAccessibility('locality-' + filters.get('state'));
+      if (filters.get('state') === 'BA') {
+        await reloadPage();
+        await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false" && document.querySelector("#filters [name=city]")?.value === "Mata de São João"');
+        await cdp('Page.captureScreenshot',{format:'png'}).then(result=>fs.writeFileSync(path.join(root,'target','locality-empty-mobile.png'),Buffer.from(result.data,'base64')));
+      }
+      await evaluate('history.back()');
+      await waitFor('document.body.dataset.page === "home"');
+    }
+    await cdp('Emulation.setScriptExecutionDisabled',{value:true});
+    await cdp('Page.reload');
+    await waitFor('document.readyState === "complete"');
+    assert.ok(await evaluate('[...document.querySelectorAll("#home-content section")].every(el=>getComputedStyle(el).opacity === "1" && el.getBoundingClientRect().height > 0)'),'Home sections remain visible without JavaScript');
+    await cdp('Emulation.setScriptExecutionDisabled',{value:false});
+    await cdp('Page.navigate',{url:base});
+    await waitFor('document.body.dataset.page === "home"');
     await click('#menu-toggle');
     assert.equal(await evaluate('document.querySelector("#menu-toggle").getAttribute("aria-expanded")'),'true');
     await click('[data-view=events]');

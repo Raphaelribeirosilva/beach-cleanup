@@ -46,9 +46,9 @@
     stateSelect.addEventListener('change', () => sync(''));
     return { state: stateSelect, city: citySelect, set(uf, name) { stateSelect.value = uf || ''; sync(name); } };
   }
-  function beaches(form, entries, { required = false, name = 'beachId', value = '', existing = false } = {}) {
+  function beaches(form, entries, { required = false, name = 'beachId', value = '', existing = false, allLocations = false } = {}) {
     const selected = entries.find(entry => String(entry.id) === String(value));
-    const geo = geography(form, { required: false, state: selected?.state, city: selected?.city, entries });
+    const geo = geography(form, { required: false, state: selected?.state, city: selected?.city, entries: allLocations ? null : entries });
     const beach = field(form, name, 'Praia', required);
     const hint = node('p', 'hint');
     form.append(hint);

@@ -5,10 +5,12 @@ $outputRoot = Join-Path $imageRoot 'web'
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object MimeType -eq 'image/jpeg'
 # Originals remain untouched. Resize only: the browser chooses a responsive crop.
-foreach ($name in @('praia-de-camburi')) {
+foreach ($name in @('praia-de-camburi', 'florianopolis', 'guarapari', 'riodejaneiro', 'salvador', 'saopaulo')) {
     $source = [System.Drawing.Image]::FromFile((Join-Path $imageRoot "$name.jpg"), $true)
     try {
-        foreach ($width in @(480, 960, 1440)) {
+        $widths = @(480, [Math]::Min(960, $source.Width))
+        if ($name -eq 'praia-de-camburi') { $widths += 1440 }
+        foreach ($width in $widths) {
             $height = [int][Math]::Round($source.Height * $width / $source.Width)
             $bitmap = New-Object System.Drawing.Bitmap($width, $height)
             $graphics = [System.Drawing.Graphics]::FromImage($bitmap)

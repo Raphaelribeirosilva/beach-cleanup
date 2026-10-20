@@ -41,16 +41,45 @@
   <main id="main" tabindex="-1">
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy"><p class="eyebrow">Voluntariado nas praias</p><h1 id="hero-title">Participe de um mutirão de limpeza.</h1><p>Encontre ações nas praias, organize sua participação e registre os resíduos coletados. O Elo do mar reúne tudo em um só lugar.</p><div class="hero-actions"><button type="button" class="button primary" data-go="events">Encontrar mutirões</button><button type="button" class="text-button" data-go="reports">Consultar impacto</button></div></div>
-      <figure class="coast-photo"><img src="/images/web/praia-de-camburi-960.jpg" srcset="/images/web/praia-de-camburi-480.jpg 480w, /images/web/praia-de-camburi-960.jpg 960w, /images/web/praia-de-camburi-1440.jpg 1440w" sizes="(max-width: 700px) calc(100vw - 32px), 55vw" width="960" height="720" fetchpriority="high" alt="Calçadão com coqueiros junto à areia e ao mar na Praia de Camburi."><figcaption>Praia de Camburi</figcaption></figure>
+      <figure class="coast-photo"><img src="/images/web/praia-de-camburi-960.jpg" srcset="/images/web/praia-de-camburi-480.jpg 480w, /images/web/praia-de-camburi-960.jpg 960w, /images/web/praia-de-camburi-1440.jpg 1440w" sizes="(max-width: 700px) calc(100vw - 32px), 55vw" width="960" height="720" fetchpriority="high" alt="Calçadão com coqueiros junto à areia e ao mar na Praia de Camburi."><figcaption>Praia de Camburi · Vitória, ES <a data-locality href="#/mutiroes?state=ES&amp;city=Vit%C3%B3ria">Buscar na cidade <span aria-hidden="true">↗</span></a></figcaption></figure>
     </section>
     <section id="home-content" class="home-content" aria-label="Conheça o Elo do mar">
-      <div class="home-intro"><h2>Como participar</h2><p>Da inscrição ao registro da coleta.</p></div>
-      <div class="journey-grid">
-        <article class="journey-card"><span class="step-number">01</span><h3>Escolha um mutirão</h3><p>Filtre por estado, cidade e praia. Confira a data e a situação do evento antes de se inscrever.</p><button class="text-button" data-go="events">Ver mutirões</button></article>
-        <article class="journey-card"><span class="step-number">02</span><h3>Acompanhe sua inscrição</h3><p>Entre na sua conta para se inscrever e consultar os eventos dos quais você vai participar.</p><button class="text-button" data-go="mine">Minhas inscrições</button></article>
-        <article class="journey-card"><span class="step-number">03</span><h3>Registre a coleta</h3><p>Informe a praia, a data, os materiais e o peso coletado, em um mutirão ou em uma ação independente.</p><button class="text-button" data-go="collections">Minhas coletas</button></article>
-      </div>
-      <div class="home-invitation"><div><h2>O que foi recolhido nas praias?</h2><p>Consulte os registros por período, praia, material ou evento.</p></div><button class="button outline" data-go="reports">Ver resultados das coletas</button></div>
+      <section class="localities" aria-labelledby="localities-title" data-enter>
+        <div class="localities-heading"><div><p class="eyebrow">Pelo litoral</p><h2 id="localities-title">Encontre uma ação perto de você</h2></div><p>Explore as localidades das fotos e consulte os mutirões cadastrados em cada cidade.</p></div>
+        <div class="locality-grid">
+        <a class="locality locality-florianopolis" data-locality href="#/mutiroes?state=SC&amp;city=Florian%C3%B3polis">
+          <span class="photo-frame"><img src="/images/web/florianopolis-960.jpg" srcset="/images/web/florianopolis-480.jpg 480w, /images/web/florianopolis-960.jpg 960w" sizes="(max-width: 600px) calc(100vw - 32px), (max-width: 900px) 46vw, 52vw" width="960" height="640" loading="lazy" decoding="async" alt="Banhistas na pequena enseada, entre areia clara e rochas com vegetação."></span>
+          <span class="locality-caption"><span><span class="place-city">Florianópolis · SC</span><strong>Prainha da Barra da Lagoa</strong><span class="place-action">Buscar mutirões na cidade</span></span><span class="place-arrow" aria-hidden="true">↗</span></span>
+        </a>
+        <a class="locality locality-guarapari" data-locality href="#/mutiroes?state=ES&amp;city=Guarapari">
+          <span class="photo-frame"><img src="/images/web/guarapari-662.jpg" srcset="/images/web/guarapari-480.jpg 480w, /images/web/guarapari-662.jpg 662w" sizes="(max-width: 600px) calc(100vw - 32px), 38vw" width="662" height="463" loading="lazy" decoding="async" alt="Vista da praia e da avenida à beira-mar, acompanhando a curva da orla."></span>
+          <span class="locality-caption"><span><span class="place-city">Guarapari · ES</span><strong>Praia do Morro</strong><span class="place-action">Buscar mutirões na cidade</span></span><span class="place-arrow" aria-hidden="true">↗</span></span>
+        </a>
+        <a class="locality locality-riodejaneiro" data-locality href="#/mutiroes?state=RJ&amp;city=Rio+de+Janeiro">
+          <span class="photo-frame"><img src="/images/web/riodejaneiro-960.jpg" srcset="/images/web/riodejaneiro-480.jpg 480w, /images/web/riodejaneiro-960.jpg 960w" sizes="(max-width: 600px) calc(100vw - 32px), 38vw" width="960" height="720" loading="lazy" decoding="async" alt="Faixa de areia, mar e calçadão de Copacabana, com edifícios junto à orla."></span>
+          <span class="locality-caption"><span><span class="place-city">Rio de Janeiro · RJ</span><strong>Praia de Copacabana</strong><span class="place-action">Buscar mutirões na cidade</span></span><span class="place-arrow" aria-hidden="true">↗</span></span>
+        </a>
+        <a class="locality locality-salvador" data-locality href="#/mutiroes?state=BA&amp;city=Mata+de+S%C3%A3o+Jo%C3%A3o">
+          <span class="photo-frame"><img src="/images/web/salvador-960.jpg" srcset="/images/web/salvador-480.jpg 480w, /images/web/salvador-960.jpg 960w" sizes="(max-width: 600px) calc(100vw - 32px), 38vw" width="960" height="675" loading="lazy" decoding="async" alt="Piscinas entre recifes na maré baixa, diante de coqueiros e construções à beira-mar."></span>
+          <span class="locality-caption"><span><span class="place-city">Mata de São João · BA</span><strong>Praia do Forte</strong><span class="place-action">Buscar mutirões na cidade</span></span><span class="place-arrow" aria-hidden="true">↗</span></span>
+        </a>
+        </div>
+        <div class="localities-end"><p>A agenda depende dos eventos cadastrados pelos organizadores.</p><button class="text-button" data-go="events">Buscar em outras cidades <span aria-hidden="true">→</span></button></div>
+      </section>
+      <section class="participation-story" aria-labelledby="participation-title" data-enter>
+        <figure class="participation-photo">
+<span class="photo-frame"><img src="/images/web/saopaulo-683.jpg" srcset="/images/web/saopaulo-480.jpg 480w, /images/web/saopaulo-683.jpg 683w" sizes="(max-width: 700px) calc(100vw - 64px), 42vw" width="683" height="449" loading="lazy" decoding="async" alt="Água azul-esverdeada entre rochas e encosta coberta por vegetação."></span>
+          <figcaption>Foto do acervo · localização em confirmação</figcaption>
+        </figure>
+        <div class="participation-copy"><p class="eyebrow">Da inscrição à coleta</p><h2 id="participation-title">Como participar</h2>
+          <ol class="participation-steps">
+            <li><h3>Escolha um mutirão</h3><p>Consulte a praia, a data e a situação do evento. Entre na sua conta para se inscrever.</p><button class="text-button" data-go="events">Ver mutirões</button></li>
+            <li><h3>Acompanhe sua inscrição</h3><p>Veja os eventos dos quais você vai participar e consulte os detalhes antes de sair.</p><button class="text-button" data-go="mine">Minhas inscrições</button></li>
+            <li><h3>Registre o que recolheu</h3><p>Informe a praia, a data, os materiais e o peso. Você também pode registrar uma coleta independente.</p><button class="text-button" data-go="collections">Minhas coletas</button></li>
+          </ol>
+        </div>
+      </section>
+      <section class="home-invitation" aria-labelledby="home-impact-title" data-enter><div><p class="eyebrow">Depois da ação</p><h2 id="home-impact-title">Acompanhe os resultados das coletas</h2><p>Consulte os registros por período, praia, material ou evento.</p></div><button class="button primary" data-go="reports">Consultar impacto <span aria-hidden="true">→</span></button></section>
     </section>
     <section class="impact" aria-label="Resumo da sua participação" id="impact" hidden><h2>Sua participação</h2><div class="metric"><strong id="total-kg">—</strong><span>kg coletados por você</span></div><div class="metric"><strong id="total-events">—</strong><span>inscrições em eventos</span></div></section>
     <section id="workspace" class="workspace" aria-labelledby="workspace-title">

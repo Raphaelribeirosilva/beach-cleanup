@@ -15,7 +15,12 @@
     openAuth('login');
   });
   const routes = { home: 'inicio', events: 'mutiroes', reports: 'impacto', mine: 'inscricoes', collections: 'coletas', profile: 'perfil', admin: 'administracao' };
-  const routeView = () => Object.keys(routes).find(view => `#/${routes[view]}` === window.location.hash) || 'home';
+  const routeView = () => Object.keys(routes).find(view => `#/${routes[view]}` === window.location.hash.split('?')[0]) || 'home';
+  const eventRoute = () => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    return Object.fromEntries(['state', 'city', 'beachId', 'status'].map(key => [key, params.get(key) || '']));
+  };
+  let routeFilters = routeView() === 'events' ? eventRoute() : null;
   const state = { view: routeView(), page: 0, pages: 0, generation: 0, signup: false,
     profile: null, totalRegistrations: 0, registrations: [], selectedEvent: null, editingCollection: null, profileVersion: null, loading: false };
   const kg = value => value == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value);
@@ -222,8 +227,8 @@
     try {
       const signed = Boolean(api.session());
       const resultPromise = view === 'events' ? api.events({ page: state.page,
-        state: eventLocation?.state.value, city: eventLocation?.city.value,
-        beachId: eventLocation?.beach.value, status: $('status-filter').value })
+        ...(routeFilters || { state: eventLocation?.state.value, city: eventLocation?.city.value,
+          beachId: eventLocation?.beach.value, status: $('status-filter').value }) })
         : view === 'collections' ? api.collections({ page: state.page }) : Promise.resolve(null);
       const [result, profile, beaches] = await Promise.all([
         resultPromise, signed ? api.profile() : null, api.catalog('beaches'), window.PortalLocations.ready()
@@ -233,9 +238,12 @@
         : { content: [], totalElements: 0, registeredEventIds: [] };
       const registrations = registrationPage.content;
       if (generation !== state.generation) return false;
-      const previousLocation = eventLocation ? [eventLocation.state.value, eventLocation.city.value, eventLocation.beach.value] : [];
+      const previousLocation = routeFilters ? [routeFilters.state, routeFilters.city, routeFilters.beachId]
+        : eventLocation ? [eventLocation.state.value, eventLocation.city.value, eventLocation.beach.value] : [];
+      if (routeFilters) $('status-filter').value = routeFilters.status;
+      routeFilters = null;
       $('location-filters').replaceChildren();
-      eventLocation = window.PortalLocations.beaches($('location-filters'), beaches);
+      eventLocation = window.PortalLocations.beaches($('location-filters'), beaches, { allLocations: true });
       eventLocation.beach.id = 'location-filter';
       eventLocation.set(...previousLocation);
       state.profile = profile;
@@ -425,6 +433,7 @@
     }
     if (!['home', 'events', 'reports'].includes(view) && !api.session()) { openAuth('login'); return; }
     state.view = view;
+    if (view === 'events' && !push) routeFilters = eventRoute();
     state.page = 0;
     $('personal-menu').open = false;
     $('main-navigation').closest('header').classList.remove('menu-open');
@@ -437,6 +446,21 @@
     void load().then(loaded => { if (loaded && requested === state.view && view !== 'home') window.PortalUI.focus($('workspace-title')); });
   }
   document.querySelectorAll('[data-view],[data-go]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.view || button.dataset.go)));
+  document.querySelectorAll('[data-locality]').forEach(link => link.addEventListener('click', event => {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    window.history.pushState({ view: 'events' }, '', link.getAttribute('href'));
+    navigate('events', false);
+  }));
+  // Progressive enhancement: sections are visible before JS, after failures and with reduced motion.
+  if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const observer = new IntersectionObserver(entries => entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('section-enter');
+      observer.unobserve(entry.target);
+    }), { threshold: 0.08 });
+    document.querySelectorAll('[data-enter]').forEach(section => observer.observe(section));
+  }
   $('menu-toggle').addEventListener('click', () => {
     const opened = document.querySelector('.topbar').classList.toggle('menu-open');
     $('menu-toggle').setAttribute('aria-expanded', String(opened));
@@ -450,7 +474,14 @@
     // In-page accessibility anchors, such as #main, are not page routes.
     if (!window.location.hash || window.location.hash.startsWith('#/')) navigate(routeView(), false);
   });
-  $('filters').addEventListener('submit', event => { event.preventDefault(); state.page = 0; notify(''); void load().then(() => window.PortalUI.focus($('results'))); });
+  $('filters').addEventListener('submit', event => {
+    event.preventDefault(); state.page = 0; routeFilters = null; notify('');
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries({ state: eventLocation?.state.value, city: eventLocation?.city.value,
+      beachId: eventLocation?.beach.value, status: $('status-filter').value })) if (value) params.set(key, value);
+    window.history.replaceState({ view: state.view }, '', `#/${routes[state.view]}${params.size ? '?' + params : ''}`);
+    void load().then(() => window.PortalUI.focus($('results')));
+  });
   $('previous').addEventListener('click', () => { if (!state.loading && state.page > 0) { state.page--; void load(); } });
   $('next').addEventListener('click', () => { if (!state.loading && state.page + 1 < state.pages) { state.page++; void load(); } });
   $('auth-form').addEventListener('submit', event => {

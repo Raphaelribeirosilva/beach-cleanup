@@ -1,5 +1,7 @@
 # Revisão visual do Elo do mar
 
+> Histórico desta primeira revisão. A composição do início, o uso das seis fotos e as identificações atualizadas estão em [Composição e localidades](21_COMPOSICAO_E_LOCALIDADES.md).
+
 ## Interface
 
 A revisão mantém os fluxos da API e a navegação existente. Azul oceano estrutura a página, verde identifica ações e areia aparece em detalhes de contexto. A folha `portal-design.css` foi reescrita, substituindo o tema anterior.
