@@ -156,6 +156,29 @@ async function main() {
       } else element.value = value;
     })()`);
     const waitFor = expression => until(() => evaluate(expression), expression);
+    async function checkFilterLayout(width, description) {
+      await cdp('Emulation.setDeviceMetricsOverride',{width,height:960,deviceScaleFactor:1,mobile:width < 700});
+      await cdp('Emulation.setPageScaleFactor',{pageScaleFactor:1});
+      const layout = await evaluate(`(() => {
+        const box = el => {const r=el.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,height:r.height};};
+        const labels=[...document.querySelectorAll('#filters label')];
+        const controls=labels.map(el=>box(el.querySelector('.choice-trigger')));
+        controls.push(box(document.querySelector('#filters>.button')));
+        const hint=document.querySelector('#location-filters .hint');
+        return {controls,labels:labels.map(box),hint:hint.hidden?null:box(hint),overflow:document.documentElement.scrollWidth>innerWidth,scale:visualViewport.scale};
+      })()`);
+      assert.equal(layout.scale,1,description + ': zoom 100%');
+      assert.equal(layout.overflow,false,description + ': no horizontal overflow');
+      for(let i=0;i<layout.controls.length;i++) for(let j=i+1;j<layout.controls.length;j++) {
+        const a=layout.controls[i],b=layout.controls[j];
+        assert.ok(a.right<=b.x+1 || b.right<=a.x+1 || a.bottom<=b.y+1 || b.bottom<=a.y+1,description + ': controls do not overlap');
+      }
+      if(width>900) {
+        assert.ok(layout.labels.every(r=>Math.abs(r.y-layout.labels[0].y)<1),description + ': labels aligned');
+        assert.ok(layout.controls.every(r=>Math.abs(r.y-layout.controls[0].y)<1 && Math.abs(r.height-42)<1),description + ': fields and Buscar aligned at 42px');
+      }
+      if(layout.hint) assert.ok(layout.hint.y>=Math.max(...layout.controls.slice(0,3).map(r=>r.bottom)),description + ': helper below location controls');
+    }
     async function captureHome(name) {
       for (let i = 0; i < 6; i++) {
         await evaluate(`document.querySelectorAll('main img')[${i}].scrollIntoView({behavior:'instant',block:'center'})`);
@@ -229,6 +252,17 @@ async function main() {
         await reloadPage();
         await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false" && document.querySelector("#filters [name=city]")?.value === "Mata de São João"');
         await cdp('Page.captureScreenshot',{format:'png'}).then(result=>fs.writeFileSync(path.join(root,'target','locality-empty-mobile.png'),Buffer.from(result.data,'base64')));
+        for(const width of [1280,768,390,320]) {
+          await checkFilterLayout(width,'with helper ' + width);
+          if(width===1280 || width===390) await cdp('Page.captureScreenshot',{format:'png'}).then(result=>fs.writeFileSync(path.join(root,'target',`filters-helper-${width}.png`),Buffer.from(result.data,'base64')));
+        }
+        // Layout-only stress data, never submitted or persisted to the API.
+        const originalLabels = await evaluate(`['city','beachId'].map(name=>document.querySelector('#filters [name='+name+']').selectedOptions[0].textContent)`);
+        await evaluate(`['city','beachId'].forEach((name,i)=>{document.querySelector('#filters [name='+name+']').selectedOptions[0].textContent=i?'Praia de nome extenso para verificação de layout e acessibilidade':'Cidade de nome muito extenso para verificação de layout';})`);
+        await pause(100);
+        for(const width of [1280,768,390,320]) await checkFilterLayout(width,'long names ' + width);
+        await evaluate(`['city','beachId'].forEach((name,i)=>{document.querySelector('#filters [name='+name+']').selectedOptions[0].textContent=${JSON.stringify(originalLabels)}[i];})`);
+        await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:844,deviceScaleFactor:1,mobile:true});
       }
       await evaluate('history.back()');
       await waitFor('document.body.dataset.page === "home"');
@@ -250,6 +284,8 @@ async function main() {
     await click('[data-view=events]');
     await waitFor('document.querySelectorAll(".card").length === 6 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     assert.equal(await evaluate('location.hash'), '#/mutiroes');
+    for(const width of [1280,768,390,320]) await checkFilterLayout(width,'without helper ' + width);
+    await cdp('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
     assert.equal(await evaluate('document.querySelector(".hero").hidden'), true, 'Event search opens without a landing hero above it');
     await click('[data-view=reports]');
     await waitFor('document.querySelectorAll("#report-summary .report-metric").length === 3 && document.querySelector("#report-results").getAttribute("aria-busy") === "false"');

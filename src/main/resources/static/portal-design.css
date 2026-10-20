@@ -102,4 +102,66 @@ footer{max-width:1200px;width:100%;padding:22px 32px;gap:28px;align-items:center
 @media(max-width:900px){.hero{gap:24px;grid-template-columns:1fr 1fr}.locality-grid{gap:24px}.localities-heading{gap:24px}.participation-story{gap:28px;padding:28px}.participation-photo .photo-frame img{aspect-ratio:.7}.locality-caption strong{font-size:18px}}
 @media(max-width:700px){.hero{grid-template-columns:1fr;margin-top:20px;gap:16px}.coast-photo img{height:230px;border-top-right-radius:24px}.coast-photo figcaption{gap:4px 12px}.localities{padding-top:30px}.localities-heading{display:block;margin-bottom:20px}.localities-heading h2{font-size:25px;max-width:25ch}.localities-heading>p{max-width:48ch;margin-top:12px}.participation-story{grid-template-columns:1fr;padding:24px;gap:24px;margin-top:8px}.participation-photo .photo-frame img{aspect-ratio:1.7;object-position:50% 60%}.participation-copy h2{font-size:25px}.home-invitation{padding:24px;align-items:start;flex-direction:column}.home-invitation h2{font-size:23px}.localities-end{align-items:start;flex-direction:column;gap:6px}}
 @media(max-width:600px){.locality-grid{grid-template-columns:1fr;gap:24px}.locality-guarapari{padding-top:0}.locality-riodejaneiro{max-width:none}.locality-salvador{margin-top:0}.locality-florianopolis .photo-frame img{aspect-ratio:1.5}.locality-guarapari .photo-frame img,.locality-riodejaneiro .photo-frame img,.locality-salvador .photo-frame img{aspect-ratio:1.75}.locality-caption strong{font-size:20px}.participation-story{padding:20px}.participation-steps li{padding-left:34px}}
+/* Related content shares a surface; controls and helper text occupy separate rows. */
+.locality{padding:12px;background:#f0f4ef;border:1px solid #ccd8ce;border-radius:6px;transition:background-color .2s,border-color .2s}
+.locality .photo-frame{border-radius:3px}
+.locality-caption{padding:16px 4px 5px;border:0;align-items:center}
+.locality-caption>span:first-child{min-width:0;overflow-wrap:anywhere}
+.place-arrow{flex-shrink:0;background:#fff}
+.locality-guarapari{margin-top:36px;padding:12px}
+.locality-salvador{margin-top:0}
+.locality:focus-visible{border-color:var(--green);background:#e6eee5}
+@media(hover:hover){.locality:hover{border-color:var(--green);background:#e6eee5}}
+.coast-photo{background:#f0f4ef;border:1px solid #ccd8ce;border-radius:6px;padding:10px;align-self:center}
+.coast-photo img{border-radius:3px}
+.coast-photo figcaption{padding:12px 4px 2px}
+.participation-photo{padding:10px;background:#fafbf9;border:1px solid #ccd8ce;border-radius:5px}
+.participation-photo figcaption{padding:10px 2px 2px}
+.filters,.admin-filters{background:#edf2ed;border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:24px}
+#filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,1.4fr) minmax(0,1fr) auto;gap:12px;align-items:start}
+#filters .location-filters{display:contents}
+#filters label{min-width:0;width:auto;margin:0;grid-row:1}
+#filters :where(.location-filters label:nth-of-type(1)){grid-column:1}
+#filters :where(.location-filters label:nth-of-type(2)){grid-column:2}
+#filters :where(.location-filters label:nth-of-type(3)){grid-column:3}
+#filters #status-label{grid-column:4}
+#filters>.button{grid-column:5;grid-row:1;align-self:end;height:42px}
+#filters .choice-trigger,#filters select:not(.choice-native){height:42px}
+#filters .hint,#filters .error,#filters .field-error{grid-column:1 / -1;grid-row:auto;min-width:0;margin:0;overflow-wrap:anywhere}
+.admin-filters>.hint,.admin-filters>.error,.admin-filters>.notice,.admin-filters>.field-error{flex:0 0 100%;order:2;margin:0;overflow-wrap:anywhere}
+.admin-filters>label{min-width:0}.admin-filters>.button{align-self:flex-end}
+.admin-filters .choice-trigger,.admin-filters input,.admin-filters select:not(.choice-native){height:42px}
+.choice-arrow{line-height:1}
+.form-row>.hint,.form-row>.error,.form-row>.field-error{flex-basis:100%;min-width:0;overflow-wrap:anywhere}
+.card{background:#fff;border-color:#cbd8d0}
+.card-actions{border-top:1px solid #e0e7e1;margin-top:8px;padding-top:14px}
+.empty{background:#f0f4ef;border-style:solid;border-color:#cbd8d0}
+.report-summary{padding:22px;background:#eaf1eb;border:1px solid #cbd8d0;border-radius:6px}
+.report-detail{padding:22px;background:#fff;border:1px solid var(--line);border-radius:6px}
+#profile-workspace{gap:24px}
+#profile-workspace form{padding:24px;background:#fff;border:1px solid var(--line);border-radius:6px;min-width:0}
+#profile-workspace form>.button{margin-top:6px}
+#admin-workspace>.tabs{padding:8px;background:#edf2ed;border:1px solid var(--line);border-radius:6px;margin-bottom:24px}
+#admin-workspace>.section-heading{padding:0 2px}
+@media(max-width:900px){
+  #filters{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #filters #status-label{grid-column:1;grid-row:auto}
+  #filters>.button{grid-column:2;grid-row:auto;justify-self:start}
+  #filters .location-filters>.hint{grid-column:1 / -1}
+}
+@media(max-width:600px){
+  .locality-guarapari{margin-top:0}.locality{padding:10px}.locality-caption{padding:14px 3px 4px}
+  .coast-photo img{border-radius:3px}
+  #filters{grid-template-columns:repeat(2,minmax(0,1fr));padding:14px;gap:12px}
+  #filters .location-filters label,#filters #status-label,#filters>.button{grid-column:auto;grid-row:auto}
+  #filters .location-filters label:nth-of-type(3){grid-column:1 / -1}
+  #filters>.button{justify-self:stretch}
+  .admin-filters{padding:14px}.report-summary,.report-detail{padding:18px}
+  #profile-workspace form{padding:18px}
+}
+@media(max-width:380px){
+  #filters{grid-template-columns:minmax(0,1fr)}
+  #filters .location-filters label,#filters #status-label,#filters>.button{grid-column:1}
+  .admin-filters>label,#report-filters>label{flex-basis:100%}
+}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}.photo-frame img{transform:none!important}}
