@@ -253,8 +253,11 @@
           form.append(node('p', 'hint', 'Novos eventos começam como Agendado. Datas passadas são permitidas para histórico. Praia/data não podem conflitar com coletas vinculadas.'));
         } else {
           field(form, 'beach', 'Praia', { value: record.beachId ?? '', required: true, choices: choices('beaches') });
-          field(form, 'materialType', 'Material', { value: record.materialId ?? '', required: true, choices: choices('materials') });
-          field(form, 'weightKg', 'Peso (kg)', { type: 'number', value: record.weightKg ?? '', required: true, min: '0.001', max: '100000', step: '0.001', inputmode: 'decimal' });
+          if (id == null) window.PortalUI.materials(form, catalogs.materials);
+          else {
+            field(form, 'materialType', 'Material', { value: record.materialId ?? '', required: true, choices: choices('materials') });
+            field(form, 'weightKg', 'Peso (kg)', { type: 'number', value: record.weightKg ?? '', required: true, min: '0.001', max: '100000', step: '0.001', inputmode: 'decimal' });
+          }
           field(form, 'registrationDate', 'Data da coleta', { type: 'date', value: record.registrationDate || '', required: true, min: '1900-01-01', max: api.dataRules.today() });
           field(form, 'volunteerId', 'ID do proprietário (opcional)', { type: 'number', value: record.volunteer?.id ?? '', min: 1, step: 1 });
           const eventInput = field(form, 'eventId', 'ID do evento (opcional)', { type: 'number', value: record.event?.id ?? '', min: 1, step: 1 });
@@ -303,6 +306,11 @@
       const editing = state.editing;
       const form = event.currentTarget;
       const input = Object.fromEntries(new FormData(form));
+      const materials = editing.view === 'collections' && editing.id == null ? window.PortalUI.materialValues(form) : null;
+      if (materials) {
+        input.materialType = String(materials[0]?.materialId || '');
+        input.weightKg = materials[0]?.weightKg || '';
+      }
       if (editing.id != null) input.version = editing.version;
       for (const key of ['title', 'location', 'beach', 'materialType']) if (key in input) input[key] = input[key].trim();
       const errorBox = $('admin-form-error');
@@ -332,6 +340,9 @@
         showError('Preencha os campos obrigatórios com texto.'); return;
       }
       if (editing.view === 'collections') {
+        if (materials && (!materials.length || materials.some(item => !api.dataRules.weightValid(item.weightKg)))) {
+          showError('Marque pelo menos um material e informe um peso válido para cada material selecionado.'); return;
+        }
         if (!api.dataRules.weightValid(input.weightKg) || !api.dataRules.dateValid(input.registrationDate, api.dataRules.today())) {
           showError('Informe peso de 0,001 a 100.000 kg com até 3 casas e data entre 1900 e hoje (São Paulo).'); return;
         }
@@ -358,7 +369,9 @@
                 showError('A coleta deve usar a mesma praia e data do evento. Revise os campos ou remova o vínculo.'); return;
               }
             }
-            await api.admin[editing.view === 'events' ? 'saveEvent' : 'saveCollection'](editing.id, input);
+            if (materials?.length > 1) {
+              await api.admin.saveCollections(materials.map(item => ({ ...input, materialId: item.materialId, weightKg: Number(item.weightKg) })));
+            } else await api.admin[editing.view === 'events' ? 'saveEvent' : 'saveCollection'](editing.id, input);
           }
           if (!current(session)) return;
           if (state.editing === editing) $('admin-dialog').close();

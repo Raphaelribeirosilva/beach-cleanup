@@ -278,6 +278,33 @@ class CatalogIntegrationTests {
         }
         assertEquals(0, collections.count());
     }
+    @Test
+    void multipleMaterialsAreAtomicAndKeepWeightsAndOwnership() throws Exception {
+        long beach = catalog("beaches", "Praia do lote").get("id").asLong();
+        long plastic = catalog("materials", "Plástico").get("id").asLong();
+        long glass = catalog("materials", "Vidro").get("id").asLong();
+        var batch = mapper.createArrayNode().add(collectionInput(beach, plastic, null).put("weightKg", 1.25))
+            .add(collectionInput(beach, glass, null).put("weightKg", 2.5));
+        mvc.perform(post("/trashCollection/batch").with(anonymous()).contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(batch))).andExpect(status().isUnauthorized());
+        mvc.perform(post("/trashCollection/batch").with(user(Long.toString(owner)).roles("VOLUNTEER"))
+            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(batch)))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].weightKg").value(1.25)).andExpect(jsonPath("$[1].weightKg").value(2.5))
+            .andExpect(jsonPath("$[0].volunteer.id").value(owner));
+        assertEquals(2, collections.count());
+        batch.get(1).asObject().put("materialId", 999999);
+        mvc.perform(post("/trashCollection/batch").contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(batch))).andExpect(status().isNotFound());
+        assertEquals(2, collections.count(), "Failure in the second material must roll back the first");
+        batch.get(1).asObject().put("materialId", plastic);
+        mvc.perform(post("/trashCollection/batch").contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(batch))).andExpect(status().isBadRequest());
+        assertEquals(2, collections.count());
+        mvc.perform(post("/trashCollection/batch").contentType(MediaType.APPLICATION_JSON).content("[]"))
+            .andExpect(status().isBadRequest());
+    }
+
     private ObjectNode catalog(String kind, String name, String... aliases) throws Exception {
         ObjectNode body = mapper.createObjectNode().put("name", name);
         var values = body.putArray("aliases");

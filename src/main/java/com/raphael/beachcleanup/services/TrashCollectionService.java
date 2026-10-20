@@ -61,6 +61,21 @@ public class TrashCollectionService {
         return saved;
     }
 
+    /** A selection of materials is saved atomically, with an independent weight for each material. */
+    public List<TrashCollection> insertBatch(List<com.raphael.beachcleanup.dto.TrashCollectionInputDTO> inputs) {
+        var materials = new java.util.HashSet<Long>();
+        for (var input : inputs) {
+            if (input.materialId() == null || !materials.add(input.materialId())) {
+                throw new FieldValidationException("materialId", "Selecione cada material uma única vez.");
+            }
+        }
+        return inputs.stream().map(input -> {
+            var entity = input.toEntity();
+            access.bindCollectionOwner(entity);
+            return insert(entity);
+        }).toList();
+    }
+
     public void delete(Long id) { delete(id, null); }
 
     public void delete(Long id, Long version) {

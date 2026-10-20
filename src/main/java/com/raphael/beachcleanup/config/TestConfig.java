@@ -88,6 +88,7 @@ public class TestConfig implements CommandLineRunner {
         trashRepository.save(t1);
         try (var connection = directoryDataSource.getConnection()) {
             db.migration.mysql.V13__seed_beach_directory.seed(connection);
+            db.migration.mysql.V14__seed_material_options.seed(connection);
         }
     }
 }

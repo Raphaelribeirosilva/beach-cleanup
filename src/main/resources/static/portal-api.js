@@ -174,6 +174,7 @@
         deleteEvent: (id, version) => adminRequest(query(`/cleanupEvent/${id}`, { version }), { method: 'DELETE' }),
         saveCollection: (id, input) => adminRequest(id == null ? '/trashCollection' : `/trashCollection/${id}`,
           { method: id == null ? 'POST' : 'PUT', body: input }),
+        saveCollections: inputs => adminRequest('/trashCollection/batch', { method: 'POST', body: inputs }),
         deleteCollection: (id, version) => adminRequest(query(`/trashCollection/${id}`, { version }), { method: 'DELETE' })
       },
       session: currentSession,
@@ -221,7 +222,8 @@
         size: 6, sortBy: 'registrationDate', direction: 'desc', ...filters,
         volunteerId: session?.userId
       }), { authenticated: true }),
-      createCollection: input => request('/trashCollection', { method: 'POST', body: input, authenticated: true })
+      createCollection: input => request('/trashCollection', { method: 'POST', body: input, authenticated: true }),
+      createCollections: inputs => request('/trashCollection/batch', { method: 'POST', body: inputs, authenticated: true })
     };
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = { createPortalApi };

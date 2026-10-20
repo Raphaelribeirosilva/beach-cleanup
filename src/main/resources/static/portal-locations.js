@@ -27,17 +27,19 @@
     form.append(label);
     return select;
   }
-  function cities(stateSelect, citySelect, value = '') {
-    const values = states.find(state => state.uf === stateSelect.value)?.cities || [];
+  function cities(stateSelect, citySelect, value = '', entries = null) {
+    const values = entries ? [...new Set(entries.filter(entry => entry.state === stateSelect.value && entry.city).map(entry => entry.city))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      : states.find(state => state.uf === stateSelect.value)?.cities || [];
     options(citySelect, values.map(name => ({ id: name, name })), stateSelect.value ? 'Todas as cidades' : 'Selecione o Estado primeiro', value);
     citySelect.disabled = !stateSelect.value;
   }
-  function geography(form, { required = false, state = '', city = '' } = {}) {
+  function geography(form, { required = false, state = '', city = '', entries = null } = {}) {
     const stateSelect = field(form, 'state', 'Estado', required);
     const citySelect = field(form, 'city', 'Cidade', required);
-    options(stateSelect, states.map(item => ({ id: item.uf, name: `${item.name} (${item.uf})` })), required ? 'Selecione o Estado' : 'Todos os Estados', state);
+    options(stateSelect, states.filter(item => !entries || entries.some(entry => entry.state === item.uf))
+      .map(item => ({ id: item.uf, name: `${item.name} (${item.uf})` })), required ? 'Selecione o Estado' : 'Todos os Estados', state);
     const sync = value => {
-      cities(stateSelect, citySelect, value);
+      cities(stateSelect, citySelect, value, entries);
       if (required && stateSelect.value) citySelect.options[0].textContent = 'Selecione a cidade';
     };
     sync(city);
@@ -46,7 +48,7 @@
   }
   function beaches(form, entries, { required = false, name = 'beachId', value = '', existing = false } = {}) {
     const selected = entries.find(entry => String(entry.id) === String(value));
-    const geo = geography(form, { required: false, state: selected?.state, city: selected?.city });
+    const geo = geography(form, { required: false, state: selected?.state, city: selected?.city, entries });
     const beach = field(form, name, 'Praia', required);
     const hint = node('p', 'hint');
     form.append(hint);
@@ -64,6 +66,10 @@
     geo.city.required = geo.state.required;
     geo.state.addEventListener('change', () => sync());
     geo.city.addEventListener('change', () => sync());
+    beach.addEventListener('change', () => {
+      const entry = entries.find(entry => String(entry.id) === beach.value);
+      if (entry) { geo.set(entry.state, entry.city); sync(entry.id); }
+    });
     sync(value);
     return { ...geo, beach, set(uf, city, id) { geo.set(uf, city); sync(id); } };
   }

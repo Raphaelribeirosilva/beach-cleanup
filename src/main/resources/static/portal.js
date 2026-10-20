@@ -336,8 +336,21 @@
     state.selectedEvent = event;
     state.editingCollection = collection;
     $('collection-form').reset();
+    $('collection-form').querySelector('.material-options')?.remove();
+    const materialSelect = $('collection-form').querySelector('select[name=materialType],select[name=singleMaterialType]');
+    const singleWeight = $('collection-form').querySelector('[name=weightKg],[name=singleWeightKg]');
+    materialSelect.name = collection ? 'materialType' : 'singleMaterialType';
+    singleWeight.name = collection ? 'weightKg' : 'singleWeightKg';
+    materialSelect.closest('label').hidden = !collection;
+    materialSelect.disabled = !collection;
+    singleWeight.closest('label').hidden = !collection;
+    singleWeight.disabled = !collection;
+    if (!collection) {
+      const group = window.PortalUI.materials($('collection-form'), materials);
+      materialSelect.closest('label').after(group);
+    }
     catalogChoices($('collection-form').elements.beach, beaches, 'Selecione a praia');
-    catalogChoices($('collection-form').elements.materialType, materials, 'Selecione o material');
+    catalogChoices(materialSelect, materials, 'Selecione o material');
     $('collection-form').elements.registrationDate.value = api.dataRules.today();
     if (event) $('collection-form').elements.beach.value = event.beachId ?? '';
     if (collection) {
@@ -470,10 +483,13 @@
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    const input = { beachId: Number(form.elements.beach.value), materialId: Number(data.get('materialType')),
-      weightKg: Number(data.get('weightKg')), registrationDate: data.get('registrationDate') };
+    const materials = state.editingCollection ? [{ materialId: Number(data.get('materialType')), weightKg: data.get('weightKg') }]
+      : window.PortalUI.materialValues(form);
+    const first = materials[0];
+    const input = { beachId: Number(form.elements.beach.value), materialId: first?.materialId,
+      weightKg: Number(first?.weightKg), registrationDate: data.get('registrationDate') };
     if (state.selectedEvent) input.event = { id: state.selectedEvent.id };
-    if (!input.beachId || !input.materialId || !api.dataRules.weightValid(data.get('weightKg'))
+    if (!input.beachId || !materials.length || materials.some(item => !item.materialId || !api.dataRules.weightValid(item.weightKg))
         || !api.dataRules.dateValid(input.registrationDate, api.dataRules.today())) {
       errorAt('collection-error', 'Selecione praia/material, peso de 0,001 a 100.000 kg com até 3 casas decimais e data entre 1900 e hoje (São Paulo).'); return;
     }
@@ -482,6 +498,7 @@
       try {
         const editing = state.editingCollection;
         if (editing) await api.updateCollection(editing.id, { ...input, version: editing.version });
+        else if (materials.length > 1) await api.createCollections(materials.map(item => ({ ...input, materialId: item.materialId, weightKg: Number(item.weightKg) })));
         else await api.createCollection(input);
         $('collection-dialog').close();
         form.reset();

@@ -66,6 +66,13 @@ public class TrashCollectionResource {
 		service.delete(id, version);
 		return ResponseEntity.noContent().build();
 	}
+
+    @PostMapping("/batch")
+    public ResponseEntity<List<TrashCollectionDTO>> insertBatch(
+            @RequestBody @jakarta.validation.constraints.NotEmpty
+            @jakarta.validation.constraints.Size(max = 50) List<@jakarta.validation.constraints.NotNull @Valid TrashCollectionInputDTO> inputs) {
+        return ResponseEntity.status(201).body(totals.collections(service.insertBatch(inputs)));
+    }
 	
 	@PutMapping(value = "/{id}")
     @PreAuthorize("@accessPolicy.canAccessCollection(#id)")

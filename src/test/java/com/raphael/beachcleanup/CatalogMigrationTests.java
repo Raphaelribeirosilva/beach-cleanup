@@ -9,6 +9,22 @@ import org.junit.jupiter.api.io.TempDir;
 
 class CatalogMigrationTests {
     @Test
+    void defaultMaterialsAreAvailableAndSeedingKeepsKnownNames() throws Exception {
+        String url = "jdbc:h2:mem:material-options;MODE=MySQL;DB_CLOSE_DELAY=-1";
+        Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration/mysql").load().migrate();
+        try (var connection = DriverManager.getConnection(url, "sa", ""); var sql = connection.createStatement()) {
+            sql.executeUpdate("update tb_catalog_entry set name='Plástico reciclável' where kind='materials' and name='Plástico'");
+            db.migration.mysql.V14__seed_material_options.seed(connection);
+            try (var rows = sql.executeQuery("select count(*) from tb_catalog_entry where kind='materials'")) {
+                assertTrue(rows.next()); assertEquals(9, rows.getInt(1));
+            }
+            try (var rows = sql.executeQuery("select name from tb_catalog_entry where id=(select entry_id from tb_catalog_alias where kind='materials' and normalized_name='plastico')")) {
+                assertTrue(rows.next()); assertEquals("Plástico reciclável", rows.getString(1));
+            }
+        }
+    }
+
+    @Test
     void directoryAddsRealBeachesWithoutChangingLegacyPlacesAndCanBeReapplied() throws Exception {
         String directoryUrl = "jdbc:h2:mem:directory-migration;MODE=MySQL;DB_CLOSE_DELAY=-1";
         Flyway.configure().dataSource(directoryUrl, "sa", "").locations("classpath:db/migration/mysql").target("12").load().migrate();
@@ -66,7 +82,7 @@ class CatalogMigrationTests {
         }
         var flyway = Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration/mysql").load();
         flyway.migrate();
-        assertEquals(13, flyway.info().applied().length);
+        assertEquals(14, flyway.info().applied().length);
         flyway.validate();
         try (var connection = DriverManager.getConnection(url, "sa", ""); var sql = connection.createStatement()) {
             try (var rows = sql.executeQuery("select * from tb_trash_collection order by id")) {

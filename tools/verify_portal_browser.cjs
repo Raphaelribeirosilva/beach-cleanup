@@ -138,8 +138,16 @@ async function main() {
     }
     const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
     const fill = (selector, value) => evaluate(`(() => {
-      const element = document.querySelector(${JSON.stringify(selector)});
+      let element = document.querySelector(${JSON.stringify(selector)});
       const value = ${JSON.stringify(value)};
+      if (element?.type === 'checkbox') {
+        const row = [...element.closest('form').querySelectorAll('.material-row')]
+          .find(row => row.querySelector('.material-check span').textContent === value || row.querySelector('[type=checkbox]').value === value);
+        if (!row) throw new Error('Missing material choice: ' + value);
+        const check = row.querySelector('[type=checkbox]');
+        if (!check.checked) check.click();
+        return;
+      }
       if (element.tagName === 'SELECT') {
         const option = [...element.options].find(option => option.value === value || option.textContent === value);
         if (!option) throw new Error('Missing catalog choice: ' + value);
@@ -543,6 +551,15 @@ async function main() {
     await click('#admin-tab');
     const adminReady = () => waitFor('!document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
     await adminReady();
+    // Open the visible picker and choose a beach directly, without preselecting geography.
+    await click('#admin-filters [name=location] + .choice .choice-trigger');
+    await waitFor('document.querySelector(".choice-popup:popover-open .choice-option") !== null');
+    await fill('.choice-popup:popover-open .choice-search', 'Praia administrativa');
+    await evaluate('document.querySelector(".choice-popup:popover-open .choice-search").dispatchEvent(new Event("input",{bubbles:true}))');
+    await key('Enter', 'Enter');
+    assert.equal(await evaluate('document.querySelector("#admin-filters [name=state]").value'), 'SP');
+    assert.equal(await evaluate('document.querySelector("#admin-filters [name=city]").value'), 'Santos');
+    await fill('#admin-filters [name=state]', '');
     await click('#admin-next');
     await waitFor('document.querySelector("#admin-page-info").textContent.includes("2 de 2") && document.querySelector("#admin-results").getAttribute("aria-busy") === "false"');
     await click('#admin-previous');
@@ -768,6 +785,40 @@ async function main() {
     await adminReady();
     assert.equal(await evaluate('document.querySelector("#admin-results").textContent.includes("Peso anterior: não informado")'), true);
     assert.equal((await (await request('/admin/data-quality/rounding')).json()).content[0].roundedWeight, null);
+    // Multiple checked materials produce separate weights, once each, in both collection forms.
+    for (const administrative of [true, false]) {
+      if (administrative) {
+        await click('[data-admin-view=collections]');
+        await adminReady();
+        await click('#admin-create');
+      } else {
+        await click('[data-view=collections]');
+        await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false"');
+        await click('#collection-open');
+      }
+      const form = administrative ? '#admin-form' : '#collection-form';
+      const dialog = administrative ? '#admin-dialog' : '#collection-dialog';
+      await waitFor(`document.querySelector('${dialog}').open`);
+      await fill(`${form} [name=beach]`, 'Praia administrativa');
+      await fill(`${form} [name=materialType]`, 'Vidro');
+      await fill(`${form} [name=materialType]`, 'Metal');
+      await evaluate(`(() => {
+        const form = document.querySelector('${form}');
+        form.querySelectorAll('.material-row').forEach(row => {
+          const check = row.querySelector('[type=checkbox]');
+          if (check.checked) row.querySelector('[data-material-weight]').value = row.textContent.startsWith('Vidro') ? '1.125' : '2.25';
+        });
+      })()`);
+      assert.equal(await evaluate(`document.querySelectorAll('${form} [type=checkbox]:checked').length`), 2);
+      await fill(`${form} [name=registrationDate]`, '2026-10-15');
+      await checkAccessibility(administrative ? 'admin-multiple-materials' : 'multiple-materials');
+      await click(`${form} [type=submit]`);
+      await waitFor(`!document.querySelector('${dialog}').open`);
+      const saved = (await (await request('/trashCollection/search?beach=Praia%20administrativa&size=100')).json()).content
+        .filter(record => record.materialType === 'Vidro' && record.weightKg === 1.125 || record.materialType === 'Metal' && record.weightKg === 2.25);
+      assert.equal(saved.length, 2, 'Both materials must be saved exactly once');
+      for (const record of saved) assert.equal((await request(`/trashCollection/${record.id}?version=${record.version}`, 'DELETE')).status, 204);
+    }
     await click('#logout');
     await waitFor('document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").textContent === ""');
     await click('#login-open');

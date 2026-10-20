@@ -360,6 +360,14 @@ input,select {
   color:var(--ink)
 }
 
+.material-options { margin:0; padding:14px; border:1px solid #c9dbdc; border-radius:9px; min-width:0 }
+.material-options legend { font-size:14px; font-weight:650; padding:0 5px }
+.material-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:center; margin-top:12px }
+.material-row .material-check { display:flex; flex-direction:row; align-items:center; gap:8px; overflow-wrap:anywhere }
+.material-check input { width:20px; min-height:20px; height:20px; padding:0; flex-shrink:0; accent-color:#116c68 }
+.material-row input:disabled { background:#f3f6f6 }
+@media(max-width:580px) { .material-row { grid-template-columns:1fr } }
+
 input::placeholder {
   color:#59716f;
   font-weight:400
