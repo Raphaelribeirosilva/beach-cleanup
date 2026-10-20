@@ -107,7 +107,7 @@ class MySqlDatabaseIT {
             fixed.repair();
             fixed.migrate();
             fixed.validate();
-            assertEquals(14, fixed.info().applied().length);
+            assertEquals(15, fixed.info().applied().length);
             assertEquals(originalUsers, tableRows(connection,"tb_user",
                 "id,name,email,password,role,credential_version,row_version,total_collected_kg"));
             assertEquals(global, scalar(sql,"SELECT @@GLOBAL.explicit_defaults_for_timestamp"));
@@ -321,7 +321,7 @@ class MySqlDatabaseIT {
                 assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> context.getBean(AccountActionService.class).verify(oldAction));
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(14, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(15, context.getBean(Flyway.class).info().applied().length);
                 var proof = java.util.Map.of("scope","disposable MySQL local restore", "status","passed",
                     "allTablesCompared",comparedTables,"sessionsQuarantined",true,"oldAccessAndRefreshRejected",true,
                     "oldAccountLinksRejected",true,"applicationLoginAndTotals","passed",
@@ -344,7 +344,7 @@ class MySqlDatabaseIT {
 
     @Test
     void runtimeAccountCanOperateWithoutSchemaOrGlobalPrivileges() throws Exception {
-        try (var migrated=start()) { assertEquals(14, migrated.getBean(Flyway.class).info().applied().length); }
+        try (var migrated=start()) { assertEquals(15, migrated.getBean(Flyway.class).info().applied().length); }
         String account="beach_app_"+UUID.randomUUID().toString().replace("-", "").substring(0,12);
         try (var root=DriverManager.getConnection(serverUrl,username,password); var sql=root.createStatement()) {
             sql.executeUpdate("create user '"+account+"'@'localhost' identified by 'discardable-runtime-test-password'");
@@ -455,7 +455,7 @@ class MySqlDatabaseIT {
             collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(14, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(15, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -498,7 +498,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(14, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(15, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -569,7 +569,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             var flyway = context.getBean(Flyway.class);
             flyway.validate();
-            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"), java.util.Arrays.stream(flyway.info().applied())
+            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"), java.util.Arrays.stream(flyway.info().applied())
                 .map(migration -> migration.getVersion().toString()).toList());
             assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -621,7 +621,7 @@ class MySqlDatabaseIT {
     void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
         WeightMigrationAssertions.verify(url, username, password);
         try (var context = start(url, false)) {
-            assertEquals(14, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(15, context.getBean(Flyway.class).info().applied().length);
             assertEquals(101L, context.getBean(AuthService.class)
                 .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
             var report = context.getBean(DataQualityService.class);
@@ -914,6 +914,51 @@ class MySqlDatabaseIT {
             var limiter = context.getBean(com.raphael.beachcleanup.security.AbuseLimiter.class);
             for (int i = allowed; i < 3; i++) assertEquals(0, limiter.consume("test-race", "identity", 3, 900));
             assertTrue(limiter.consume("test-race", "identity", 3, 900) > 0);
+        }
+    }
+
+    @Test
+    void accountMailRequestsAndLeasesSurviveMySqlRestart() throws Exception {
+        long jobId;
+        AccountMailQueue.Claim abandoned;
+        try (var context = start()) {
+            context.getBean(UserService.class).register(
+                new User(null, "Fila", "queue@example.com", "Uma praia mais limpa!", 0.0));
+            var jdbc = context.getBean(JdbcTemplate.class);
+            jobId = jdbc.queryForObject("select id from tb_account_mail_queue", Long.class);
+            assertEquals("READY", jdbc.queryForObject("select status from tb_account_mail_queue", String.class));
+            var queue = context.getBean(AccountMailQueue.class);
+            try (var pool = Executors.newFixedThreadPool(2)) {
+                var start = new CountDownLatch(1);
+                java.util.concurrent.Callable<AccountMailQueue.Claim> claim = () -> { await(start); return queue.claim(); };
+                var a = pool.submit(claim); var b = pool.submit(claim); start.countDown();
+                var first = a.get(20, TimeUnit.SECONDS); var second = b.get(20, TimeUnit.SECONDS);
+                assertTrue((first == null) != (second == null));
+                abandoned = first == null ? second : first;
+                assertEquals(jobId, abandoned.id());
+            }
+        }
+        try (var context = start()) {
+            var queue = context.getBean(AccountMailQueue.class); var jdbc = context.getBean(JdbcTemplate.class);
+            assertNull(queue.claim()); // A restart must respect the previous worker's lease.
+            jdbc.update("update tb_account_mail_queue set locked_until=? where id=?",
+                java.time.LocalDateTime.of(2000, 1, 1, 0, 0), jobId);
+            var recovered = queue.claim(); assertNotNull(recovered); assertEquals(2, recovered.attempts());
+            assertFalse(queue.complete(abandoned, true));
+            var mail = context.getBean(AccountActionService.class).prepareQueuedMail(recovered);
+            assertNotNull(mail); assertTrue(mail.text().contains("#verify="));
+            // Simulate a transport failure, then prove the retry survives another restart.
+            queue.retry(recovered);
+        }
+        try (var context = start()) {
+            var jdbc = context.getBean(JdbcTemplate.class); var queue = context.getBean(AccountMailQueue.class);
+            assertEquals("READY", jdbc.queryForObject("select status from tb_account_mail_queue", String.class));
+            assertNull(queue.claim());
+            jdbc.update("update tb_account_mail_queue set next_attempt_at=? where id=?",
+                java.time.LocalDateTime.of(2000, 1, 1, 0, 0), jobId);
+            var retry = queue.claim(); assertEquals(3, retry.attempts());
+            assertTrue(queue.complete(retry, true));
+            assertEquals("SENT", jdbc.queryForObject("select status from tb_account_mail_queue", String.class));
         }
     }
 

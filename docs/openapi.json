@@ -3,7 +3,7 @@
   "info": {
     "title": "Beach Cleanup API",
     "version": "0.0.1-SNAPSHOT",
-    "description": "Contrato estático vigente da API Elo do mar (Beach Cleanup). JWT Bearer e permissões de perfil/propriedade descritas por operação. PUT de usuários, eventos, coletas e catálogos substitui os campos de entrada e exige version. POST /trashCollection/batch registra de 1 a 50 materiais distintos em uma transação, com peso separado por material e as mesmas regras de propriedade, praia, data e evento das coletas individuais. Migrações disponíveis: V1–V14; a mais recente é V14 (opções iniciais de materiais). V12 adiciona localização às praias; V13 inclui a base inicial de praias. Flyway aplica somente pendências; preservar bancos e migrações já aplicadas. A versão 0.0.1-SNAPSHOT identifica o aplicativo, e não a versão do esquema do banco. Consolidação e exemplos: docs/38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md. Operação e recuperação: docs/33_HOMOLOGACAO_E_RECUPERACAO.md e docs/34_CORRECAO_TIMESTAMP_E_RECUPERACAO_V8.md; runtime com migrações externas valida o histórico antes de iniciar. Envio Gmail: docs/35_ENVIO_DE_CONFIRMACAO_PELO_GMAIL.md. Este contrato não executa migrações."
+    "description": "Contrato estático vigente da API Elo do mar (Beach Cleanup). JWT Bearer e permissões de perfil/propriedade descritas por operação. PUT de usuários, eventos, coletas e catálogos substitui os campos de entrada e exige version. POST /trashCollection/batch registra de 1 a 50 materiais distintos em uma transação, com peso separado por material e as mesmas regras de propriedade, praia, data e evento das coletas individuais. Migrações disponíveis: V1–V15; a mais recente é V15 (fila persistente de e-mail com novas tentativas e recuperação após reinício). V14 inclui as opções iniciais de materiais. V12 adiciona localização às praias; V13 inclui a base inicial de praias. Flyway aplica somente pendências; preservar bancos e migrações já aplicadas. A versão 0.0.1-SNAPSHOT identifica o aplicativo, e não a versão do esquema do banco. Consolidação e exemplos: docs/38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md. Operação e recuperação: docs/33_HOMOLOGACAO_E_RECUPERACAO.md e docs/34_CORRECAO_TIMESTAMP_E_RECUPERACAO_V8.md; runtime com migrações externas valida o histórico antes de iniciar. Envio Gmail: docs/35_ENVIO_DE_CONFIRMACAO_PELO_GMAIL.md. Fila e validação de conta: docs/40_FILA_PERSISTENTE_E_VALIDACAO_DE_EMAIL.md. Este contrato não executa migrações."
   },
   "servers": [
     {
@@ -2093,7 +2093,7 @@
         "operationId": "requestPasswordRecovery",
         "summary": "Solicitar recuperação de senha",
         "security": [],
-        "description": "Resposta 202 idêntica para endereço cadastrado, desconhecido, não confirmado, limitado por destinatário ou envio indisponível. A busca da conta e o envio são assíncronos após a confirmação da transação. Até 3 mensagens por endereço/finalidade por hora, com supressão silenciosa. O limite por IP é compartilhado entre os dois pedidos: 20 por hora. Recuperação envia mensagem somente para e-mail previamente confirmado. Confirmação não é reenviada para endereço já confirmado.",
+        "description": "Resposta 202 idêntica para endereço cadastrado, desconhecido, não confirmado, limitado por destinatário ou envio indisponível. A solicitação é persistida na transação e o envio ocorre de forma assíncrona após a confirmação, com novas tentativas e retomada após reinício. A fila não armazena o token de ação em texto e cancela pedidos vencidos ou desatualizados. Até 3 mensagens por endereço/finalidade por hora, com supressão silenciosa. O limite por IP é compartilhado entre os dois pedidos: 20 por hora. Recuperação envia mensagem somente para e-mail previamente confirmado. Confirmação não é reenviada para endereço já confirmado.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2147,7 +2147,7 @@
         "operationId": "requestEmailVerification",
         "summary": "Solicitar confirmação do e-mail",
         "security": [],
-        "description": "Resposta 202 idêntica para endereço cadastrado, desconhecido, não confirmado, limitado por destinatário ou envio indisponível. A busca da conta e o envio são assíncronos após a confirmação da transação. Até 3 mensagens por endereço/finalidade por hora, com supressão silenciosa. O limite por IP é compartilhado entre os dois pedidos: 20 por hora. Recuperação envia mensagem somente para e-mail previamente confirmado. Confirmação não é reenviada para endereço já confirmado.",
+        "description": "Resposta 202 idêntica para endereço cadastrado, desconhecido, não confirmado, limitado por destinatário ou envio indisponível. A solicitação é persistida na transação e o envio ocorre de forma assíncrona após a confirmação, com novas tentativas e retomada após reinício. A fila não armazena o token de ação em texto e cancela pedidos vencidos ou desatualizados. Até 3 mensagens por endereço/finalidade por hora, com supressão silenciosa. O limite por IP é compartilhado entre os dois pedidos: 20 por hora. Recuperação envia mensagem somente para e-mail previamente confirmado. Confirmação não é reenviada para endereço já confirmado.",
         "requestBody": {
           "required": true,
           "content": {
@@ -4089,9 +4089,10 @@
       "11",
       "12",
       "13",
-      "14"
+      "14",
+      "15"
     ],
-    "latest": "14",
-    "description": "V1–V14. A extensão é conferida contra as migrações SQL e Java por tools/validate_openapi.py."
+    "latest": "15",
+    "description": "V1–V15. A extensão é conferida contra as migrações SQL e Java por tools/validate_openapi.py."
   }
 }

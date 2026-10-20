@@ -42,7 +42,22 @@ public class AccountActionService {
     public AccountMailGateway.Mail prepareMail(AccountMailRequest request) {
         var id = users.findIdByEmail(request.email());
         var user = id.flatMap(users::findByIdForAuthentication).orElse(null);
+        return prepareMail(request, user);
+    }
+    @Transactional
+    public AccountMailGateway.Mail prepareQueuedMail(AccountMailQueue.Claim claim) {
+        long lifetime = claim.purpose().equals(RESET) ? 900 : 86400;
+        if (claim.ownerId() == null || !claim.createdAt().plusSeconds(lifetime).isAfter(clock.instant())) return null;
+        var user = users.findByIdForAuthentication(claim.ownerId()).orElse(null);
+        if (user == null || !user.getEmail().equals(claim.email())
+                || !Objects.equals(claim.credentialVersion(), user.getCredentialVersion())) return null;
+        if (claim.purpose().equals("PASSWORD_CHANGED")) return new AccountMailGateway.Mail(user.getEmail(),
+            "Senha alterada", "Sua senha foi redefinida e todas as sessões foram encerradas. Se não foi você, solicite recuperação e entre em contato com o suporte.");
+        return prepareMail(new AccountMailRequest(claim.email(), claim.purpose()), user);
+    }
+    private AccountMailGateway.Mail prepareMail(AccountMailRequest request, User user) {
         if (user == null || !user.getEmail().equals(request.email())
+                || !Set.of(VERIFY, RESET).contains(request.purpose())
                 || request.purpose().equals(VERIFY) && user.isEmailVerified()
                 || request.purpose().equals(RESET) && !user.isEmailVerified()) return null;
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);

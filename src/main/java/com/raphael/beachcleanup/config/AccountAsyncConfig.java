@@ -2,18 +2,19 @@ package com.raphael.beachcleanup.config;
 
 import org.springframework.context.annotation.*;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-@Configuration @EnableAsync
+@Configuration @EnableAsync @EnableScheduling
 public class AccountAsyncConfig {
     @Bean(name = "accountMailExecutor")
     public ThreadPoolTaskExecutor accountMailExecutor() {
         var executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(1); executor.setMaxPoolSize(2); executor.setQueueCapacity(100);
+        executor.setCorePoolSize(1); executor.setMaxPoolSize(1); executor.setQueueCapacity(1);
         executor.setThreadNamePrefix("account-mail-"); executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(10);
-        // Rejection must not turn account existence into an observable HTTP error.
-        executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.DiscardPolicy());
+        // Only wake-ups live here; durable requests are in tb_account_mail_queue.
+        executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
         return executor;
     }
 }

@@ -40,6 +40,10 @@ As respostas de reenvio são genéricas para não revelar contas cadastradas. H�
 
 Validar primeiro uma caixa Gmail e uma Hotmail controladas pelo responsável. Registrar recebimento, confirmação e login; depois testar recuperação de senha. O aceite pelo SMTP não garante chegada ao destinatário. Não foram realizados esses envios reais, pois dependem da conta e da senha de app configuradas pelo responsável.
 
+## Fila persistente a partir da V15
+
+As solicitações agora ficam no banco e recebem novas tentativas após falha, lotação do executor ou reinício. Consulte [fila persistente e validação dos fluxos](40_FILA_PERSISTENTE_E_VALIDACAO_DE_EMAIL.md) para estados, prazos, diagnóstico e limites das evidências. A conexão SMTP validada na inicialização continua sem comprovar recebimento na caixa postal.
+
 ## Hospedagem
 
 Usar perfis `prod,gmail`, configurar `ACCOUNT_PUBLIC_BASE_URL=https://SEU_DOMINIO` e manter as variáveis Gmail no gerenciador de segredos/processos. Não usar `gmail-local` em hospedagem. A abertura pública continua condicionada à validação real de entrega e aos demais controles da etapa de homologação. Nunca usar `localhost` em links destinados a usuários de outro computador.

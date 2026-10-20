@@ -38,7 +38,7 @@ final class WeightMigrationAssertions {
             }
         }
         var flyway = Flyway.configure().dataSource(url, username, password).locations("classpath:db/migration/mysql").load();
-        assertEquals(8, flyway.migrate().migrationsExecuted); // V7 through V14.
+        assertEquals(9, flyway.migrate().migrationsExecuted); // V7 through V15.
         flyway.validate();
         assertEquals(0, flyway.migrate().migrationsExecuted);
         BigDecimal before = BigDecimal.ZERO, after = BigDecimal.ZERO, delta = BigDecimal.ZERO;
