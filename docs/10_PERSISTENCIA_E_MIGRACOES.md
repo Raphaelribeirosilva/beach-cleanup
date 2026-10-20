@@ -1,5 +1,7 @@
 # Etapa 10 — Perfil MySQL e migrações
 
+Atualização em 19/10/2026: a sequência vigente é **V1–V14**, incluindo localização/base de praias (V12/V13) e opções de materiais (V14). Consulte a [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) para a lista completa, atualização e coleta em lote. As seções abaixo preservam o contexto desta etapa inicial de persistência.
+
 ## Configuração
 
 O perfil `mysql` usa banco persistente, Flyway e validação do esquema pelo Hibernate. O perfil `test` continua como padrão para desenvolvimento, mas pode ser substituído por `SPRING_PROFILES_ACTIVE=mysql`; não é mais fixado como perfil ativo no arquivo base.

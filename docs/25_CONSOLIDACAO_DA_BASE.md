@@ -1,5 +1,7 @@
 # Consolidação da base atual
 
+Referência histórica de 17/10/2026. Para a versão vigente, migrações **V1–V14**, materiais predefinidos e coleta em lote, consulte a [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md).
+
 Data: 17/10/2026. Base funcional: `e5096f2` (catálogos de praias e materiais), acrescida dos testes e da documentação desta consolidação.
 
 ## Contrato vigente

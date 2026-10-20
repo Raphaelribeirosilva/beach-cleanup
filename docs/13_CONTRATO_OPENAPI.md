@@ -1,13 +1,13 @@
 # Etapa 13 — Contrato OpenAPI
 
-O arquivo [openapi.json](openapi.json) descreve as 29 operações atuais em 18 caminhos: autenticação, usuários, eventos, inscrições, coletas, catálogos e conferência de qualidade/arredondamentos, incluindo as três buscas paginadas. Usa [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3.html), com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões descritas por operação.
+O arquivo [openapi.json](openapi.json) descreve **40 operações em 29 caminhos**, incluindo autenticação/sessões, conta, usuários, eventos, inscrições, coletas individuais/em lote, catálogos, relatórios, auditoria e qualidade/arredondamentos. Usa OpenAPI 3.0.3, com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões por operação. A versão do aplicativo é `0.0.1-SNAPSHOT`; o banco possui migrações **V1–V14**, identificadas também na extensão `x-database-migrations`. Consulte a [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md).
 
 ## Como usar
 
 1. Importe `docs/openapi.json` como definição OpenAPI em uma ferramenta de API compatível ou abra o arquivo em um editor OpenAPI.
 2. Ajuste o servidor `http://localhost:8080` à porta e ao endereço usados na execução da aplicação.
 3. Faça login por `POST /auth/login` com sua conta. Use o `accessToken` retornado na autenticação Bearer da ferramenta. O token pertence à sessão de uso e não deve ser salvo no contrato ou no Git.
-4. Use `/search` para paginação e filtros; as listagens originais retornam arrays completos.
+4. Use `/search` para paginação e filtros; as listagens originais são limitadas a 100 registros e retornam 400 quando a consulta excede esse limite.
 
 É um contrato estático versionado no repositório. Esta etapa não adiciona Swagger UI, `/v3/api-docs` ou uma rota para servir o arquivo na aplicação. A importação e a navegação do contrato podem ser feitas sem iniciar a API; chamadas HTTP exigem a aplicação em execução.
 
@@ -18,6 +18,7 @@ O arquivo [openapi.json](openapi.json) descreve as 29 operações atuais em 18 c
 - PUTs de usuários, eventos, coletas e catálogos exigem a `version` obtida na leitura. Ausência/valor inválido retorna 400; versão desatualizada retorna 409. Criação dispensa versão. Unificação exige `version` da origem e `targetVersion` do destino. Não há ETag/If-Match; veja a [etapa 23](23_PROTECAO_DE_FORMULARIOS_ANTIGOS.md).
 - Trocar a senha revoga os tokens anteriores, incluindo o usado na troca; o cliente precisa fazer novo login.
 - Voluntários consultam e alteram somente suas próprias coletas. O administrador pode transferir ou remover o proprietário. Referências opcionais aceitam `null`; os PUTs substituem os campos de entrada.
+- `POST /trashCollection/batch` recebe um array de 1 a 50 itens não nulos, com `materialId` positivo e distinto por item e pesos separados. Exige JWT e as permissões da criação individual. Retorna 201 com array de coletas; qualquer falha desfaz todos os itens e sua auditoria. Não há sucesso parcial nem reenvio automático. Edição/exclusão continuam individuais, com ID e `version`.
 - Novos eventos começam como `Agendado`; transições seguem a [etapa 9](09_STATUS_DOS_EVENTOS.md). Novas inscrições e vínculos de coleta exigem evento `Agendado` ou `Em andamento`.
 - Inscrições são idempotentes. Cancelar inscrição preserva coletas e é permitido em qualquer estado do evento. Inscrição não é requisito para registrar coleta.
 - `totalCollectedKg` vem da soma das coletas existentes, inclusive nas respostas paginadas. A resposta de usuário não inclui senha, perfil ou versão interna das credenciais; o perfil aparece na resposta de login.
@@ -29,7 +30,7 @@ O arquivo [openapi.json](openapi.json) descreve as 29 operações atuais em 18 c
 
 ## MySQL e dados existentes
 
-A base atual possui V1–V7. A instalação e a atualização de bancos com histórico Flyway anterior aos catálogos estão documentadas na [consolidação](25_CONSOLIDACAO_DA_BASE.md); a conversão decimal e conferência dos legados estão na [etapa 26](26_QUALIDADE_DOS_DADOS.md). O restante desta seção registra o contexto histórico da entrega inicial do OpenAPI.
+A base atual possui **V1–V14**. V12 adiciona localização às praias; V13 fornece praias iniciais; V14 fornece nove opções de materiais e respeita nomes/aliases já cadastrados. A [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) reúne a sequência completa e a coleta em lote. A [consolidação anterior](25_CONSOLIDACAO_DA_BASE.md) registra instalação e atualização da base V1–V6; a conversão decimal está na [etapa 26](26_QUALIDADE_DOS_DADOS.md). Os parágrafos seguintes preservam o contexto histórico da entrega inicial do OpenAPI.
 
 O ambiente persistente permanece o [MySQL local validado pelo usuário](12_MYSQL_LOCAL_VALIDACAO_MANUAL.md). Nenhuma mudança de esquema é necessária nesta etapa: não há migração nova nem alteração em V1/V2, configuração do banco ou dados.
 
@@ -43,7 +44,7 @@ Execute da raiz do projeto:
 python tools/validate_openapi.py
 ```
 
-O verificador usa somente a biblioteca padrão do Python. Confere a leitura do JSON, referências locais, IDs únicos de operações, parâmetros de caminho, respostas sem corpo para 204, distinção entre operações públicas/autenticadas e cobertura dos mapeamentos nos controllers Java.
+O verificador usa somente a biblioteca padrão do Python. Confere JSON, referências locais, IDs únicos de operações, parâmetros de caminho, respostas sem corpo para 204, distinção entre operações públicas/autenticadas, cobertura dos controllers Java e versões de migração documentadas contra os arquivos SQL/Java. A verificação atual cobre 29 caminhos e 40 operações. Não substitui testes HTTP nem validação integral do esquema OpenAPI.
 
 Resultado em 11/10/2026: **13 caminhos e 23 operações, estrutura e cobertura aprovadas**. A revisão dos DTOs, services e segurança fundamenta os campos e regras descritos. Este verificador não substitui validação integral pelo esquema oficial OpenAPI, nem testes HTTP: não compara automaticamente todas as restrições e regras de negócio. Nenhum teste foi executado no MySQL do usuário. A suíte Maven não foi executada nesta etapa, que altera somente documentação e sua ferramenta de verificação.
 

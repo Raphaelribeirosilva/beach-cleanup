@@ -2,6 +2,8 @@
 
 Data: 16/10/2026.
 
+Atualização em 19/10/2026: V13 fornece praias iniciais e V14 fornece nove opções de materiais, respeitando nomes e aliases existentes. Novas coletas no portal permitem marcar vários materiais, com peso separado e salvamento atômico em `POST /trashCollection/batch`. Edição/exclusão continuam individuais. Consulte a [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md); os resultados da entrega inicial abaixo são históricos.
+
 Atualização de validação em 17/10/2026: instalação V1–V6, atualização de bases V2/V4 com dados e backup/restauração conferidos em MySQL 8.0.46 real com JDK 25. Procedimento e resultados na [consolidação da base](25_CONSOLIDACAO_DA_BASE.md). A seção de verificações abaixo preserva os resultados da entrega inicial.
 
 ## Resultado

@@ -26,7 +26,7 @@ Foi incluída uma base inicial de **211 praias em 21 municípios de cinco Estado
 | RJ | Rio de Janeiro |
 | BA | Salvador |
 
-As demais cidades continuam selecionáveis. A administração pode acrescentar praias em qualquer cidade da base IBGE. Quando ainda não existe praia cadastrada para uma cidade, a interface informa isso; não inventa praias ou eventos.
+Atualização da versão atual: nos seletores de praias, Estados e cidades são limitados aos locais com praias cadastradas; escolher a praia diretamente preenche Estado e cidade. No cadastro administrativo de praias, todas as cidades da base local continuam disponíveis. A administração pode acrescentar locais além da base inicial. Consulte a [consolidação com V14 e coleta em lote](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md).
 
 As fontes de localização são registradas por município em `src/main/resources/db/beaches-v13.json`:
 

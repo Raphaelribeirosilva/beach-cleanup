@@ -1,10 +1,10 @@
-# Beach Cleanup
+# Elo do mar (Beach Cleanup)
 
 API para organizar mutirões de limpeza de praias, cadastrar usuários, gerenciar inscrições e registrar o peso dos resíduos coletados. Implementada com Java 25, Spring Boot 4.1.1, Spring MVC, Spring Security, JPA e Flyway.
 
-O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, troca de senha, estados dos eventos, totais calculados, catálogos de praias/materiais e buscas paginadas. O portal web do voluntário permite cadastro, login, consulta de eventos, inscrições e registro/acompanhamento de coletas. A área administrativa permite gerenciar eventos, coletas e catálogos e consultar usuários. Os relatórios por evento, praia, material e período são etapas futuras.
+O backend oferece CRUD com DTOs e validações, autenticação JWT, permissões de administrador/voluntário, estados dos eventos, totais calculados, catálogos e buscas paginadas. O portal Elo do mar inclui localização dos eventos, relatórios de impacto, manutenção da conta, sessões renováveis e recuperação/confirmação de e-mail. A administração gerencia eventos, coletas e catálogos, consulta usuários e revisa qualidade e auditoria. Novas coletas permitem marcar vários materiais, com peso separado por material e salvamento atômico em lote.
 
-A [consolidação](docs/25_CONSOLIDACAO_DA_BASE.md) reúne instalação e atualização anteriores aos catálogos. A [etapa de qualidade dos dados](docs/26_QUALIDADE_DOS_DADOS.md) acrescenta pesos decimais, V7, regras de datas/praias e revisão de legados. Documentos de etapas anteriores registram resultados históricos; para o contrato atual, consulte este README e o [OpenAPI](docs/openapi.json).
+A [consolidação atual](docs/38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) descreve o aplicativo `0.0.1-SNAPSHOT`, as migrações V1–V14 e a coleta em lote. A [consolidação anterior](docs/25_CONSOLIDACAO_DA_BASE.md) registra a base em V1–V6 e os procedimentos de instalação e atualização daquela etapa. Documentos de etapas anteriores preservam seus resultados históricos; para o contrato atual, consulte este README e o [OpenAPI](docs/openapi.json).
 
 ## Requisitos
 
@@ -39,9 +39,9 @@ Para iniciar pela IDE, importe o projeto como Maven, selecione um JDK compatíve
 
 Com a aplicação iniciada, abra **http://localhost:8080/** no navegador. O portal é servido pelo próprio Spring Boot e não exige servidor frontend, instalação npm ou build JavaScript.
 
-É possível explorar eventos e filtrar por local/status sem login. Crie uma conta ou entre para inscrever-se, cancelar inscrições, registrar coletas independentes ou vinculadas a um evento e consultar suas coletas e seu total em kg. No perfil `test`, pode usar `ana@example.com` / `ana123`. O evento inicial está pausado; novos eventos são cadastrados por administrador pela API.
+É possível explorar eventos e filtrar por localização/status sem login. Crie uma conta ou entre para inscrever-se, cancelar inscrições, registrar coletas independentes ou vinculadas a um evento e consultar suas coletas e seu total em kg. No perfil `test`, pode usar `ana@example.com` / `ana123`. O evento inicial está pausado; administradores criam novos eventos em **Administração → Eventos** ou pela API.
 
-O portal preserva a sessão da aba em `sessionStorage` e renova access tokens de até 30 minutos por até sete dias desde o login. Cada renovação gira o refresh token; o servidor guarda somente hashes. Sair revoga a sessão no servidor, incluindo access tokens já emitidos; trocar a senha revoga todas as sessões da conta. Não há cookie de autenticação. Cadastro e alteração de senha exigem pelo menos 15 caracteres e até 72 bytes UTF-8. A [etapa 30](docs/30_RECUPERACAO_DE_CONTA_E_PROTECAO_CONTRA_ABUSO.md) descreve confirmação do e-mail, recuperação e limites de tentativa; a entrega SMTP real deve ser validada antes da abertura pública. Detalhes na [renovação e encerramento de sessão](docs/29_RENOVACAO_E_ENCERRAMENTO_DE_SESSAO.md).
+O portal preserva a sessão da aba em `sessionStorage` e renova access tokens de até 30 minutos por até sete dias desde o login. Cada renovação gira o refresh token; o servidor guarda somente hashes. Sair revoga a sessão no servidor, incluindo access tokens já emitidos; trocar a senha revoga todas as sessões da conta. Não há cookie de autenticação. Cadastro e alteração de senha exigem pelo menos 7 caracteres e até 72 bytes UTF-8, rejeitando senhas comuns ou um único caractere repetido. A [etapa 30](docs/30_RECUPERACAO_DE_CONTA_E_PROTECAO_CONTRA_ABUSO.md) descreve confirmação do e-mail, recuperação e limites de tentativa; a entrega SMTP real deve ser validada antes da abertura pública. Detalhes na [renovação e encerramento de sessão](docs/29_RENOVACAO_E_ENCERRAMENTO_DE_SESSAO.md).
 
 Para administrar, entre com uma conta `ADMIN` e abra a aba **Administração**. No perfil `test`, use `admin@example.com` / `admin123`. As abas Eventos, Usuários e Coletas oferecem buscas paginadas; eventos e coletas possuem formulários e exclusão com confirmação. Voluntários não têm acesso à área administrativa, e o backend continua protegendo cada operação. Veja o uso, os testes e os limites na [entrega da interface administrativa](docs/20_INTERFACE_ADMINISTRATIVA.md).
 
@@ -65,7 +65,7 @@ java -jar target/beachcleanup-0.0.1-SNAPSHOT.jar --spring.profiles.active=mysql
 
 O perfil MySQL usa Flyway, `ddl-auto=validate`, `open-in-view=false` e desabilita console H2 e logs SQL. Não carrega contas de exemplo. O cadastro público cria contas `VOLUNTEER`; a definição do primeiro administrador é uma operação controlada no banco, descrita na [etapa 10](docs/10_PERSISTENCIA_E_MIGRACOES.md).
 
-As migrações atuais são V1 (esquema), V2 (índices), V3 (versão das coletas), V4 (versão dos eventos), V5 (tabelas e referências dos catálogos), V6 (associação dos textos antigos aos catálogos) V7 (pesos `DECIMAL(38,3)` e auditoria dos arredondamentos) V8 (sessões renováveis e hashes de refresh tokens) e V9 (confirmação de e-mail, recuperação e limites persistentes). V6 e V7 são migrações Java incluídas no JAR. Em banco já gerenciado pelo Flyway, a inicialização aplica somente as migrações pendentes. Preserve as versões aplicadas e crie uma nova migração para mudar o esquema; não use recriação de tabelas para atualizar um banco com dados existentes. V1 inicializa um banco vazio; um banco legado sem histórico Flyway exige uma migração específica. Siga o [procedimento de instalação e atualização](docs/25_CONSOLIDACAO_DA_BASE.md) e a [conferência da V7](docs/26_QUALIDADE_DOS_DADOS.md) para conferir histórico, backup e dados após a atualização.
+As migrações atuais vão de **V1 a V14**: esquema e índices (V1/V2), versões de coletas/eventos (V3/V4), catálogos e associação dos nomes antigos (V5/V6), pesos decimais e conferência dos arredondamentos (V7), sessões (V8), recuperação/confirmação e limites (V9), auditoria administrativa (V10), semântica temporal (V11), localização das praias (V12), base inicial de praias (V13) e opções de materiais (V14). V6, V7, V13 e V14 são migrações Java incluídas no JAR. A [consolidação atual](docs/38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) detalha cada versão. Em banco com histórico Flyway, a inicialização aplica somente pendências. Preserve versões aplicadas e dados existentes; não recrie tabelas para atualizar. Um banco legado sem histórico exige migração específica. A [instalação e atualização](docs/25_CONSOLIDACAO_DA_BASE.md) e a [conferência da V7](docs/26_QUALIDADE_DOS_DADOS.md) registram os procedimentos anteriores; a recuperação de V8 está na [etapa 34](docs/34_CORRECAO_TIMESTAMP_E_RECUPERACAO_V8.md).
 
 ## Preparação para implantação
 
@@ -96,7 +96,7 @@ Invoke-RestMethod -Uri "$api/users/$($login.userId)" -Headers $headers
 Invoke-RestMethod -Uri "$api/trashCollection/search?page=0&size=10" -Headers $headers
 ```
 
-A coleta será vinculada automaticamente à Ana. Seu `totalCollectedKg` será calculado a partir das coletas existentes. No perfil MySQL, cadastre sua própria conta por `POST /users` com `name`, `email` e `password`, e substitua as credenciais de exemplo no login. O banco novo não possui catálogos demonstrativos: um administrador precisa cadastrar praia e material antes de registrar eventos/coletas. Nomes livres desconhecidos retornam 400; use IDs obtidos nas listas. Nomes principais e aliases cadastrados continuam aceitos nos campos antigos.
+A coleta será vinculada automaticamente à Ana. Seu `totalCollectedKg` é calculado a partir das coletas existentes. No perfil MySQL, cadastre sua conta por `POST /users` com `name`, `email` e `password` e substitua as credenciais de exemplo. V13 e V14 fornecem praias e materiais iniciais; administradores podem acrescentar outros itens. Use IDs obtidos nos catálogos; nomes livres desconhecidos retornam 400. Nomes e aliases cadastrados continuam aceitos nos campos antigos. Para vários materiais, envie um array a `POST /trashCollection/batch`, com peso separado por item; veja o [exemplo completo](docs/38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md).
 
 O token dura 30 minutos (`expiresIn: 1800`). Use `Authorization: Bearer <accessToken>` nas rotas protegidas. A troca de senha por `PUT /auth/password` revoga os tokens anteriores da conta; faça novo login. Senhas aceitam no máximo 72 bytes UTF-8.
 
@@ -110,6 +110,7 @@ O token dura 30 minutos (`expiresIn: 1800`). Use `Authorization: Bearer <accessT
 | `/cleanupEvent` e `/cleanupEvent/{id}` | Leitura pública; cadastro, edição e exclusão por administrador |
 | `/users/me/events` | GET dos eventos da própria conta; PUT/DELETE em `/{eventId}` para inscrição/cancelamento |
 | `/trashCollection` e `/trashCollection/{id}` | Voluntário acessa suas coletas; administrador gerencia todas e pode transferir/remover proprietário |
+| `/trashCollection/batch` | POST autenticado; array de 1 a 50 itens com `materialId` distintos e peso individual; retorna 201 com array de coletas; falha cancela todo o lote |
 | `/users/search`, `/cleanupEvent/search`, `/trashCollection/search` | Buscas paginadas; preservam as permissões dos respectivos recursos |
 | `/catalog/beaches` e `/catalog/materials` | GET público; POST somente administrador |
 | `/catalog/{kind}/{id}` | PUT somente administrador, com `version`; `kind` aceita `beaches` ou `materials` |
@@ -121,7 +122,7 @@ Novos eventos começam como `Agendado`. Eventos `Agendado` e `Em andamento` acei
 
 Pesos novos devem estar entre **0,001 e 100.000 kg**, com até **3 casas decimais**. O backend usa `BigDecimal` e somas decimais exatas. Entradas com precisão excedente retornam 400; somente a migração dos dados antigos usa arredondamento `HALF_UP`, registrando original e diferença. A data da coleta deve estar entre 01/01/1900 e hoje em São Paulo. Com evento, **praia e dia da coleta devem coincidir com os do evento**; mudar a praia/dia do evento conflitando com coletas retorna 409. Datas passadas de eventos são permitidas para histórico. As abas administrativas **Qualidade dos dados** e **Conversão de pesos** permitem revisar pendências e conferir arredondamentos; a [etapa 26](docs/26_QUALIDADE_DOS_DADOS.md) explica as exceções e o procedimento de revisão.
 
-As buscas usam páginas a partir de zero, tamanho padrão 20 e limite 100, com filtros e ordenação. Prefira essas rotas às listagens originais, que retornam arrays completos. Veja [exemplos de busca](docs/11_EXEMPLOS_DE_BUSCA.md).
+As buscas usam páginas a partir de zero, tamanho padrão 20 e limite 100, com filtros e ordenação. Prefira essas rotas às listagens originais, limitadas a 100 registros; acima desse limite, elas retornam 400 e orientam usar `/search`. Veja [exemplos de busca](docs/11_EXEMPLOS_DE_BUSCA.md).
 
 Entradas inválidas retornam 400; autenticação ausente/inválida, 401; acesso negado, 403; recurso não encontrado, 404; conflitos de integridade, estado ou versão concorrente, 409. Para voluntários, IDs de coletas inexistentes ou inacessíveis retornam 403. Filtros `beachId` (eventos e coletas) e `materialId` (coletas) selecionam identidades exatas; os filtros textuais também reconhecem aliases.
 
@@ -153,7 +154,7 @@ python -m unittest discover -s tools -p 'test_*.py'
 node --test tools/portal-api.test.cjs
 ```
 
-A suíte padrão usa H2 e não exige MySQL. Os testes do cliente do portal usam Node.js 24 ou superior, sem pacotes npm; Node não é necessário para executar a aplicação. O contrato [OpenAPI](docs/openapi.json) pode ser importado em ferramentas de API; descreve 18 caminhos e 29 operações. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
+A suíte padrão usa H2 e não exige MySQL. Os testes do cliente usam Node.js 24 ou superior, sem pacotes npm; Node não é necessário para executar a aplicação. O contrato [OpenAPI](docs/openapi.json) descreve **29 caminhos e 40 operações**. O validador também confere as versões de migração documentadas contra os arquivos SQL/Java. É um arquivo estático, sem Swagger UI ou `/v3/api-docs` servido pela aplicação.
 
 Para executar a suíte completa em uma instância MySQL temporária no Windows:
 
@@ -169,6 +170,7 @@ Os resultados da revisão de qualidade, instalação V1–V7, atualização de b
 
 | Tema | Documento |
 |---|---|
+| Versão atual, migrações V1–V14 e coletas em lote | [Consolidação atual](docs/38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) |
 | Nomes, campos e contrato de CRUD | [Etapa 6](docs/06_PADRONIZACAO_DE_NOMES.md) |
 | Total derivado das coletas | [Etapa 7](docs/07_TOTAL_COLETADO.md) |
 | Inscrições | [Etapa 8](docs/08_INSCRICAO_EM_EVENTOS.md) |

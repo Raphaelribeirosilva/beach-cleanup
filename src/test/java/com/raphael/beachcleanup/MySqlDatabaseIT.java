@@ -568,7 +568,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             var flyway = context.getBean(Flyway.class);
             flyway.validate();
-            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"), java.util.Arrays.stream(flyway.info().applied())
+            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"), java.util.Arrays.stream(flyway.info().applied())
                 .map(migration -> migration.getVersion().toString()).toList());
             assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -582,7 +582,7 @@ class MySqlDatabaseIT {
                     .login(new LoginDTO("conta" + id + "@example.com", "senha-legada")).userId());
             }
             assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='beaches' and city is null", Integer.class));
-            assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='materials'", Integer.class));
+            assertEquals(9, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='materials'", Integer.class));
             Long beach = jdbc.queryForObject("select beach_id from tb_cleanup_event where id=501", Long.class);
             assertNotNull(beach);
             assertEquals(beach, jdbc.queryForObject("select beach_id from tb_cleanup_event where id=502", Long.class));
@@ -598,12 +598,19 @@ class MySqlDatabaseIT {
             var users = context.getBean(UserRepository.class);
             assertEquals(2.75, totals.user(users.findById(101L).orElseThrow()).getTotalCollectedKg().doubleValue());
             assertEquals(8.25, totals.user(users.findById(102L).orElseThrow()).getTotalCollectedKg().doubleValue());
-            assertEquals(4, jdbc.queryForObject("select count(*) from tb_catalog_alias", Integer.class));
+            // V13/V14 add aliases; the four original aliases must still identify the legacy entries.
+            assertEquals(4, jdbc.queryForObject("""
+                select count(*) from tb_catalog_alias
+                where (kind='beaches' and normalized_name in ('praia do morro','morro'))
+                   or (kind='materials' and normalized_name in ('plastico','vidro'))
+                """, Integer.class));
         }
         try (var context = start(url, false)) {
             assertEquals(2, context.getBean(UserRepository.class).count());
             assertEquals(5, context.getBean(TrashCollectionRepository.class).count());
-            assertEquals(4, context.getBean(JdbcTemplate.class).queryForObject("select count(*) from tb_catalog_entry where city is null", Integer.class));
+            var jdbc = context.getBean(JdbcTemplate.class);
+            assertEquals(2, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='beaches' and city is null", Integer.class));
+            assertEquals(9, jdbc.queryForObject("select count(*) from tb_catalog_entry where kind='materials'", Integer.class));
             assertEquals(102L, context.getBean(AuthService.class)
                 .login(new LoginDTO("conta102@example.com", "senha-legada")).userId());
         }

@@ -40,6 +40,22 @@ def validate(spec):
     check(spec["security"] == [{"bearerAuth": []}], "Missing default JWT requirement")
     check(spec["components"]["securitySchemes"]["bearerAuth"]["scheme"] == "bearer",
           "Unexpected authentication scheme")
+    migration_sources = [
+        ROOT / "src/main/resources/db/migration/mysql",
+        ROOT / "src/main/java/db/migration/mysql",
+    ]
+    versions = []
+    for directory in migration_sources:
+        for source in directory.iterdir():
+            match = re.fullmatch(r"V(\d+)__.+\.(?:sql|java)", source.name)
+            if match:
+                versions.append(int(match.group(1)))
+    check(versions and len(versions) == len(set(versions)), "Missing/duplicate migration versions")
+    expected_versions = [str(version) for version in sorted(versions)]
+    migrations = spec["x-database-migrations"]
+    check(migrations["versions"] == expected_versions, "Documented migrations differ from SQL/Java sources")
+    check(migrations["latest"] == expected_versions[-1], "Outdated latest database migration")
+    check(migrations["location"] == "classpath:db/migration/mysql", "Unexpected Flyway location")
 
     def walk(node):
         if isinstance(node, dict):

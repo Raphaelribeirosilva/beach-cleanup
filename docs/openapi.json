@@ -3,7 +3,7 @@
   "info": {
     "title": "Beach Cleanup API",
     "version": "0.0.1-SNAPSHOT",
-    "description": "Contrato estático da API atual. Proteção por JWT Bearer; permissões de perfil/propriedade são descritas por operação. PUT substitui os campos de entrada. Banco MySQL existente deve ser preservado; este contrato não executa migrações. Homologação restrita e recuperação: consultar docs/33_HOMOLOGACAO_E_RECUPERACAO.md; runtime com migrações externas valida o histórico antes de iniciar. Esta entrega não adiciona endpoints públicos. Correção de TIMESTAMP e recuperação da migração V8 documentadas em docs/34_CORRECAO_TIMESTAMP_E_RECUPERACAO_V8.md; sem alteração de rotas ou payloads. O portal associa errors[].fieldName aos campos de login/cadastro; comportamento de interface descrito em docs/18_PORTAL_DO_VOLUNTARIO.md, sem mudança de endpoints. Configuração de envio Gmail e reenvio de confirmação: docs/35_ENVIO_DE_CONFIRMACAO_PELO_GMAIL.md; sem alteração dos endpoints públicos."
+    "description": "Contrato estático vigente da API Elo do mar (Beach Cleanup). JWT Bearer e permissões de perfil/propriedade descritas por operação. PUT de usuários, eventos, coletas e catálogos substitui os campos de entrada e exige version. POST /trashCollection/batch registra de 1 a 50 materiais distintos em uma transação, com peso separado por material e as mesmas regras de propriedade, praia, data e evento das coletas individuais. Migrações disponíveis: V1–V14; a mais recente é V14 (opções iniciais de materiais). V12 adiciona localização às praias; V13 inclui a base inicial de praias. Flyway aplica somente pendências; preservar bancos e migrações já aplicadas. A versão 0.0.1-SNAPSHOT identifica o aplicativo, e não a versão do esquema do banco. Consolidação e exemplos: docs/38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md. Operação e recuperação: docs/33_HOMOLOGACAO_E_RECUPERACAO.md e docs/34_CORRECAO_TIMESTAMP_E_RECUPERACAO_V8.md; runtime com migrações externas valida o histórico antes de iniciar. Envio Gmail: docs/35_ENVIO_DE_CONFIRMACAO_PELO_GMAIL.md. Este contrato não executa migrações."
   },
   "servers": [
     {
@@ -2461,6 +2461,76 @@
           }
         }
       }
+    },
+    "/trashCollection/batch": {
+      "post": {
+        "tags": [
+          "Coletas"
+        ],
+        "operationId": "createTrashCollectionsBatch",
+        "summary": "Registrar coletas de vários materiais em lote",
+        "description": "Exige JWT. Recebe diretamente um array com 1 a 50 itens não nulos e materialId distinto em cada item. Cada item mantém seu peso, praia, data e vínculos; não há divisão automática nem repetição de um peso total. Voluntário registra somente em seu nome; administrador pode definir ou omitir proprietário por item. Aplicam-se as regras da criação individual: material e praia do catálogo, peso de 0,001 a 100.000 kg com até três casas decimais, data entre 1900-01-01 e hoje em São Paulo, praia/dia iguais aos do evento, novo vínculo somente em Agendado ou Em andamento. Todos os itens e entradas de auditoria são gravados na mesma transação. Qualquer falha cancela o lote inteiro; não há sucesso parcial. 400 para lista vazia, mais de 50 itens, item nulo, materialId ausente/repetido ou dados inválidos; 401 sem autenticação, 403 para proprietário não autorizado, 404 para referência inexistente e 409 para conflitos de estado/integridade. Uma nova chamada cria novos registros; não reenviar automaticamente após falha de conexão. Edição e exclusão continuam individuais por ID e version.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashCollectionBatchInput"
+              },
+              "example": [
+                {
+                  "beachId": 1,
+                  "materialId": 2,
+                  "weightKg": 1.25,
+                  "registrationDate": "2026-10-19"
+                },
+                {
+                  "beachId": 1,
+                  "materialId": 3,
+                  "weightKg": 2.5,
+                  "registrationDate": "2026-10-19"
+                }
+              ]
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Todos os itens criados. Array de coletas com IDs, versões e pesos individuais, na ordem enviada. Sem header Location.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashCollection"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3885,6 +3955,25 @@
             "description": "Somente IDs solicitados em eventIds nos quais a própria conta está inscrita."
           }
         }
+      },
+      "TrashCollectionBatchInput": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 50,
+        "description": "Cada item exige materialId positivo, distinto dos demais itens. O peso pertence apenas ao material do item. Não exige version para criação. Consulte os IDs atuais nos catálogos; não use IDs fixos entre ambientes.",
+        "items": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/TrashCollectionInput"
+            },
+            {
+              "type": "object",
+              "required": [
+                "materialId"
+              ]
+            }
+          ]
+        }
       }
     },
     "responses": {
@@ -3983,5 +4072,26 @@
         }
       }
     }
+  },
+  "x-database-migrations": {
+    "location": "classpath:db/migration/mysql",
+    "versions": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14"
+    ],
+    "latest": "14",
+    "description": "V1–V14. A extensão é conferida contra as migrações SQL e Java por tools/validate_openapi.py."
   }
 }

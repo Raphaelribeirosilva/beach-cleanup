@@ -1,5 +1,7 @@
 # Correção de TIMESTAMP e recuperação da V8
 
+Atualização em 19/10/2026: a sequência vigente termina em **V14**. Este documento preserva a análise específica da V8/V11; após a recuperação, aplique todas as migrações pendentes até V14. Consulte a [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) para localização, praias iniciais, opções de materiais e coleta em lote.
+
 ## Causa e alcance
 
 O erro informado é `42000 / 1067 / Invalid default value for 'revoked_at'`, no primeiro `CREATE TABLE` da V8. Os erros de `entityManagerFactory`, `authRateLimitRepository`, `AbuseLimiter`, filtro e Tomcat são consequências da migração interrompida.
@@ -37,7 +39,7 @@ Checksums Flyway desta revisão: V8 original `-1798703937`; V8 corrigida `160925
 
 | Estado observado | Procedimento |
 |---|---|
-| V8 ainda não aplicada, sem entrada falhada e sem tabelas da V8 | Não executar repair; iniciar a versão corrigida para aplicar V8–V11. |
+| V8 ainda não aplicada, sem entrada falhada e sem tabelas da V8 | Não executar repair; iniciar a versão corrigida para aplicar V8–V14. |
 | Apenas V8 falhada, sem `tb_auth_session` e sem `tb_refresh_token` | Após backup e revisão do histórico, executar o repair manual abaixo. A nova inicialização poderá reaplicar V8. |
 | V8 aplicada com sucesso na versão anterior | Conferir o DDL, os dados e a diferença de checksum restrita à V8. Após backup e revisão, alinhar o checksum com repair e aplicar V11. Se V8 já usa o checksum corrigido, não fazer repair. |
 | Há tabelas parciais, dados, outras falhas, checksum divergente fora da alteração esperada da V8 ou estrutura inesperada | Interromper o procedimento simples. Preservar backup e DDL, reconciliar o estado com o responsável pelo banco e definir a recuperação antes de repair. Não apagar, truncar ou renomear tabelas automaticamente. |
@@ -75,7 +77,7 @@ Com diagnóstico resolvido, preservar/configurar o `JWT_SECRET` já usado pela a
 .\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=mysql'
 ```
 
-Alternativa: atualizar os recursos do projeto no Eclipse/Maven e iniciar normalmente com o perfil `mysql` e as variáveis já configuradas. A inicialização deve aplicar as pendências até V11, validar o schema e chegar a `Started BeachcleanupApplication`. Depois:
+Alternativa: atualizar os recursos do projeto no Eclipse/Maven e iniciar normalmente com o perfil `mysql` e as variáveis já configuradas. A inicialização deve aplicar as pendências até V14, validar o schema e chegar a `Started BeachcleanupApplication`. Depois:
 
 ```powershell
 .\mvnw.cmd -Pflyway-maintenance compile flyway:validate
