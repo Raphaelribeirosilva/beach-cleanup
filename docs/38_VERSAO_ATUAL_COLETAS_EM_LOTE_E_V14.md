@@ -115,3 +115,5 @@ Resultados desta consolidação em 19/10/2026:
 | Conferência negativa do validador | Rejeitou versão mais recente desatualizada, lista incompleta de migrações e ausência da rota de lote |
 
 A seleção MySQL executou a atualização de bases V2 e V4 com preservação dos dados, a conversão decimal desde V6 e a instalação/reinicialização com autenticação e restrições. Não foi necessário acessar o banco habitual da aplicação. Os resultados locais não equivalem a uma execução do CI remoto.
+
+A [validação integrada com Java 25](39_VALIDACAO_COMPLETA_JAVA25_MYSQL_E_NAVEGADOR.md) registra a rodada posterior da suíte completa: 168 testes Java, incluindo todos os 19 cenários MySQL, seguidos dos fluxos de voluntário e administrador no navegador. Ela também documenta o isolamento do teste histórico da V11 e as evidências locais.

@@ -165,7 +165,8 @@ class MySqlDatabaseIT {
             }
             long checksum = scalar(sql,"SELECT checksum FROM flyway_schema_history WHERE version='8'");
             sql.execute("SET SESSION time_zone='+03:00'");
-            var fixed = Flyway.configure().dataSource(source).locations("classpath:db/migration/mysql").load();
+            // Isolate V11: later catalog migrations legitimately add rows to the snapshots.
+            var fixed = Flyway.configure().dataSource(source).locations("classpath:db/migration/mysql").target("11").load();
             var mismatch = assertThrows(org.flywaydb.core.api.exception.FlywayValidateException.class, fixed::validate);
             assertTrue(mismatch.getMessage().contains("checksum mismatch"));
             long v9Checksum = scalar(sql,"SELECT checksum FROM flyway_schema_history WHERE version='9'");
