@@ -15,6 +15,8 @@ import com.raphael.beachcleanup.exceptions.TooManyAttemptsException;
 
 @Service
 public class AbuseLimiter {
+    /** Cleanup retention must never be shorter than a supported accounting window. */
+    public static final long MAX_WINDOW_SECONDS = 3600;
     private final AccountPolicy policy;
     private final AuthRateLimitRepository buckets;
     private final Clock clock;
@@ -29,6 +31,8 @@ public class AbuseLimiter {
         if (retry > 0) throw new TooManyAttemptsException(retry);
     }
     public long consume(String scope, String identity, int maximum, long seconds) {
+        if (maximum < 1 || seconds < 1 || seconds > MAX_WINDOW_SECONDS)
+            throw new IllegalArgumentException("Janela de limitação de tentativas fora do intervalo suportado.");
         if (!policy.abuseEnabled) return 0;
         String hash;
         try { var mac = Mac.getInstance("HmacSHA256"); mac.init(key);

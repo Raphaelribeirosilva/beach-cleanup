@@ -1,6 +1,6 @@
 # Etapa 13 — Contrato OpenAPI
 
-O arquivo [openapi.json](openapi.json) descreve **40 operações em 29 caminhos**, incluindo autenticação/sessões, conta, usuários, eventos, inscrições, coletas individuais/em lote, catálogos, relatórios, auditoria e qualidade/arredondamentos. Usa OpenAPI 3.0.3, com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões por operação. A versão do aplicativo é `0.0.1-SNAPSHOT`; o banco possui migrações **V1–V15**, identificadas também na extensão `x-database-migrations`. Consulte a [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md).
+O arquivo [openapi.json](openapi.json) descreve **40 operações em 29 caminhos**, incluindo autenticação/sessões, conta, usuários, eventos, inscrições, coletas individuais/em lote, catálogos, relatórios, auditoria e qualidade/arredondamentos. Usa OpenAPI 3.0.3, com esquemas de entrada/saída, parâmetros, respostas, JWT Bearer e permissões por operação. A versão do aplicativo é `0.0.1-SNAPSHOT`; o banco possui migrações **V1–V16**, identificadas também na extensão `x-database-migrations`. Consulte a [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md).
 
 ## Como usar
 
@@ -30,7 +30,7 @@ O arquivo [openapi.json](openapi.json) descreve **40 operações em 29 caminhos*
 
 ## MySQL e dados existentes
 
-A base atual possui **V1–V15**. V15 adiciona a [fila persistente de e-mail](40_FILA_PERSISTENTE_E_VALIDACAO_DE_EMAIL.md), sem alterar rotas HTTP. V12 adiciona localização às praias; V13 fornece praias iniciais; V14 fornece nove opções de materiais e respeita nomes/aliases já cadastrados. A [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) reúne a sequência completa e a coleta em lote. A [consolidação anterior](25_CONSOLIDACAO_DA_BASE.md) registra instalação e atualização da base V1–V6; a conversão decimal está na [etapa 26](26_QUALIDADE_DOS_DADOS.md). Os parágrafos seguintes preservam o contexto histórico da entrega inicial do OpenAPI.
+A base atual possui **V1–V16**. V16 adiciona o índice da [manutenção periódica de autenticação](41_MANUTENCAO_DOS_DADOS_DE_AUTENTICACAO.md). V15 adiciona a [fila persistente de e-mail](40_FILA_PERSISTENTE_E_VALIDACAO_DE_EMAIL.md), sem alterar rotas HTTP. V12 adiciona localização às praias; V13 fornece praias iniciais; V14 fornece nove opções de materiais e respeita nomes/aliases já cadastrados. A [consolidação atual](38_VERSAO_ATUAL_COLETAS_EM_LOTE_E_V14.md) reúne a sequência completa e a coleta em lote. A [consolidação anterior](25_CONSOLIDACAO_DA_BASE.md) registra instalação e atualização da base V1–V6; a conversão decimal está na [etapa 26](26_QUALIDADE_DOS_DADOS.md). Os parágrafos seguintes preservam o contexto histórico da entrega inicial do OpenAPI.
 
 O ambiente persistente permanece o [MySQL local validado pelo usuário](12_MYSQL_LOCAL_VALIDACAO_MANUAL.md). Nenhuma mudança de esquema é necessária nesta etapa: não há migração nova nem alteração em V1/V2, configuração do banco ou dados.
 

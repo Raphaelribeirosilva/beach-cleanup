@@ -3,7 +3,7 @@ package com.raphael.beachcleanup.entities;
 import java.time.Instant;
 import jakarta.persistence.*;
 
-@Entity @Table(name = "tb_auth_rate_limit")
+@Entity @Table(name = "tb_auth_rate_limit", indexes = @Index(name = "idx_auth_rate_limit_window", columnList = "windowStart"))
 public class AuthRateLimit {
     @Id @Column(length = 64) private String bucketKey;
     @Column(nullable = false) private Instant windowStart;

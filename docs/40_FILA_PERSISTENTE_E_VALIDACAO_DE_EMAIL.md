@@ -17,6 +17,8 @@ O processamento admite repetição de mensagem: se o SMTP aceitar a mensagem e o
 
 ## Operação e configuração
 
+A limpeza periódica de sessões, refresh tokens, tokens de conta e contadores está descrita na [manutenção dos dados de autenticação](41_MANUTENCAO_DOS_DADOS_DE_AUTENTICACAO.md), adicionada com V16. Os prazos e resultados de V15 registrados neste documento permanecem como histórico.
+
 | Propriedade | Padrão | Efeito |
 | --- | --- | --- |
 | `account.mail.queue.max-attempts` | `6` | Limite de tentativas; aceita 1 a 20 |
