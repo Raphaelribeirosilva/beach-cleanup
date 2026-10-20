@@ -40,3 +40,21 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Private local configuration, exports and signing material.
+.env
+.env.*
+*.env
+!.env.example
+*.zip
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.sql.gz
+*.dump
+*.sqlite
+*.sqlite3
+*.mv.db
