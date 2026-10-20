@@ -54,7 +54,7 @@
     $('personal-menu').hidden = !signed;
     $('impact').hidden = !signed || !['mine', 'collections'].includes(state.view);
     $('admin-tab').hidden = api.session()?.role !== 'ADMIN';
-    $('account-name').textContent = state.profile?.name || 'Minha conta';
+    $('account-name').textContent = state.profile?.name ? `Olá, ${state.profile.name}` : 'Olá';
     $('total-kg').textContent = state.profile ? kg(state.profile.totalCollectedKg) : '—';
     $('total-events').textContent = state.totalRegistrations;
   }
@@ -178,6 +178,17 @@
   }
   async function load() {
     const generation = ++state.generation;
+    if (['home', 'admin', 'reports'].includes(state.view) && api.session() && !state.profile) {
+      try {
+        const profile = await api.profile();
+        if (generation !== state.generation) return false;
+        state.profile = profile;
+        syncAccount();
+      } catch (error) {
+        if (generation === state.generation) notify(error.message, true);
+      }
+      if (generation !== state.generation) return false;
+    }
     if (state.view === 'home') { state.loading = false; return true; }
     if (state.view === 'admin') { state.loading = false; return admin.load(); }
     if (state.view === 'reports') return loadReport(generation);
