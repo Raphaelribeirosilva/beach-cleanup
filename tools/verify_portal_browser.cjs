@@ -183,6 +183,11 @@ async function main() {
     await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 960, deviceScaleFactor: 1, mobile: false });
     await cdp('Page.navigate', { url: base });
     await waitFor('document.body.dataset.page === "home" && !document.querySelector("#home-content").hidden');
+    await waitFor('document.querySelector(".coast-photo img").complete && document.querySelector(".coast-photo img").naturalWidth > 0');
+    assert.equal((await fetch(`${base}/images/web/praia-de-camburi-480.jpg`)).status, 200, 'Optimized photos are public');
+    assert.equal((await fetch(`${base}/images/web/praia-de-camburi-480.jpg`, {method:'HEAD'})).status, 200);
+    assert.ok([401,403].includes((await fetch(`${base}/images/web/praia-de-camburi-480.jpg`, {method:'POST'})).status), 'Photo routes do not allow writes');
+    assert.equal((await fetch(`${base}/images/praia-de-camburi.jpg`)).status, 401, 'Original photos are not added to the public allowlist');
     assert.equal(await evaluate('document.querySelector("#workspace").hidden'), true, 'Home and event search are separate views');
     await checkAccessibility('home-desktop');
     await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }).then(result => fs.writeFileSync(path.join(root, 'target', 'elo-home.png'), Buffer.from(result.data, 'base64')));
@@ -202,7 +207,22 @@ async function main() {
     assert.equal(await evaluate('location.hash'), '#/mutiroes');
     assert.equal(await evaluate('document.querySelector(".hero").hidden'), true, 'Event search opens without a landing hero above it');
     await click('[data-view=reports]');
-    await waitFor('document.querySelector("#report-results table") !== null');
+    await waitFor('document.querySelectorAll("#report-summary .report-metric").length === 3 && document.querySelector("#report-results").getAttribute("aria-busy") === "false"');
+    assert.ok(await evaluate('document.querySelector("#report-summary").getBoundingClientRect().top < document.querySelector("#report-filters").getBoundingClientRect().top'), 'Totals precede filters and details');
+    await evaluate('document.querySelector("#report-filters [name=eventId]").closest("label").querySelector(".choice-trigger").focus()');
+    await key('Enter','Enter');
+    await cdp('Input.insertText', {text:'Mutirão navegador 1'});
+    await waitFor('document.querySelector(".choice-popup:popover-open .choice-list").children.length === 1');
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','impact-event-picker.png'),Buffer.from(result.data,'base64')));
+    await key('Enter','Enter');
+    const selectedReportEvent = await evaluate('document.querySelector("#report-filters [name=eventId]").value');
+    assert.match(selectedReportEvent, /^\d+$/, 'Search by name retains a numeric event ID');
+    await click('#report-filters [type=submit]');
+    await waitFor('document.querySelector("#report-results").getAttribute("aria-busy") === "false" && document.querySelector("#report-results .empty") !== null');
+    assert.ok(await evaluate(`performance.getEntriesByType('resource').some(entry => { const url = new URL(entry.name); return url.pathname === '/reports/impact' && url.searchParams.get('eventId') === ${JSON.stringify(selectedReportEvent)}; })`), 'Report API receives the selected ID');
+    await checkAccessibility('impact-empty-desktop');
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','impact-empty-desktop.png'),Buffer.from(result.data,'base64')));
+    await fill('#report-filters [name=eventId]', '');
     await evaluate('history.back()');
     await waitFor('document.body.dataset.page === "events" && location.hash === "#/mutiroes" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await checkAccessibility('public-desktop');
@@ -293,7 +313,7 @@ async function main() {
       assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),`No horizontal page overflow at ${width}px`);
     }
     await cdp('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
-    assert.equal(await evaluate('document.title'), 'Mutirões · Elo do mar · Cada coleta conta');
+    assert.equal(await evaluate('document.title'), 'Mutirões · Elo do mar');
     // Operate the custom picker itself, including accent-insensitive search and keyboard choice.
     await click('#location-filters [name=state] + .choice .choice-trigger');
     await waitFor('document.querySelector(".choice-popup:popover-open") !== null');
@@ -336,7 +356,7 @@ async function main() {
     await click('#filters button[type=submit]');
     await waitFor('document.querySelectorAll(".card").length === 6');
     await click('[data-view=reports]');
-    await waitFor('document.querySelector("#report-results table") !== null');
+    await waitFor('document.querySelectorAll("#report-summary .report-metric").length === 3 && document.querySelector("#report-results").getAttribute("aria-busy") === "false"');
     assert.equal(await evaluate('document.querySelector("#auth-dialog").open'), false, 'Impact reports are public');
     assert.equal(await evaluate('document.querySelector("#report-results").textContent.includes("acesso administrativo")'), false);
     await click('[data-view=events]');
@@ -363,20 +383,22 @@ async function main() {
     await fill('#auth-form [name=email]', 'portal-browser@example.com');
     await fill('#auth-form [name=password]', 'portal-test-password');
     await click('#auth-submit');
-    await waitFor('!document.querySelector("#auth-dialog").open && !document.querySelector("#signed-account").hidden && document.querySelector("#account-name").textContent === "Voluntário navegador"');
+    await waitFor('!document.querySelector("#auth-dialog").open && !document.querySelector("#signed-account").hidden && document.querySelector("#account-name").textContent === "Olá, Voluntário navegador"');
     await waitFor('document.querySelector("#results").getAttribute("aria-busy") === "false"');
     assert.equal(await evaluate('location.hash'), '#/mutiroes', 'Login restores the page route after a verification link');
     await reloadPage();
-    await waitFor('document.querySelector("#account-name").textContent === "Voluntário navegador" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await waitFor('document.querySelector("#account-name").textContent === "Olá, Voluntário navegador" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('.card-actions .primary');
     await waitFor('document.querySelector("#total-events").textContent === "1" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     await click('[data-view=mine]');
     await waitFor('document.querySelectorAll(".card").length === 1 && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','registrations-desktop.png'),Buffer.from(result.data,'base64')));
     await click('.card-actions button:last-child');
     await waitFor('document.querySelector("#collection-dialog").open');
     await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:844,deviceScaleFactor:1,mobile:true});
     assert.ok(await evaluate('document.querySelector("#collection-dialog").scrollWidth <= document.querySelector("#collection-dialog").clientWidth'),'Collection form fits a 320px viewport');
     await checkAccessibility('collection-dialog-small');
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','collection-form-mobile.png'),Buffer.from(result.data,'base64')));
     await cdp('Emulation.setDeviceMetricsOverride',{width:1280,height:960,deviceScaleFactor:1,mobile:false});
     assert.equal(await evaluate('document.querySelector("#collection-form [name=beach]").disabled'), true);
     assert.equal(await evaluate('document.querySelector("#collection-form [name=registrationDate]").readOnly'), true);
@@ -463,21 +485,30 @@ async function main() {
     await fill('#auth-form [name=email]', 'portal-updated@example.com');
     await fill('#auth-form [name=password]', 'portal-test-password');
     await click('#auth-submit');
-    await waitFor('document.querySelector("#account-name").textContent === "Perfil atualizado"');
+    await waitFor('document.querySelector("#account-name").textContent === "Olá, Perfil atualizado"');
     await click('[data-view=reports]');
-    await waitFor('document.querySelector("#report-results table") !== null');
+    await waitFor('document.querySelectorAll("#report-summary .report-metric").length === 3 && document.querySelector("#report-results").getAttribute("aria-busy") === "false"');
     await fill('#report-filters [name=beachId]', 'Praia do navegador');
     await fill('#report-filters [name=from]', '2026-10-15');
     await fill('#report-filters [name=to]', '2026-10-15');
     await click('#report-filters [type=submit]');
-    await waitFor('document.querySelector("#report-results h3")?.textContent === "2,5 kg coletados"');
+    await waitFor('document.querySelector("#report-summary strong")?.textContent === "2,5 kg"');
     assert.equal(await evaluate('document.querySelectorAll("#report-results meter").length'), 1);
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile report must not overflow the page');
     await checkAccessibility('impact-mobile');
     await cdp('Page.captureScreenshot', { format: 'png' }).then(result => fs.writeFileSync(path.join(root, 'target', 'impact-mobile.png'), Buffer.from(result.data, 'base64')));
+    await cdp('Emulation.setDeviceMetricsOverride', {width:1280,height:960,deviceScaleFactor:1,mobile:false});
+    await evaluate('window.scrollTo(0,0)');
+    await checkAccessibility('impact-desktop');
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','impact-desktop.png'),Buffer.from(result.data,'base64')));
+    await cdp('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
     await click('[data-view=profile]');
     await waitFor('document.querySelector("#profile-form [name=name]").value === "Perfil atualizado"');
     await checkAccessibility('profile-mobile');
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','profile-mobile.png'),Buffer.from(result.data,'base64')));
+    await cdp('Emulation.setDeviceMetricsOverride', {width:1280,height:960,deviceScaleFactor:1,mobile:false});
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','profile-desktop.png'),Buffer.from(result.data,'base64')));
+    await cdp('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
     await fill('#password-form [name=currentPassword]', 'portal-test-password');
     await fill('#password-form [name=newPassword]', 'portal-new-password');
     await fill('#password-form [name=confirmation]', 'does-not-match');
@@ -490,7 +521,7 @@ async function main() {
     await fill('#auth-form [name=email]', 'portal-updated@example.com');
     await fill('#auth-form [name=password]', 'portal-new-password');
     await click('#auth-submit');
-    await waitFor('!document.querySelector("#auth-dialog").open && document.querySelector("#account-name").textContent === "Perfil atualizado"');
+    await waitFor('!document.querySelector("#auth-dialog").open && document.querySelector("#account-name").textContent === "Olá, Perfil atualizado"');
     await click('#logout');
     await waitFor('document.querySelector("#impact").hidden && !document.querySelector("#account").hidden');
     assert.equal(await evaluate('sessionStorage.getItem("beachcleanup.session.v2")'), null);
@@ -503,17 +534,17 @@ async function main() {
     await waitFor('!document.querySelector("#auth-error").hidden && !document.querySelector("#auth-submit").disabled');
     await fill('#auth-form [name=password]', 'ana123');
     await click('#auth-submit');
-    await waitFor('document.querySelector("#account-name").textContent === "Ana Silva"');
+    await waitFor('document.querySelector("#account-name").textContent === "Olá, Ana Silva"');
     await click('[data-view=collections]');
-    await waitFor('document.querySelector("#results").textContent.includes("Sua primeira coleta")');
+    await waitFor('document.querySelector("#results").textContent.includes("Nenhuma coleta registrada")');
     await reloadPage();
-    await waitFor('document.querySelector("#account-name").textContent === "Ana Silva" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await waitFor('document.querySelector("#account-name").textContent === "Olá, Ana Silva" && !document.querySelector("#signed-account").hidden && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
     // Expired access renews without login, but the absolute refresh deadline remains fixed.
     const beforeRenewal = await evaluate('JSON.parse(sessionStorage.getItem("beachcleanup.session.v2"))');
     await evaluate('(() => { const key = "beachcleanup.session.v2"; const saved = JSON.parse(sessionStorage.getItem(key)); saved.expiresAt = Date.now() - 1; sessionStorage.setItem(key, JSON.stringify(saved)); })()');
     await reloadPage();
-    await waitFor('document.querySelector("#account-name").textContent === "Ana Silva" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
+    await waitFor('document.querySelector("#account-name").textContent === "Olá, Ana Silva" && document.querySelector("#results").getAttribute("aria-busy") === "false"');
     const afterRenewal = await evaluate('JSON.parse(sessionStorage.getItem("beachcleanup.session.v2"))');
     assert.notEqual(afterRenewal.session.accessToken, beforeRenewal.session.accessToken);
     assert.notEqual(afterRenewal.session.refreshToken, beforeRenewal.session.refreshToken);
@@ -574,6 +605,8 @@ async function main() {
     await fill('#admin-form [name=city]', 'Santos');
     await fill('#admin-form [name=location]', 'Praia administrativa');
     await fill('#admin-form [name=dateTime]', '2026-10-15T09:00:00');
+    await checkAccessibility('admin-event-form-mobile');
+    await cdp('Page.captureScreenshot',{format:'png'}).then(result => fs.writeFileSync(path.join(root,'target','admin-event-form-mobile.png'),Buffer.from(result.data,'base64')));
     assert.deepEqual(await evaluate('[...document.querySelector("#admin-form [name=status]").options].map(o => o.value)'), ['Agendado']);
     const saveAdmin = () => click('#admin-form [type=submit]');
     const savedAdmin = async () => {
@@ -819,6 +852,19 @@ async function main() {
       assert.equal(saved.length, 2, 'Both materials must be saved exactly once');
       for (const record of saved) assert.equal((await request(`/trashCollection/${record.id}?version=${record.version}`, 'DELETE')).status, 204);
     }
+    // Search must reach events beyond the first API page, with the ID preserved.
+    let lastSearchEvent;
+    for (let i = 0; i < 101; i++) lastSearchEvent = await api('/cleanupEvent', {
+      ...eventInput, title: `Busca paginada ${String(i).padStart(3, '0')}`
+    }, admin.accessToken);
+    await click('[data-view=reports]');
+    await waitFor('document.querySelector("#report-results").getAttribute("aria-busy") === "false" && document.querySelector("#report-filters [name=eventId]").options.length > 101');
+    await evaluate('document.querySelector("#report-filters [name=eventId]").closest("label").querySelector(".choice-trigger").focus()');
+    await key('Enter','Enter');
+    await cdp('Input.insertText', {text:'Busca paginada 100'});
+    await waitFor('document.querySelector(".choice-popup:popover-open .choice-list").children.length === 1');
+    await key('Enter','Enter');
+    assert.equal(await evaluate('document.querySelector("#report-filters [name=eventId]").value'), String(lastSearchEvent.id));
     await click('#logout');
     await waitFor('document.querySelector("#admin-workspace").hidden && document.querySelector("#admin-results").textContent === ""');
     await click('#login-open');
@@ -834,7 +880,7 @@ async function main() {
     await fill('#auth-form [name=email]', 'ana@example.com');
     await fill('#auth-form [name=password]', 'ana123');
     await click('#auth-submit');
-    await waitFor('document.querySelector("#account-name").textContent === "Ana Silva"');
+    await waitFor('document.querySelector("#account-name").textContent === "Olá, Ana Silva"');
     assert.equal(await evaluate('document.querySelector("#admin-tab").hidden'), true);
     await evaluate('document.querySelector("#admin-tab").hidden = false');
     await click('#admin-tab');

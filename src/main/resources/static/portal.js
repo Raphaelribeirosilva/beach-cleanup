@@ -67,6 +67,7 @@
     $('profile-form').reset();
     $('password-form').reset();
     $('report-results').replaceChildren();
+    $('report-summary').replaceChildren();
     if ($('collection-dialog').open) $('collection-dialog').close();
     state.registrations = [];
     state.totalRegistrations = 0;
@@ -102,24 +103,24 @@
     $('profile-workspace').hidden = !profile;
     $('results').hidden = administrative || reports || profile;
     $('collection-open').hidden = administrative || reports || profile;
+    $('collection-open').classList.toggle('primary', state.view === 'collections');
+    $('collection-open').classList.toggle('outline', state.view !== 'collections');
     if (administrative || reports || profile) $('pagination').hidden = true;
     $('filters').hidden = !events;
     const pages = {
-      events: ['Mutirões', 'Encontre seu lugar nessa mudança', 'Encontre sua próxima ação', 'Escolha o Estado, a cidade e a praia. Sua próxima ação pode estar bem perto.'],
-      reports: ['Nosso impacto', 'Cada ação deixa uma boa marca', 'Um oceano de pequenas mudanças', 'Acompanhe o que já retiramos da natureza, juntos.'],
-      mine: ['Minhas inscrições', 'Você faz parte dessa maré', 'Seus próximos encontros com o mar', 'Acompanhe os mutirões em que você se inscreveu.'],
-      collections: ['Minhas coletas', 'Seu cuidado em movimento', 'Cada coleta conta', 'Registre e acompanhe o que você já retirou da natureza.'],
-      profile: ['Meu perfil', 'Seu espaço no Elo do mar', 'Bom ter você por aqui', 'Cuide dos seus dados e mantenha sua conta atualizada.'],
-      admin: ['Administração', 'Conecte pessoas a boas ações', 'Organize a próxima mudança', 'Gerencie mutirões, praias e os registros da comunidade.']
+      events: ['Mutirões', 'Agenda de limpeza', 'Mutirões', 'Busque por estado, cidade e praia. Confira a data e inscreva-se para participar.'],
+      reports: ['Impacto', 'Resultados das coletas', 'Impacto', 'Consulte o peso registrado, as coletas e os voluntários por período e local.'],
+      mine: ['Minhas inscrições', 'Área do voluntário', 'Minhas inscrições', 'Consulte os eventos em que você se inscreveu ou cancele uma inscrição.'],
+      collections: ['Minhas coletas', 'Área do voluntário', 'Minhas coletas', 'Registre os materiais e o peso recolhido. Consulte e atualize suas coletas.'],
+      profile: ['Meu perfil', 'Área do voluntário', 'Meu perfil', 'Atualize seu nome, e-mail e senha.'],
+      admin: ['Administração', 'Gestão da plataforma', 'Administração', 'Gerencie eventos, usuários, praias, materiais e registros de coleta.']
     };
     const page = pages[state.view] || pages.events;
     $('page-label').textContent = page[0];
     $('page-eyebrow').textContent = page[1];
     $('page-description').textContent = page[3];
-    $('workspace-title').textContent = events ? 'Encontre sua próxima ação'
-      : administrative ? 'Administração dos mutirões'
-      : reports ? page[2] : profile ? page[2] : state.view === 'mine' ? page[2] : 'Cada coleta conta';
-    document.title = `${home ? 'Elo do mar' : page[0] + ' · Elo do mar'} · Cada coleta conta`;
+    $('workspace-title').textContent = page[2];
+    document.title = home ? 'Elo do mar · Limpeza de praias' : `${page[0]} · Elo do mar`;
   }
   function empty(title, description) {
     const box = node('div', 'empty');
@@ -142,17 +143,21 @@
   }
   function eventCard(event) {
     const registered = state.registrations.some(item => item.id === event.id);
-    const card = node('article', 'card');
+    const card = node('article', 'card event-card');
     const top = node('div', 'card-top');
-    top.append(node('span', 'badge', event.status), node('span', 'card-id', `Mutirão #${event.id}`));
+    top.append(node('span', 'badge', event.status === 'Concluido' ? 'Concluído' : event.status),
+      node('span', registered ? 'registration-state registered' : 'registration-state', registered ? 'Inscrição confirmada' : activeEvent(event) ? 'Inscrições abertas' : 'Inscrições encerradas'));
     const body = node('div', 'card-body');
-    body.append(node('h3', '', event.title), node('p', '', `⌖ ${window.PortalLocations.label(event.location)}${event.city ? ` · ${event.city}/${event.state}` : ''}`), node('p', '', `◷ ${date(event.dateTime)}`));
+    const time = node('time', 'event-date', date(event.dateTime));
+    if (event.dateTime) time.dateTime = event.dateTime;
+    body.append(node('h3', '', event.title), time,
+      node('p', 'event-place', window.PortalLocations.label(event.location)),
+      node('p', 'event-city', event.city ? `${event.city}${event.state ? ` / ${event.state}` : ''}` : 'Cidade não informada'));
     const actions = node('div', 'card-actions');
-    if (registered || activeEvent(event)) actions.append(action(registered ? 'Cancelar inscrição' : 'Quero participar',
+    if (registered || activeEvent(event)) actions.append(action(registered ? 'Cancelar inscrição' : 'Inscrever-se',
       () => registrationAction(event, registered), !registered));
     else body.append(node('p', '', 'Este evento não aceita novas inscrições.'));
     if (activeEvent(event)) actions.append(action('Registrar coleta', () => openCollection(event)));
-    if (registered) body.append(node('p', '', '✓ Você está inscrito neste evento.'));
     body.append(actions);
     card.append(top, body);
     return card;
@@ -239,11 +244,11 @@
       syncAccount();
       const records = view === 'mine' ? registrations : result.content;
       if (!records.length && state.page > 0) { state.page--; return load(); }
-      if (!records.length) empty(view === 'mine' ? 'Sua próxima ação está por vir.'
-        : view === 'collections' ? 'Sua primeira coleta começa aqui.' : 'Nenhum evento encontrado.',
+      if (!records.length) empty(view === 'mine' ? 'Você ainda não tem inscrições.'
+        : view === 'collections' ? 'Nenhuma coleta registrada.' : 'Nenhum evento encontrado.',
         view === 'mine' ? 'Explore os eventos e escolha um mutirão para participar.'
           : view === 'collections' ? 'Registre o que você retirou da praia para acompanhar seu impacto.'
-          : 'Tente outro local ou status. Novos mutirões aparecerão por aqui.');
+          : 'Tente outro local ou status para consultar os eventos cadastrados.');
       else $('results').replaceChildren(...records.map(view === 'collections' ? collectionCard : eventCard));
       state.pages = (view === 'mine' ? registrationPage.totalPages : result?.totalPages) || 0;
       $('pagination').hidden = state.pages < 2;
@@ -325,8 +330,8 @@
     $('auth-form').elements.name.required = state.signup;
     $('auth-form').elements.password.minLength = state.signup ? 7 : 1;
     $('auth-form').elements.password.autocomplete = state.signup ? 'new-password' : 'current-password';
-    $('auth-title').textContent = state.signup ? 'Comece a fazer a diferença.' : 'Que bom ter você aqui.';
-    $('auth-description').textContent = state.signup ? 'Crie sua conta para cuidar das praias com a gente.'
+    $('auth-title').textContent = state.signup ? 'Criar conta' : 'Entrar na sua conta';
+    $('auth-description').textContent = state.signup ? 'Cadastre-se para se inscrever em mutirões e registrar suas coletas.'
       : 'Entre para participar dos eventos e acompanhar suas coletas.';
     $('auth-submit').textContent = state.signup ? 'Criar minha conta' : 'Entrar';
     $('auth-switch').textContent = state.signup ? 'Já tenho uma conta' : 'Ainda não tenho uma conta';

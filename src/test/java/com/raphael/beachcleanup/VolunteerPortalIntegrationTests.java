@@ -38,6 +38,20 @@ class VolunteerPortalIntegrationTests {
     }
 
     @Test
+    void optimizedPhotosArePublicReadOnlyAndOriginalsStayPrivate() throws Exception {
+        for (int width : new int[] {480, 960, 1440}) {
+            String path = "/images/web/praia-de-camburi-" + width + ".jpg";
+            mvc.perform(get(path)).andExpect(status().isOk())
+                .andExpect(content().contentType("image/jpeg"));
+            mvc.perform(head(path)).andExpect(status().isOk());
+            mvc.perform(post(path)).andExpect(status().isForbidden());
+            mvc.perform(delete(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isForbidden());
+        }
+        mvc.perform(get("/images/praia-de-camburi.jpg")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void openingThePortalDoesNotExposePrivateApiOrOtherStaticPaths() throws Exception {
         for (String path : new String[] {"/users", "/users/me/events", "/trashCollection/search",
                 "/unlisted-file.js"}) {

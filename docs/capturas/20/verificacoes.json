@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-20",
+  "environment": "Edge headless, API local, H2 descartavel",
+  "stages": [
+    {
+      "stage": "home-desktop",
+      "failures": [],
+      "controls": 102
+    },
+    {
+      "stage": "home-mobile",
+      "failures": [],
+      "controls": 102
+    },
+    {
+      "stage": "impact-empty-desktop",
+      "failures": [],
+      "controls": 121
+    },
+    {
+      "stage": "public-desktop",
+      "failures": [],
+      "controls": 121
+    },
+    {
+      "stage": "login-dialog",
+      "failures": [],
+      "controls": 9
+    },
+    {
+      "stage": "login-error",
+      "failures": [],
+      "controls": 9
+    },
+    {
+      "stage": "signup-required-errors",
+      "failures": [],
+      "controls": 9
+    },
+    {
+      "stage": "signup-email-conflict",
+      "failures": [],
+      "controls": 9
+    },
+    {
+      "stage": "beach-picker",
+      "failures": [],
+      "controls": 121
+    },
+    {
+      "stage": "collection-dialog-small",
+      "failures": [],
+      "controls": 31
+    },
+    {
+      "stage": "impact-mobile",
+      "failures": [],
+      "controls": 121
+    },
+    {
+      "stage": "impact-desktop",
+      "failures": [],
+      "controls": 121
+    },
+    {
+      "stage": "profile-mobile",
+      "failures": [],
+      "controls": 121
+    },
+    {
+      "stage": "admin-event-form-mobile",
+      "failures": [],
+      "controls": 16
+    },
+    {
+      "stage": "admin-mobile",
+      "failures": [],
+      "controls": 131
+    },
+    {
+      "stage": "admin-multiple-materials",
+      "failures": [],
+      "controls": 28
+    },
+    {
+      "stage": "multiple-materials",
+      "failures": [],
+      "controls": 31
+    }
+  ]
+}
