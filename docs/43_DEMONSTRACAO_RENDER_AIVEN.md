@@ -2,6 +2,8 @@
 
 Consulta às fontes oficiais: 21/10/2026. Este roteiro publica o frontend estático e a API no **mesmo Web Service Docker**, preservando chamadas relativas e a mesma origem. Não precisa de Static Site separado, CORS adicional ou domínio pago para o site.
 
+Situação informada pelo usuário na revisão: MySQL Free já criado no Aiven, repositório conectado ao Render e formulário de Web Service ainda sem deploy. A configuração para preencher esse formulário está na **etapa 3**. O adaptador Brevo HTTPS já está implementado; a habilitação da conta, remetente e chave de API continua dependendo do painel. Não foi necessário alterar novamente o código de execução nesta revisão.
+
 ## Estado do projeto e decisões
 
 - Spring Boot 4.1.1, Java 25, Connector/J 9.7.0 e Flyway 12.4.0 gerenciados pelo BOM; MySQL com `ddl-auto=validate`, migrações V1–V16 e fila persistente de e-mail.
@@ -70,32 +72,57 @@ Depois da etapa 1, criar conta Free, completar as informações solicitadas e co
 O commit local precisa estar disponível no repositório remoto. **Fazer push somente depois de autorização explícita para esse envio.** Pode-se conectar repositório privado ao Render; não é necessário torná-lo público.
 
 1. No Render, criar workspace Hobby, New > Web Service, conectar o repositório e escolher a branch/commit conferido.
-2. Runtime **Docker**, Dockerfile `./Dockerfile`, contexto raiz do projeto (a pasta que contém `pom.xml`). Selecionar **Free**. Região próxima à oferecida pelo Aiven, quando disponível. Deixar Docker Command vazio para usar o entrypoint.
+2. Preencher os campos exatamente como abaixo. A árvore Git conferida tem `Dockerfile`, `pom.xml`, `src/` e `deploy/` diretamente na raiz; os diretórios repetidos no caminho Windows não fazem parte do caminho no repositório.
+
+   | Campo Render | Valor |
+   | --- | --- |
+   | Language / Runtime | `Docker` |
+   | Branch | `main`, contendo o commit de preparação `7570576` ou seu descendente |
+   | Root Directory | **Deixar vazio** |
+   | Dockerfile Path | `./Dockerfile` |
+   | Docker Build Context Directory, se exibido | `.` |
+   | Docker Command | **Deixar vazio**; o entrypoint prepara a CA e inicia o JAR |
+   | Instance Type | `Free` |
+   | Health Check Path | `/actuator/health/readiness` |
+
+   Não cadastrar comandos Maven/Java nos campos de início: o Dockerfile já define compilação e execução com Java 25. Não é necessário definir `JAVA_VERSION`. Escolher região próxima à do Aiven, quando disponível.
 3. Health Check Path: `/actuator/health/readiness`. A resposta não expõe detalhes. Desativar auto-deploy durante a validação para controlar cada implantação.
-4. Em Environment > Secret Files criar `aiven-ca.pem` com o conteúdo PEM completo da CA. Render disponibiliza `/etc/secrets/aiven-ca.pem`. Não colocá-la no Dockerfile, Git ou build args.
+4. Em Secret Files (Advanced no formulário, se disponível, ou Environment > Secret Files do serviço) criar um arquivo chamado exatamente `aiven-ca.pem`. No Aiven, abrir o serviço MySQL > Overview > Connection information e baixar o CA certificate do projeto, frequentemente chamado `ca.pem`. Colar seu conteúdo PEM completo no arquivo do Render, incluindo `-----BEGIN CERTIFICATE-----` e `-----END CERTIFICATE-----`, com quebras de linha reais. Não colar o caminho do arquivo, a URI do banco, uma chave privada, Base64 do arquivo inteiro ou texto com `\\n` literal. Render disponibiliza `/etc/secrets/aiven-ca.pem`. Não colocá-la no Dockerfile, Git ou build args. A CA é pública, mas usamos Secret File para configurá-la fora do repositório. Sua ausência ou um PEM inválido impede a inicialização; não contornar removendo a validação TLS.
 5. Inserir as variáveis abaixo. Usar o nome real atribuído ao serviço para a origem HTTPS. Gerar um JWT novo no painel/gerenciador de segredos, sem reutilizar o local.
 6. Criar/deployar e acompanhar logs. Confirmar Java 25, perfis `prod,mysql,render`, migrações até V16 e aplicação iniciada. Se ocorrer erro de CA, hostname, permissões ou migration, corrigir a causa; não desativar validação TLS.
 
-| Variável | Valor/fonte |
-| --- | --- |
-| `SPRING_PROFILES_ACTIVE` | `prod,render` (o grupo prod inclui mysql) |
-| `DB_HOST` | Host DNS Aiven, sem protocolo, porta, query ou credenciais |
-| `DB_PORT` | Porta indicada pelo Aiven; não presumir 3306 |
-| `DB_NAME` | `defaultdb` ou banco novo selecionado |
-| `DB_USER`, `DB_PASSWORD` | Credenciais somente no painel |
-| `JWT_SECRET` | Base64 de pelo menos 32 bytes aleatórios exclusivos (não uma frase ou UUID) |
-| `BREVO_API_KEY` | Chave da API HTTPS Brevo |
-| `ACCOUNT_MAIL_FROM` | Endereço cadastrado/verificado no Brevo |
-| `ACCOUNT_PUBLIC_BASE_URL` | `https://NOME-REAL.onrender.com`, sem barra/caminho/query |
-| `PUBLIC_ACCESS_ENABLED` | `false` durante testes; `true` após validação |
-| `MAIL_DELIVERY_VALIDATED` | `false` inicialmente; `true` somente após entrega comprovada |
-| `PORT` | Fornecida pelo Render; não precisa cadastrar |
+| Variável | Valor / onde obter | Secreta? |
+| --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE` | Literal `prod,render` (o grupo prod inclui mysql) | Não |
+| `DB_HOST` | Aiven > serviço > Overview > Connection information > Host; somente DNS | Não, mas não precisa divulgar |
+| `DB_PORT` | Port na mesma tela; não presumir 3306 | Não |
+| `DB_NAME` | Database name na mesma tela ou banco criado em Databases; geralmente `defaultdb` | Não |
+| `DB_USER` | User na mesma tela, com acesso ao banco e permissões de migração | Identificador de credencial: manter privado |
+| `DB_PASSWORD` | Password do usuário Aiven | **Sim** |
+| `JWT_SECRET` | Gerar exclusivamente para esta implantação: Base64 de pelo menos 32 bytes aleatórios | **Sim** |
+| `BREVO_API_KEY` | Brevo > SMTP & API > API Keys > criar chave; não usar SMTP key ou senha Gmail | **Sim** |
+| `ACCOUNT_MAIL_FROM` | Brevo > Settings > Senders, Domains, IPs > Senders; endereço verificado | Não; aparece nas mensagens |
+| `ACCOUNT_PUBLIC_BASE_URL` | URL HTTPS real atribuída ao serviço Render, sem barra final/caminho/query | Não |
+| `PUBLIC_ACCESS_ENABLED` | Literal `false` durante testes; `true` após validação | Não |
+| `MAIL_DELIVERY_VALIDATED` | Literal `false` inicialmente; `true` somente após entrega comprovada | Não |
+| `PORT` | Fornecida pelo Render; **não cadastrar manualmente** | Não |
+
+Para gerar `JWT_SECRET` no seu PowerShell e copiar diretamente para a área de transferência, sem gravar em arquivo ou exibir no terminal:
+
+```powershell
+$jwtBytes = New-Object byte[] 32
+$jwtGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try { $jwtGenerator.GetBytes($jwtBytes) } finally { $jwtGenerator.Dispose() }
+[Convert]::ToBase64String($jwtBytes) | Set-Clipboard
+```
+
+Cole somente no valor de `JWT_SECRET` no Render. Não use o botão genérico de gerar string do painel sem verificar o formato: esta aplicação exige Base64 que decodifique em pelo menos 32 bytes. Não envie esse valor no chat. Confirme a URL atribuída pelo Render antes de testar os links de conta; não presuma que o nome solicitado estará disponível sem sufixo.
 
 `DB_TRUSTSTORE_URL` é gerada pelo entrypoint. Não definir `DB_URL`, `SPRING_DATASOURCE_URL`, `SPRING_FLYWAY_URL`, Gmail ou overrides TLS. O exemplo sem segredos está em [deploy/render.env.example](../deploy/render.env.example).
 
 `PUBLIC_ACCESS_ENABLED=false` é uma declaração de prontidão, **não um bloqueio de rede**: o Web Service já tem URL acessível durante a homologação. Não divulgar o link antes dos testes. A aplicação confia nos headers do proxy Render; validar HTTPS/IP do cliente no ambiente hospedado e não expor diretamente o container fora desse proxy usando essa configuração.
 
-Fontes: [Web Services/porta](https://render.com/docs/web-services), [secrets](https://render.com/docs/configure-environment-variables).
+Fontes: [Web Services/porta](https://render.com/docs/web-services), [Docker](https://render.com/docs/docker), [Root Directory](https://render.com/docs/monorepo-support), [secrets](https://render.com/docs/configure-environment-variables).
 
 ## Etapa 4 — validar o link antes do LinkedIn
 
@@ -130,3 +157,30 @@ O primeiro comando completo gerou os 195 relatórios e o JAR, mas o invólucro P
 Logs locais (ignorados pelo Git): `target/render-full-validation.log`, `target/render-final-package.log`, `target/render-js-tests.log`, `target/render-browser-final.log` e `target/surefire-reports/`. A primeira tentativa de navegador falhou por restrições do sandbox ao Edge; a execução final com a permissão necessária terminou com código zero e resultado PASS.
 
 **Ainda não executado:** build/run Docker (Docker indisponível nesta máquina), CI remoto MySQL 8.4, conexão Aiven, testes negativos de handshake com CA/hostname inválidos, memória/cold start no Render, entrega Brevo real, confirmação/recuperação pela URL HTTPS hospedada e persistência após redeploy. Os mocks não comprovam aprovação de conta, cota disponível, autenticação do domínio ou entrega externa. A demonstração só estará validada após a etapa 4.
+
+## Revalidação com o formulário Render aberto — 21/10/2026
+
+Revisão sobre o código do commit `7570576`, com alterações locais preexistentes preservadas. A raiz foi confirmada com `git ls-tree --name-only HEAD` e `git rev-parse --show-prefix`: `Dockerfile` e `pom.xml` estão na raiz Git, não em um subdiretório `beachcleanup`. A referência local de `origin/main` estava seis commits atrás antes deste registro; é uma referência em cache, não uma consulta atual ao GitHub. Conectar o repositório no Render não envia os commits locais. Conferir a presença de `7570576` ou de seu descendente na branch remota antes do deploy. Nenhum push foi executado.
+
+Verificações executadas novamente nesta revisão:
+
+| Verificação | Resultado |
+| --- | --- |
+| Maven offline `verify`, Java 25.0.2 | **38 testes aprovados**, zero falhas/erros/ignorados; BUILD SUCCESS e JAR reempacotado. |
+| Escopo Java | RenderConfig, ProductionConfig, AccountPolicy, BrevoMailTransport, AccountRecoveryIntegration, AccountMailQueueIntegration, CatalogMigration, WeightMigration e PersistentDatabaseIntegration. Configuração, mensagens HTTPS simuladas, confirmação/recuperação, fila e migrações H2. |
+| OpenAPI | 29 caminhos e 40 operações aprovados. |
+| Python | 12 testes aprovados. |
+| JavaScript | 29 testes aprovados. |
+| Shell | Sintaxe do entrypoint aprovada com `bash -n`. |
+
+Logs desta execução: `target/render-predeploy-java.log`, `target/render-predeploy-js.log` e XML das nove classes em `target/surefire-reports/`; todos ignorados pelo Git. Os resultados da suíte completa de 195 testes, MySQL temporário e navegador na seção anterior pertencem à preparação anterior e **não foram reexecutados nesta revisão documental**. Nenhum banco MySQL, local ou Aiven, foi acessado nesta revalidação. Docker continua indisponível localmente.
+
+Antes do primeiro deploy, o usuário ainda precisa:
+
+1. Confirmar `Running` e versão do MySQL no Aiven, banco de demonstração vazio e usuário com permissões para V1–V16. Não copiar o banco local.
+2. Habilitar o envio transacional Brevo, verificar o remetente, configurar domínio quando aplicável e criar API key. Usar o caminho sem domínio somente se a conta aceitar a substituição de remetente documentada pelo Brevo.
+3. Cadastrar as variáveis e o Secret File descritos na etapa 3, incluindo JWT novo e URL HTTPS real do Render. Não definir credenciais em build args nem ativar Gmail SMTP.
+4. Garantir que os commits estejam no remoto: autorizar um push separado ou realizá-lo pessoalmente após revisar os commits. Esta revisão não autoriza envio nem deploy automático.
+5. Conferir Root Directory vazio, `./Dockerfile`, contexto `.`, plano Free, health check e acesso de rede do Render ao Aiven (IP filter, caso restrito).
+
+Manter os dois indicadores de prontidão como `false` no primeiro deploy de homologação. Após subir, validar TLS/Flyway e os dois fluxos com e-mails reais antes de marcar os indicadores como `true` e divulgar o link. Como explicado acima, os indicadores não tornam a URL privada.
