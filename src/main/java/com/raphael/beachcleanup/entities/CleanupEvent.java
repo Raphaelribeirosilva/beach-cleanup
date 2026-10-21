@@ -37,6 +37,8 @@ public class CleanupEvent implements Serializable{
     private Long rowVersion;
 	
 	private String title;
+    @Column(length = 2000)
+    private String description;
 	private String location;
 
     @jakarta.persistence.ManyToOne
@@ -82,6 +84,9 @@ public class CleanupEvent implements Serializable{
 	public String getTitle() {
 		return title;
 	}
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
 	public void setTitle(String title) {
 		this.title = title;

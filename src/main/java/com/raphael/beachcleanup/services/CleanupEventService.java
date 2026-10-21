@@ -93,7 +93,10 @@ public class CleanupEventService {
         if (!entity.getStatus().equals(next.value()))
             audit.record("EVENT", id, "STATE_CHANGE", null, null, null, null, null, entity.getStatus(), next.value());
         updateData(entity, obj);
-        return repository.saveAndFlush(entity);
+        // lockedEvent returns a managed entity. Flush dirty checking directly; merging
+        // it after refresh can replace newly persisted collections in this transaction.
+        repository.flush();
+        return entity;
     }
 
     private void resolveCatalogs(CleanupEvent obj) {

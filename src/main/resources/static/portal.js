@@ -158,6 +158,7 @@
     body.append(node('h3', '', event.title), time,
       node('p', 'event-place', window.PortalLocations.label(event.location)),
       node('p', 'event-city', event.city ? `${event.city}${event.state ? ` / ${event.state}` : ''}` : 'Cidade não informada'));
+    if (event.description) body.append(node('p', 'event-description', event.description));
     const actions = node('div', 'card-actions');
     if (registered || activeEvent(event)) actions.append(action(registered ? 'Cancelar inscrição' : 'Inscrever-se',
       () => registrationAction(event, registered), !registered));

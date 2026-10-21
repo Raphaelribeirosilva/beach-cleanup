@@ -36,6 +36,12 @@ import com.raphael.beachcleanup.services.*;
 
 /** Opt-in tests. Every test creates its own schema on an explicitly configured disposable server. */
 class MySqlDatabaseIT {
+    @Test void demoDataSurvivesRestartsOnMySql() throws Exception {
+        DemoDataAssertions.lifecycle(url, username, password, true);
+    }
+    @Test void demoDataIsAtomicAndSerializedOnMySql() throws Exception {
+        DemoDataAssertions.atomicAndConcurrent(url, username, password, true);
+    }
     @org.junit.jupiter.api.io.TempDir Path legacyScripts;
     private String serverUrl;
     private String username;
@@ -107,7 +113,7 @@ class MySqlDatabaseIT {
             fixed.repair();
             fixed.migrate();
             fixed.validate();
-            assertEquals(16, fixed.info().applied().length);
+            assertEquals(17, fixed.info().applied().length);
             assertEquals(originalUsers, tableRows(connection,"tb_user",
                 "id,name,email,password,role,credential_version,row_version,total_collected_kg"));
             assertEquals(global, scalar(sql,"SELECT @@GLOBAL.explicit_defaults_for_timestamp"));
@@ -321,7 +327,7 @@ class MySqlDatabaseIT {
                 assertThrows(com.raphael.beachcleanup.exceptions.FieldValidationException.class, () -> context.getBean(AccountActionService.class).verify(oldAction));
                 assertEquals(2.5, context.getBean(CollectedTotalsService.class).user(owner).getTotalCollectedKg().doubleValue());
                 assertEquals(eventId, context.getBean(EventRegistrationService.class).findMyEvents(userId).getFirst().id());
-                assertEquals(16, context.getBean(Flyway.class).info().applied().length);
+                assertEquals(17, context.getBean(Flyway.class).info().applied().length);
                 var proof = java.util.Map.of("scope","disposable MySQL local restore", "status","passed",
                     "allTablesCompared",comparedTables,"sessionsQuarantined",true,"oldAccessAndRefreshRejected",true,
                     "oldAccountLinksRejected",true,"applicationLoginAndTotals","passed",
@@ -344,7 +350,7 @@ class MySqlDatabaseIT {
 
     @Test
     void runtimeAccountCanOperateWithoutSchemaOrGlobalPrivileges() throws Exception {
-        try (var migrated=start()) { assertEquals(16, migrated.getBean(Flyway.class).info().applied().length); }
+        try (var migrated=start()) { assertEquals(17, migrated.getBean(Flyway.class).info().applied().length); }
         String account="beach_app_"+UUID.randomUUID().toString().replace("-", "").substring(0,12);
         try (var root=DriverManager.getConnection(serverUrl,username,password); var sql=root.createStatement()) {
             sql.executeUpdate("create user '"+account+"'@'localhost' identified by 'discardable-runtime-test-password'");
@@ -455,7 +461,7 @@ class MySqlDatabaseIT {
             collection.setRegistrationDate(event.getDateTime().toLocalDate());
             collection.setEvent(event);
             context.getBean(TrashCollectionService.class).insert(collection);
-            assertEquals(16, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(17, context.getBean(Flyway.class).info().applied().length);
             assertFalse(context.getEnvironment().getProperty("spring.jpa.open-in-view", Boolean.class));
         }
         try (var context = start()) {
@@ -498,7 +504,7 @@ class MySqlDatabaseIT {
                 """);
         }
         try (var context = start()) {
-            assertEquals(16, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(17, context.getBean(Flyway.class).info().applied().length);
             var owner = context.getBean(UserRepository.class).findById(101L).orElseThrow();
             var collection = context.getBean(TrashCollectionRepository.class).findById(303L).orElseThrow();
             assertEquals("hash-preservado", owner.getPassword());
@@ -569,7 +575,7 @@ class MySqlDatabaseIT {
         try (var context = start(url, false)) {
             var flyway = context.getBean(Flyway.class);
             flyway.validate();
-            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"), java.util.Arrays.stream(flyway.info().applied())
+            assertEquals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"), java.util.Arrays.stream(flyway.info().applied())
                 .map(migration -> migration.getVersion().toString()).toList());
             assertEquals(0, flyway.migrate().migrationsExecuted, "Restart/second migration must be a no-op");
             var jdbc = context.getBean(JdbcTemplate.class);
@@ -621,7 +627,7 @@ class MySqlDatabaseIT {
     void decimalUpgradeIsAuditedAndLegacyIssuesAreReportedOnRealMySql() throws Exception {
         WeightMigrationAssertions.verify(url, username, password);
         try (var context = start(url, false)) {
-            assertEquals(16, context.getBean(Flyway.class).info().applied().length);
+            assertEquals(17, context.getBean(Flyway.class).info().applied().length);
             assertEquals(101L, context.getBean(AuthService.class)
                 .login(new LoginDTO("legacy@example.com", "senha-antiga")).userId());
             var report = context.getBean(DataQualityService.class);

@@ -184,3 +184,7 @@ Antes do primeiro deploy, o usuário ainda precisa:
 5. Conferir Root Directory vazio, `./Dockerfile`, contexto `.`, plano Free, health check e acesso de rede do Render ao Aiven (IP filter, caso restrito).
 
 Manter os dois indicadores de prontidão como `false` no primeiro deploy de homologação. Após subir, validar TLS/Flyway e os dois fluxos com e-mails reais antes de marcar os indicadores como `true` e divulgar o link. Como explicado acima, os indicadores não tornam a URL privada.
+
+## Carga opcional de eventos fictícios
+
+O [guia de eventos de demonstração](44_EVENTOS_DE_DEMONSTRACAO.md) descreve a nova variável não secreta `DEMO_DATA_ENABLED=true`, a migração V17 e a conferência dos quatro exemplos. Ela é desabilitada por padrão e pode ser removida após o primeiro cadastro, preservando os eventos no Aiven. Os registros de testes e versões acima são históricos; consulte o guia novo para os resultados desta alteração.
