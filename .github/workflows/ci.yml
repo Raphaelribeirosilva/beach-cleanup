@@ -14,12 +14,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  docker-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build Java 25 container without deployment secrets
+        run: docker build --tag elo-do-mar:ci .
+
   verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        mysql: ['8.0', '8.4']
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:${{ matrix.mysql }}
         env:
           MYSQL_ROOT_PASSWORD: ci-only-password
           MYSQL_ROOT_HOST: '%'
@@ -63,7 +75,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports
+          name: test-reports-mysql-${{ matrix.mysql }}
           path: |
             target/surefire-reports/
             target/portal-performance-*.json

@@ -48,8 +48,8 @@ public class AccountMailWorker {
                     queue.complete(claim, mail != null);
                 } catch (Exception ignored) {
                     queue.retry(claim);
-                    // SMTP exception text can contain addresses and credentials. Do not log it.
-                    LOG.warn("Falha no envio de e-mail; tarefa={}, tentativa={}. Consulte a configuração SMTP e a fila.",
+                    // Transport exception text can contain addresses and credentials. Do not log it.
+                    LOG.warn("Falha no envio de e-mail; tarefa={}, tentativa={}. Consulte o provedor e a fila.",
                         claim.id(), claim.attempts());
                 }
             }

@@ -66,14 +66,21 @@ try {
     $env:MYSQL_TEST_CLIENT_BIN = $MySqlBin
     Write-Host "MySQL temporário: $version; porta $testPort."
     Push-Location (Join-Path $PSScriptRoot '..')
+    $previousErrorPreference = $ErrorActionPreference
     try {
+        # Windows PowerShell can turn native stderr warnings (e.g. Mockito on Java 25)
+        # into terminating errors when output is redirected. Maven's exit code is authoritative.
+        $null = Get-Command $MavenCommand, python -ErrorAction Stop
+        $ErrorActionPreference = 'Continue'
         & $MavenCommand @MavenArguments -B -Pmysql-it verify
-        if ($LASTEXITCODE -ne 0) { throw "A verificação Maven falhou (código $LASTEXITCODE)." }
+        $mavenExit = $LASTEXITCODE
+        if ($mavenExit -ne 0) { throw "A verificação Maven falhou (código $mavenExit)." }
         python tools/validate_openapi.py
         if ($LASTEXITCODE -ne 0) { throw 'A verificação OpenAPI falhou.' }
         python -m unittest discover -s tools -p 'test_*.py'
         if ($LASTEXITCODE -ne 0) { throw 'A conferência decimal da auditoria falhou.' }
     } finally {
+        $ErrorActionPreference = $previousErrorPreference
         Pop-Location
     }
 } finally {

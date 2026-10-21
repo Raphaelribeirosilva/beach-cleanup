@@ -15,8 +15,12 @@ public class AccountMailGateway {
     }
     private final AccountPolicy policy;
     private final ObjectProvider<JavaMailSender> sender;
+    private final BrevoMailTransport brevo;
     private final ConcurrentLinkedQueue<Mail> simulated = new ConcurrentLinkedQueue<>();
-    public AccountMailGateway(AccountPolicy policy, ObjectProvider<JavaMailSender> sender) { this.policy = policy; this.sender = sender; }
+    public AccountMailGateway(AccountPolicy policy, ObjectProvider<JavaMailSender> sender) {
+        this.policy = policy; this.sender = sender;
+        this.brevo = policy.mailMode.equals("brevo") ? new BrevoMailTransport(policy) : null;
+    }
     public boolean enabled() { return !policy.mailMode.equals("disabled"); }
     public List<Mail> simulatedMessages() {
         if (!policy.test || !policy.mailMode.equals("memory")) throw new IllegalStateException("Captura disponível somente no teste simulado.");
@@ -24,6 +28,7 @@ public class AccountMailGateway {
     }
     public void clearSimulated() { if (policy.test) simulated.clear(); }
     public void send(Mail mail) {
+        if (brevo != null) { brevo.send(mail); return; }
         if (policy.mailMode.equals("memory")) {
             simulated.add(mail); while (simulated.size() > 100) simulated.poll(); return;
         }
